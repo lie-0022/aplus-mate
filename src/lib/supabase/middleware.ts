@@ -58,6 +58,11 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  // Skip auth check if Supabase is not configured (demo mode)
+  if (supabaseUrl === 'https://placeholder.supabase.co') {
+    return response
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
 
   // Protected routes
