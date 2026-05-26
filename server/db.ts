@@ -323,14 +323,14 @@ export async function createMatchRequest(requesterId: number, receiverId: number
     throw new Error("이미 매칭 요청을 보냈습니다.");
   }
 
-  // Check if already in a team together for this course
-  const existingTeam = await db
+  const requesterTeamsInCourse = await db
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
-    .where(eq(teamMembers.userId, requesterId));
+    .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+    .where(and(eq(teamMembers.userId, requesterId), eq(teams.courseId, courseId)));
 
-  if (existingTeam.length > 0) {
-    const teamIds = existingTeam.map((t) => t.teamId);
+  if (requesterTeamsInCourse.length > 0) {
+    const teamIds = requesterTeamsInCourse.map((t) => t.teamId);
     const sharedTeam = await db
       .select()
       .from(teamMembers)
