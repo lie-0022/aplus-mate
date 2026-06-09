@@ -107,12 +107,16 @@ export async function updateUserProfile(
 
   await db.update(users).set(updateSet).where(eq(users.id, userId));
 
-  // Mark profile as completed if all required fields are set
+  // Mark profile as completed if all required fields are set.
+  // 게이트는 university/department/year만 요구한다.
+  // kakaoOpenChatUrl은 ProfileSetup에서 "(선택)"으로 들어오고, skillTags는 ProfileSetup에서
+  // 아예 수집하지 않는다(default []). 둘을 게이트에 포함하면 정상적으로 가입한 학생도
+  // profileCompleted=false에 영구 고정되어 매칭(createMatchRequest의 profileCompleted 검증)이
+  // 영영 열리지 않는다. kakao 연락처는 매칭 수락 후 단계에서 수집한다.
   const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (user.length > 0) {
     const u = user[0];
-    const completed =
-      !!u.university && !!u.department && !!u.year && !!u.kakaoOpenChatUrl && !!u.skillTags;
+    const completed = !!u.university && !!u.department && !!u.year;
     if (completed && !u.profileCompleted) {
       await db.update(users).set({ profileCompleted: true }).where(eq(users.id, userId));
     }
@@ -230,8 +234,9 @@ export async function getCourseStudents(courseId: number, semester?: string) {
   return db
     .select({
       user: {
+        // name(실명)은 매칭 전 단계에서 제외 — 자가등록만으로 같은 수업 실명 명단 수확 방지.
+        // 실명은 매칭 수락 후 getTeamDetail에서만 공개한다.
         id: users.id,
-        name: users.name,
         department: users.department,
         year: users.year,
         skillTags: users.skillTags,
@@ -273,8 +278,8 @@ export async function getCoursePosts(courseId: number, category?: string) {
     .select({
       post: posts,
       author: {
+        // 게시글은 "익명"으로 노출되므로 author 실명은 payload에서 제외.
         id: users.id,
-        name: users.name,
       },
     })
     .from(posts)
@@ -364,8 +369,8 @@ export async function getReceivedMatchRequests(userId: number) {
     .select({
       match: teamMatches,
       requester: {
+        // 매칭 수락 전이므로 요청자 실명은 제외(UI도 학과·학년·대학·스킬만 노출).
         id: users.id,
-        name: users.name,
         department: users.department,
         year: users.year,
         skillTags: users.skillTags,
@@ -393,6 +398,48 @@ export async function getPendingMatchCount(userId: number) {
     .from(teamMatches)
     .where(and(eq(teamMatches.receiverId, userId), eq(teamMatches.status, "pending")));
   return result[0]?.cnt ?? 0;
+}
+
+// 운영자 전용: 모든 pending 매칭을 요청자/수신자 연락정보·수업명과 함께 조회.
+// 매칭 수락을 수동 푸시할 때 "누가 누구에게 요청했나"를 DB 직접 쿼리 없이 본다.
+// (자기-조인 별칭 복잡성 회피 위해 매칭 조회 후 유저·수업을 별도 조회해 매핑.)
+export async function getPendingMatchesForAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  const matches = await db
+    .select()
+    .from(teamMatches)
+    .where(eq(teamMatches.status, "pending"))
+    .orderBy(desc(teamMatches.createdAt));
+  if (matches.length === 0) return [];
+
+  const userIds = Array.from(new Set(matches.flatMap((m) => [m.requesterId, m.receiverId])));
+  const courseIds = Array.from(new Set(matches.map((m) => m.courseId)));
+
+  const us = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      department: users.department,
+      year: users.year,
+      kakaoOpenChatUrl: users.kakaoOpenChatUrl,
+    })
+    .from(users)
+    .where(inArray(users.id, userIds));
+  const cs = await db
+    .select({ id: courses.id, name: courses.name, professor: courses.professor })
+    .from(courses)
+    .where(inArray(courses.id, courseIds));
+
+  const uMap = new Map(us.map((u) => [u.id, u]));
+  const cMap = new Map(cs.map((c) => [c.id, c]));
+
+  return matches.map((m) => ({
+    match: m,
+    requester: uMap.get(m.requesterId) ?? null,
+    receiver: uMap.get(m.receiverId) ?? null,
+    course: cMap.get(m.courseId) ?? null,
+  }));
 }
 
 export async function acceptMatch(matchId: number, userId: number) {

@@ -45,6 +45,8 @@ const BADGE_ICONS: Record<string, typeof Shield> = {
 };
 
 const CATEGORIES = ["족보", "과제팁", "후기", "스터디"] as const;
+// Courses.tsx와 동일 값 유지 (등록 학기). 추후 client/src/const.ts로 중앙화 가능.
+const CURRENT_SEMESTER = "2026-1";
 
 export default function CourseDetail() {
   const params = useParams<{ id: string }>();
@@ -65,7 +67,16 @@ export default function CourseDetail() {
     courseId,
     category: catFilter === "all" ? undefined : catFilter,
   });
-  const students = trpc.courses.students.useQuery({ courseId });
+  const myCourses = trpc.courses.myCourses.useQuery({ semester: CURRENT_SEMESTER });
+  const isEnrolled = !!myCourses.data?.some((c) => c.course.id === courseId);
+  // 미등록 상태에서는 students 쿼리를 호출하지 않는다 — courses.students는 미등록자에게
+  // throw(routers.ts:138)하므로 enabled로 막아 빈 탭/에러를 방지하고 등록 CTA를 먼저 보여준다.
+  // semester를 명시해 현재 학기 수강생만 노출(미지정 시 과거 학기 수강생까지 섞여 과거
+  // 수강생에게 커넥트가 가능해짐). isEnrolled·enroll·roster가 모두 CURRENT_SEMESTER로 일관.
+  const students = trpc.courses.students.useQuery(
+    { courseId, semester: CURRENT_SEMESTER },
+    { enabled: isEnrolled, retry: false }
+  );
 
   const createPost = trpc.posts.create.useMutation({
     onSuccess: () => {
@@ -85,6 +96,29 @@ export default function CourseDetail() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const enroll = trpc.courses.enroll.useMutation({
+    onSuccess: () => {
+      // 등록 직후 같은 화면에서 팀탭이 바로 활성화되도록 관련 쿼리 무효화.
+      utils.courses.myCourses.invalidate();
+      utils.courses.students.invalidate();
+      utils.courses.get.invalidate();
+      toast.success("수업에 등록했어요. 이제 팀원을 찾을 수 있어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleCopyInvite = () => {
+    const url = `${window.location.origin}/courses/${courseId}`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => toast.success("초대 링크를 복사했어요."),
+        () => toast.error("복사에 실패했어요.")
+      );
+    } else {
+      toast.error("이 환경에서는 복사가 지원되지 않아요.");
+    }
+  };
 
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,20 +304,52 @@ export default function CourseDetail() {
 
         {/* Team Tab - Students */}
         <TabsContent value="team" className="mt-4 space-y-3">
-          {students.isLoading ? (
+          {myCourses.isLoading ? (
             [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : students.data?.length === 0 ? (
+          ) : !isEnrolled ? (
             <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <CardContent className="p-8 text-center space-y-3">
+                <Users className="h-10 w-10 text-muted-foreground mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  아직 이 수업에 등록한 학생이 없어요
+                  이 수업에 등록하면 같은 수업 학생을 보고 팀원 커넥트를 보낼 수 있어요.
                 </p>
+                <Button
+                  onClick={() => enroll.mutate({ courseId, semester: CURRENT_SEMESTER })}
+                  disabled={enroll.isPending}
+                  className="gradient-primary text-white border-0"
+                >
+                  {enroll.isPending ? "등록 중..." : "이 수업 등록하기"}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : students.isLoading ? (
+            [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          ) : students.isError ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">팀원 목록을 불러오지 못했어요.</p>
+                <Button variant="outline" size="sm" onClick={() => students.refetch()}>
+                  다시 시도
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (students.data ?? []).filter((s) => s.user.id !== user?.id).length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center space-y-3">
+                <Users className="h-10 w-10 text-muted-foreground mx-auto" />
+                <p className="text-sm text-muted-foreground">
+                  아직 이 수업에 등록한 다른 학생이 없어요.
+                  <br />
+                  같은 수업 친구에게 이 페이지를 공유해보세요.
+                </p>
+                <Button variant="outline" size="sm" onClick={handleCopyInvite}>
+                  초대 링크 복사
+                </Button>
               </CardContent>
             </Card>
           ) : (
-            students.data
-              ?.filter((s) => s.user.id !== user?.id)
+            (students.data ?? [])
+              .filter((s) => s.user.id !== user?.id)
               .map((student) => (
                 <Card key={student.user.id} className="border shadow-sm">
                   <CardContent className="p-4">

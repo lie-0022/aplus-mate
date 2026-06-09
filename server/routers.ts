@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 
@@ -320,6 +320,15 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getUserBadges(input.userId);
       }),
+  }),
+
+  // ─── Admin (운영자 전용) ──────────────────────────────
+  admin: router({
+    // 운영자가 pending 매칭을 한눈에 보고 수락을 수동 푸시할 때 사용.
+    // adminProcedure: ctx.user.role === 'admin'만 통과(OWNER_OPEN_ID 유저는 자동 admin).
+    pendingMatches: adminProcedure.query(async () => {
+      return db.getPendingMatchesForAdmin();
+    }),
   }),
 });
 

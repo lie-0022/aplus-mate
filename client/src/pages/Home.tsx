@@ -32,9 +32,9 @@ export default function Home() {
               믿을 수 있는 팀원 찾기
             </h1>
             <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
-              블라인드 평가로 쌓이는 신뢰 배지 시스템.
+              같은 수업 학생을 직접 보고 고르는 팀원 찾기.
               <br />
-              검증된 팀원과 함께 A+를 향해 나아가세요.
+              블라인드 상호평가로 신뢰 배지를 쌓아가세요.
             </p>
             <Button
               size="lg"
@@ -44,6 +44,9 @@ export default function Home() {
               시작하기
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
+            <p className="text-xs text-muted-foreground mt-4">
+              구글·이메일 계정으로 로그인해요. 외부 인증 화면이 떠도 정상이에요.
+            </p>
           </div>
         </div>
       </section>
@@ -57,8 +60,8 @@ export default function Home() {
           {[
             {
               icon: Users,
-              title: "스마트 팀원 매칭",
-              desc: "같은 수업을 듣는 학생들 중에서 배지와 스킬태그를 기반으로 최적의 팀원을 찾아보세요.",
+              title: "같은 수업 팀원 찾기",
+              desc: "같은 수업을 듣는 학생을 직접 보고, 학과·학년·스킬태그를 확인해 커넥트를 보내세요.",
               color: "bg-primary/10 text-primary",
             },
             {

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { consumeReturnTo } from "@/lib/returnTo";
 import {
   Select,
   SelectContent,
@@ -26,12 +28,15 @@ export default function ProfileSetup() {
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState<string>("");
   const [kakaoUrl, setKakaoUrl] = useState("");
+  const [isAdult, setIsAdult] = useState(false);
 
   const updateProfile = trpc.profile.update.useMutation({
     onSuccess: () => {
       utils.auth.me.invalidate();
       toast.success("프로필이 설정되었습니다!");
-      setLocation("/dashboard");
+      // 딥링크로 들어왔다가 프로필을 완성한 유저는 원래 목적지로 복원(소비).
+      // consumeReturnTo가 '/profile/setup' 자기참조·만료를 걸러내므로 안전.
+      setLocation(consumeReturnTo() ?? "/dashboard");
     },
     onError: (err) => {
       toast.error(err.message || "프로필 설정에 실패했습니다.");
@@ -42,6 +47,10 @@ export default function ProfileSetup() {
     e.preventDefault();
     if (!name.trim() || !university.trim() || !department.trim() || !year) {
       toast.error("필수 항목을 모두 입력해주세요.");
+      return;
+    }
+    if (!isAdult) {
+      toast.error("만 19세 이상만 이용할 수 있어요.");
       return;
     }
     updateProfile.mutate({
@@ -120,6 +129,20 @@ export default function ProfileSetup() {
               <p className="text-xs text-muted-foreground">
                 매칭 수락 후에만 상대방에게 공개됩니다
               </p>
+            </div>
+            <div className="flex items-start gap-2 pt-1">
+              <Checkbox
+                id="adult"
+                checked={isAdult}
+                onCheckedChange={(c) => setIsAdult(c === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="adult" className="text-sm font-normal leading-snug">
+                만 19세 이상입니다.{" "}
+                <span className="text-muted-foreground">
+                  (현재 베타는 성인만 이용할 수 있어요)
+                </span>
+              </Label>
             </div>
             <Button
               type="submit"

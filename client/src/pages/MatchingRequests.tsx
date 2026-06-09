@@ -14,6 +14,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 const BADGE_ICONS: Record<string, typeof Shield> = {
   promise: Shield,
@@ -28,14 +29,19 @@ const BADGE_LABELS: Record<string, string> = {
 
 export default function MatchingRequests() {
   const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.matching.received.useQuery();
 
   const acceptMutation = trpc.matching.accept.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       utils.matching.received.invalidate();
       utils.matching.pendingCount.invalidate();
       utils.teams.list.invalidate();
       toast.success("매칭을 수락했습니다! 팀이 생성되었어요.");
+      // 수락 직후 생성된 팀 화면으로 이동(수신자는 항상 팀 멤버라 teams.get 권한 통과).
+      if (result?.teamId) {
+        setLocation(`/teams/${result.teamId}`);
+      }
     },
     onError: (err) => toast.error(err.message),
   });

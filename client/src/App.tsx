@@ -18,6 +18,7 @@ import AppLayout from "./components/AppLayout";
 import { useAuth } from "./_core/hooks/useAuth";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
+import { saveReturnTo, consumeReturnTo } from "./lib/returnTo";
 
 function ProtectedPage({ component: Component }: { component: React.ComponentType }) {
   const { user, loading } = useAuth();
@@ -25,6 +26,11 @@ function ProtectedPage({ component: Component }: { component: React.ComponentTyp
 
   useEffect(() => {
     if (!loading && !user) {
+      // 로그아웃 상태로 보호 페이지(예: /courses/:id 딥링크)에 진입한 경우,
+      // 로그인 후 돌아올 경로를 저장한다. OAuth 콜백은 무조건 '/'로 착지하므로
+      // 반드시 setLocation("/") 직전인 이 지점에서 캡처해야 경로가 보존된다.
+      // (제외 경로·만료 처리는 saveReturnTo가 담당.)
+      saveReturnTo(window.location.pathname + window.location.search);
       setLocation("/");
     }
   }, [user, loading, setLocation]);
@@ -51,11 +57,16 @@ function Router() {
   // Redirect authenticated users away from home page
   useEffect(() => {
     if (!loading && user && location === "/") {
+      // 프로필 미완성이면 먼저 설정 화면으로. returnTo는 소비하지 않고 보존해
+      // 설정 완료 후 ProfileSetup에서 원래 딥링크로 복원되게 한다.
       if (!user.profileCompleted) {
         setLocation("/profile/setup");
-      } else {
-        setLocation("/dashboard");
+        return;
       }
+      // 프로필 완성(가장 흔한 복귀 케이스): 저장된 딥링크가 있으면 복원·소비, 없으면 대시보드.
+      // consumeReturnTo가 만료·제외 경로를 걸러 stale 납치를 방지한다.
+      const returnTo = consumeReturnTo();
+      setLocation(returnTo ?? "/dashboard");
     }
   }, [user, loading, location, setLocation]);
 
