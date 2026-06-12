@@ -183,5 +183,9 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // 로컬 dev: 생성 파일(.manus-logs 등) 변경으로 인한 HMR 풀리로드(컴포넌트 상태 리셋) 방지
+    watch: {
+      ignored: ["**/.manus-logs/**", "**/dist/**", "**/.dev_*.log", "**/.env"],
+    },
   },
 });
