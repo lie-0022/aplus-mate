@@ -74,13 +74,16 @@ export default function MatchingRequests() {
 
   const saveKakao = trpc.profile.update.useMutation({
     onSuccess: () => {
-      utils.auth.me.invalidate();
-      if (pendingMatchId != null) {
-        acceptMutation.mutate({ matchId: pendingMatchId });
-      }
+      // 모달을 먼저 닫고 후속 mutate는 다음 틱으로 — 닫힘 애니메이션과 리렌더가
+      // 겹치면 Radix Presence가 잔존(body pointer-events 잠김)할 수 있다.
+      const matchId = pendingMatchId;
       setKakaoModalOpen(false);
       setKakaoInput("");
       setPendingMatchId(null);
+      utils.auth.me.invalidate();
+      if (matchId != null) {
+        setTimeout(() => acceptMutation.mutate({ matchId }), 0);
+      }
     },
     onError: (err) => toast.error(err.message),
   });

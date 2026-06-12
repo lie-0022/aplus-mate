@@ -130,20 +130,25 @@ export default function CourseDetail() {
   // (매칭 성사 시 팀원에게 연락처가 필요한데, 운영자 개입 없는 self-serve 경로를 대비.)
   const saveKakao = trpc.profile.update.useMutation({
     onSuccess: () => {
-      utils.auth.me.invalidate();
-      if (pendingReceiverId != null) {
-        matchRequest.mutate({
-          receiverId: pendingReceiverId,
-          courseId,
-          matchType,
-          // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
-          requesterRole:
-            matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
-        });
-      }
+      // 모달을 먼저 닫고 나서 후속 mutate를 보낸다 — 닫힘 애니메이션과 mutate 리렌더가
+      // 같은 틱에 겹치면 Radix Presence가 잔존(body pointer-events 잠김)할 수 있다.
+      const receiverId = pendingReceiverId;
       setConnectKakaoOpen(false);
       setKakaoInput("");
       setPendingReceiverId(null);
+      utils.auth.me.invalidate();
+      if (receiverId != null) {
+        setTimeout(() => {
+          matchRequest.mutate({
+            receiverId,
+            courseId,
+            matchType,
+            // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
+            requesterRole:
+              matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
+          });
+        }, 0);
+      }
     },
     onError: (err) => toast.error(err.message),
   });
