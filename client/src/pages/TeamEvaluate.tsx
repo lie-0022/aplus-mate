@@ -159,6 +159,38 @@ export default function TeamEvaluate() {
         </p>
       </div>
 
+      {/* 평가 안내 (C3: 블라인드 고지 + 배지 프레이밍 + 보복성 저평가 신고·이의제기) */}
+      <Card className="border-amber-200 bg-amber-50/60">
+        <CardContent className="p-4 text-xs text-muted-foreground space-y-1.5">
+          <p>
+            · 평가는{" "}
+            <span className="font-medium text-foreground">익명(블라인드)</span>으로
+            처리되며, 누가 어떤 점수를 줬는지는 공개되지 않아요.
+          </p>
+          <p>
+            · 신뢰 배지는{" "}
+            <span className="font-medium text-foreground">
+              항목별 평균 4점 이상일 때 켜지는 보너스
+            </span>
+            예요. 배지가 없다고 낮은 평가를 받은 것은 아니에요.
+          </p>
+          <p>
+            ·{" "}
+            <span className="font-medium text-foreground">
+              보복성·허위 저평가는 신고 대상
+            </span>
+            입니다. 부당한 평가를 받았다면{" "}
+            <a
+              href="mailto:jayjun.rim@gmail.com"
+              className="text-primary underline"
+            >
+              운영자에게 이의제기
+            </a>
+            할 수 있어요.
+          </p>
+        </CardContent>
+      </Card>
+
       {otherMembers.map((member) => {
         const ev = evalData[member.user.id] || {};
         return (

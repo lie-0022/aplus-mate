@@ -156,6 +156,21 @@ export default function TeamDetail() {
               )}
             </div>
           ))}
+          {/* C3: 외부채널 안전수칙 고지 */}
+          <p className="text-[11px] text-muted-foreground pt-1 leading-relaxed">
+            ⚠️ 외부 오픈채팅에서는{" "}
+            <span className="font-medium text-foreground">
+              실명·금융정보·송금 요구에 응하지 마세요.
+            </span>{" "}
+            문제가 있으면{" "}
+            <a
+              href="mailto:jayjun.rim@gmail.com"
+              className="text-primary underline"
+            >
+              운영자에게 신고
+            </a>
+            할 수 있어요.
+          </p>
         </CardContent>
       </Card>
 
