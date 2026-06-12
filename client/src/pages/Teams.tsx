@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, ArrowRight, UserCircle } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
+import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
 
 export default function Teams() {
   const [, setLocation] = useLocation();
@@ -62,12 +63,17 @@ export default function Teams() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {item.team.evaluationStatus === "in_progress" && (
-                <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
-                  평가 진행 중
-                </Badge>
-              )}
-              {item.team.evaluationStatus === "done" && (
+              <Badge variant="outline" className="text-xs">
+                {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
+              </Badge>
+              {/* 평가 상태는 팀플 전용 — 스터디·멘토멘티는 평가 단계가 없다 */}
+              {item.team.teamType === "project" &&
+                item.team.evaluationStatus === "in_progress" && (
+                  <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
+                    평가 진행 중
+                  </Badge>
+                )}
+              {item.team.teamType === "project" && item.team.evaluationStatus === "done" && (
                 <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                   평가 완료
                 </Badge>

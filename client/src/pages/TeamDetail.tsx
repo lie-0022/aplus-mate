@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +28,10 @@ import {
   Shield,
   Lightbulb,
   Clock,
+  Sparkles,
+  Copy,
 } from "lucide-react";
+import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 
@@ -39,12 +45,29 @@ export default function TeamDetail() {
   const { data, isLoading } = trpc.teams.get.useQuery({ id: teamId });
   const hasEvaluated = trpc.evaluations.hasEvaluated.useQuery({ teamId });
 
+  // AI 보고서 초안 — 주제 입력 → 서버(invokeLLM) → 마크다운 초안.
+  const [reportTopic, setReportTopic] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [report, setReport] = useState<string | null>(null);
+  const generateReport = trpc.ai.generateReport.useMutation({
+    onSuccess: (res) => {
+      setReport(res.content);
+      toast.success("보고서 초안이 생성됐어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const completeMutation = trpc.teams.complete.useMutation({
     onSuccess: () => {
       utils.teams.get.invalidate();
       utils.teams.list.invalidate();
-      toast.success("팀플이 완료되었습니다! 이제 팀원을 평가해주세요.");
-      setLocation(`/teams/${teamId}/evaluate`);
+      // 팀플만 평가 단계로 — 스터디·멘토멘티는 평가 없이 종료.
+      if (data?.team.teamType === "project") {
+        toast.success("팀플이 완료되었습니다! 이제 팀원을 평가해주세요.");
+        setLocation(`/teams/${teamId}/evaluate`);
+      } else {
+        toast.success("활동을 종료했어요!");
+      }
     },
     onError: (err) => toast.error(err.message),
   });
@@ -72,7 +95,10 @@ export default function TeamDetail() {
 
   const isActive = data.team.status === "active";
   const isCompleted = data.team.status === "completed";
+  const isProject = data.team.teamType === "project";
+  const typeLabel = MATCH_TYPE_LABELS[(data.team.teamType ?? "project") as MatchType];
   const needsEvaluation =
+    isProject &&
     isCompleted &&
     data.team.evaluationStatus !== "done" &&
     !hasEvaluated.data;
@@ -94,16 +120,19 @@ export default function TeamDetail() {
               <h1 className="font-bold text-lg">{data.course.name}</h1>
               <p className="text-sm text-muted-foreground">{data.course.professor}</p>
             </div>
-            <Badge
-              variant="secondary"
-              className={
-                isActive
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-green-100 text-green-700"
-              }
-            >
-              {isActive ? "진행 중" : "완료"}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline">{typeLabel}</Badge>
+              <Badge
+                variant="secondary"
+                className={
+                  isActive
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-green-100 text-green-700"
+                }
+              >
+                {isActive ? "진행 중" : "완료"}
+              </Badge>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -180,14 +209,18 @@ export default function TeamDetail() {
           <AlertDialogTrigger asChild>
             <Button className="w-full gradient-primary text-white border-0" size="lg">
               <CheckCircle2 className="mr-2 h-5 w-5" />
-              팀플 완료하기
+              {isProject ? "팀플 완료하기" : `${typeLabel} 종료하기`}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>팀플을 완료하시겠습니까?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {isProject ? "팀플을 완료하시겠습니까?" : `${typeLabel}을(를) 종료하시겠습니까?`}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                팀플을 완료하면 팀원 평가가 시작됩니다. 이 작업은 되돌릴 수 없습니다.
+                {isProject
+                  ? "팀플을 완료하면 팀원 평가가 시작됩니다. 이 작업은 되돌릴 수 없습니다."
+                  : "활동을 종료하면 완료 상태로 바뀝니다. 이 작업은 되돌릴 수 없습니다."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -196,7 +229,7 @@ export default function TeamDetail() {
                 onClick={() => completeMutation.mutate({ teamId })}
                 className="gradient-primary text-white border-0"
               >
-                완료하기
+                {isProject ? "완료하기" : "종료하기"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -214,7 +247,7 @@ export default function TeamDetail() {
         </Button>
       )}
 
-      {hasEvaluated.data && (
+      {isProject && hasEvaluated.data && (
         <Card className="border border-green-200 bg-green-50">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto mb-2" />
@@ -225,6 +258,72 @@ export default function TeamDetail() {
           </CardContent>
         </Card>
       )}
+
+      {/* AI 보고서 초안 */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            AI 보고서 초안
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 pb-4">
+          <Input
+            value={reportTopic}
+            onChange={(e) => setReportTopic(e.target.value)}
+            placeholder="보고서 주제 (예: 인공지능 윤리 사례 분석)"
+            maxLength={200}
+          />
+          <Textarea
+            value={reportDetails}
+            onChange={(e) => setReportDetails(e.target.value)}
+            placeholder="추가 요구사항 (선택) — 분량, 꼭 들어갈 내용, 강조점 등"
+            rows={2}
+            maxLength={2000}
+          />
+          <Button
+            className="w-full gradient-primary text-white border-0"
+            onClick={() => {
+              if (!reportTopic.trim()) {
+                toast.error("보고서 주제를 입력해주세요.");
+                return;
+              }
+              generateReport.mutate({
+                teamId,
+                topic: reportTopic.trim(),
+                details: reportDetails.trim() || undefined,
+              });
+            }}
+            disabled={generateReport.isPending}
+          >
+            <Sparkles className="mr-1 h-4 w-4" />
+            {generateReport.isPending ? "생성 중... (최대 1분)" : "초안 생성"}
+          </Button>
+
+          {report && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground">
+                  ⚠️ AI가 만든 초안이에요. 사실·출처는 직접 확인 후 사용하세요.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(report);
+                    toast.success("초안을 복사했어요!");
+                  }}
+                >
+                  <Copy className="mr-1 h-3.5 w-3.5" /> 복사
+                </Button>
+              </div>
+              <div className="whitespace-pre-wrap text-sm border rounded-lg p-3 bg-muted/30 max-h-96 overflow-y-auto">
+                {report}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

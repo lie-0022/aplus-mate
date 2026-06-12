@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { parseSkillTags } from "@/lib/utils-parse";
+import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,6 @@ import {
   Shield,
   Lightbulb,
   Clock,
-  Plus,
   Tag,
 } from "lucide-react";
 import { useState } from "react";
@@ -44,7 +44,6 @@ export default function Profile() {
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState("");
   const [kakaoUrl, setKakaoUrl] = useState("");
-  const [skillInput, setSkillInput] = useState("");
   const [skillTags, setSkillTags] = useState<string[]>([]);
 
   const updateProfile = trpc.profile.update.useMutation({
@@ -78,18 +77,6 @@ export default function Profile() {
       skillTags,
       kakaoOpenChatUrl: kakaoUrl.trim(),
     });
-  };
-
-  const addSkillTag = () => {
-    const tag = skillInput.trim();
-    if (tag && !skillTags.includes(tag)) {
-      setSkillTags([...skillTags, tag]);
-      setSkillInput("");
-    }
-  };
-
-  const removeSkillTag = (tag: string) => {
-    setSkillTags(skillTags.filter((t) => t !== tag));
   };
 
   if (isLoading) {
@@ -220,38 +207,20 @@ export default function Profile() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pb-4">
-          <div className="flex flex-wrap gap-2 mb-3">
-            {displaySkillTags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-                {editing && (
-                  <button
-                    onClick={() => removeSkillTag(tag)}
-                    className="ml-1 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </Badge>
-            ))}
-            {displaySkillTags.length === 0 && (
-              <span className="text-sm text-muted-foreground">
-                아직 등록된 스킬 태그가 없어요
-              </span>
-            )}
-          </div>
-          {editing && (
-            <div className="flex gap-2">
-              <Input
-                value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSkillTag())}
-                placeholder="스킬 입력 (예: Python)"
-                className="text-sm"
-              />
-              <Button variant="outline" size="sm" onClick={addSkillTag}>
-                <Plus className="h-4 w-4" />
-              </Button>
+          {editing ? (
+            <SkillTagsInput value={skillTags} onChange={setSkillTags} />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {displaySkillTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+              {displaySkillTags.length === 0 && (
+                <span className="text-sm text-muted-foreground">
+                  아직 등록된 스킬 태그가 없어요
+                </span>
+              )}
             </div>
           )}
         </CardContent>

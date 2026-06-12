@@ -96,18 +96,23 @@ export const teamMatches = mysqlTable(
     requesterId: int("requesterId").notNull(),
     receiverId: int("receiverId").notNull(),
     courseId: int("courseId").notNull(),
+    // 매칭 종류 — 같은 수업에서 팀플·스터디·멘토멘티가 독립 파이프라인으로 공존한다.
+    matchType: mysqlEnum("matchType", ["project", "study", "mentoring"])
+      .default("project")
+      .notNull(),
     status: mysqlEnum("status", ["pending", "accepted", "rejected"])
       .default("pending")
       .notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
-    // Prevent duplicate pending/accepted requests between same pair for same course
-    // (allows rejected to coexist with new pending)
+    // Prevent duplicate pending/accepted requests between same pair for same course+type
+    // (allows rejected to coexist with new pending; A→B project와 A→B study는 별개)
     uniqueIndex("uniq_team_match_pending").on(
       table.requesterId,
       table.receiverId,
       table.courseId,
+      table.matchType,
       table.status
     ),
   ]
@@ -123,6 +128,10 @@ export const teams = mysqlTable(
     matchId: int("matchId"),
     courseId: int("courseId").notNull(),
     name: varchar("name", { length: 100 }),
+    // 그룹 종류 — project(팀플, 평가·배지 있음) / study·mentoring(평가 없음).
+    teamType: mysqlEnum("teamType", ["project", "study", "mentoring"])
+      .default("project")
+      .notNull(),
     status: mysqlEnum("status", ["active", "completed"]).default("active").notNull(),
     evaluationStatus: mysqlEnum("evaluationStatus", ["pending", "in_progress", "done"])
       .default("pending")

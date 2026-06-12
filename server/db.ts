@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, desc, count, sql } from "drizzle-orm";
+import { eq, and, or, inArray, desc, count, sql, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -16,6 +16,7 @@ import {
   type InsertCourse,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { MAX_TEAM_SIZE, MENTORING_MAX_SIZE, type MatchType } from "@shared/const";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -146,10 +147,15 @@ export async function searchCourses(query: string, university?: string) {
 
   let conditions = [];
   if (query) {
+    // 부분 일치(LIKE) — 수업명·교수명·수업코드 중 하나라도 포함하면 매칭.
+    // 특수문자(%, _)는 와일드카드로 오작동하므로 이스케이프한다.
+    const escaped = query.replace(/[%_\\]/g, (c) => `\\${c}`);
+    const term = `%${escaped}%`;
     conditions.push(
       or(
-        eq(courses.name, query),
-        eq(courses.courseCode, query)
+        like(courses.name, term),
+        like(courses.professor, term),
+        like(courses.courseCode, term)
       )
     );
   }
@@ -291,7 +297,12 @@ export async function getCoursePosts(courseId: number, category?: string) {
 
 // ─── Matching ────────────────────────────────────────────
 
-export async function createMatchRequest(requesterId: number, receiverId: number, courseId: number) {
+export async function createMatchRequest(
+  requesterId: number,
+  receiverId: number,
+  courseId: number,
+  matchType: MatchType = "project"
+) {
   const db = await getDb();
   if (!db) return null;
 
@@ -309,13 +320,15 @@ export async function createMatchRequest(requesterId: number, receiverId: number
     throw new Error("프로필을 완성한 후 매칭을 요청할 수 있습니다.");
   }
 
-  // Check for existing pending request between these users for this course
+  // Check for existing pending request between these users for this course+type
+  // (팀플·스터디·멘토멘티는 독립 — 같은 쌍이라도 종류가 다르면 별개 요청)
   const pendingExisting = await db
     .select()
     .from(teamMatches)
     .where(
       and(
         eq(teamMatches.courseId, courseId),
+        eq(teamMatches.matchType, matchType),
         eq(teamMatches.status, "pending"),
         or(
           and(eq(teamMatches.requesterId, requesterId), eq(teamMatches.receiverId, receiverId)),
@@ -329,11 +342,18 @@ export async function createMatchRequest(requesterId: number, receiverId: number
     throw new Error("이미 매칭 요청을 보냈습니다.");
   }
 
+  // 같은 종류의 그룹에서 이미 함께면 차단 (다른 종류 그룹은 허용 — 팀플 팀원과 스터디 가능)
   const requesterTeamsInCourse = await db
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
     .innerJoin(teams, eq(teams.id, teamMembers.teamId))
-    .where(and(eq(teamMembers.userId, requesterId), eq(teams.courseId, courseId)));
+    .where(
+      and(
+        eq(teamMembers.userId, requesterId),
+        eq(teams.courseId, courseId),
+        eq(teams.teamType, matchType)
+      )
+    );
 
   if (requesterTeamsInCourse.length > 0) {
     const teamIds = requesterTeamsInCourse.map((t) => t.teamId);
@@ -343,7 +363,7 @@ export async function createMatchRequest(requesterId: number, receiverId: number
       .where(and(inArray(teamMembers.teamId, teamIds), eq(teamMembers.userId, receiverId)))
       .limit(1);
     if (sharedTeam.length > 0) {
-      throw new Error("이미 해당 수업에서 매칭된 팀이 있습니다.");
+      throw new Error("이미 해당 수업에서 함께하는 그룹이 있습니다.");
     }
   }
 
@@ -352,6 +372,7 @@ export async function createMatchRequest(requesterId: number, receiverId: number
       requesterId,
       receiverId,
       courseId,
+      matchType,
       status: "pending",
     });
     return { id: result[0].insertId };
@@ -443,6 +464,28 @@ export async function getPendingMatchesForAdmin() {
   }));
 }
 
+// 사용자가 해당 수업에서 현재 속한 '활성' 그룹(같은 종류, 완료 전)을 반환. 없으면 null.
+// 팀플·스터디·멘토멘티는 독립 — 같은 수업에서 동시에 하나씩 가질 수 있다.
+async function getActiveTeamForCourse(userId: number, courseId: number, teamType: MatchType) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ id: teams.id })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .where(
+      and(
+        eq(teamMembers.userId, userId),
+        eq(teams.courseId, courseId),
+        eq(teams.teamType, teamType),
+        eq(teams.status, "active")
+      )
+    )
+    .orderBy(desc(teams.createdAt))
+    .limit(1);
+  return rows.length > 0 ? rows[0] : null;
+}
+
 export async function acceptMatch(matchId: number, userId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -457,49 +500,71 @@ export async function acceptMatch(matchId: number, userId: number) {
   const match = matchRows[0];
   if (match.status !== "pending") throw new Error("이미 처리된 요청입니다.");
 
-  // Check if team already exists for this match (idempotency)
-  const existingTeam = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.matchId, matchId))
-    .limit(1);
-  if (existingTeam.length > 0) {
-    // Team already created, just update match status if needed
-    if (match.status === "pending") {
-      await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
-    }
-    return { teamId: existingTeam[0].id };
+  // 이 매칭으로 이미 팀이 생성됐으면 멱등 반환
+  const teamByMatch = await db.select().from(teams).where(eq(teams.matchId, matchId)).limit(1);
+  if (teamByMatch.length > 0) {
+    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+    return { teamId: teamByMatch[0].id };
   }
 
-  try {
-    // Update match status
-    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+  // 3인+ 매칭: 요청자/수신자 중 한쪽이 이미 이 수업의 같은 종류 활성 그룹에 있으면
+  // 새 그룹을 만들지 않고 그 그룹에 다른 한 명을 합류시킨다.
+  const matchType = match.matchType as MatchType;
+  const maxSize = matchType === "mentoring" ? MENTORING_MAX_SIZE : MAX_TEAM_SIZE;
+  const requesterTeam = await getActiveTeamForCourse(match.requesterId, match.courseId, matchType);
+  const receiverTeam = await getActiveTeamForCourse(match.receiverId, match.courseId, matchType);
 
-    // Create team (unique constraint on matchId prevents duplicates)
+  // 이미 같은 그룹이면 매칭만 수락 처리
+  if (requesterTeam && receiverTeam && requesterTeam.id === receiverTeam.id) {
+    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+    return { teamId: requesterTeam.id };
+  }
+  // 둘 다 서로 다른 그룹이면 합칠 수 없음(평가/팀 모델 단순화)
+  if (requesterTeam && receiverTeam) {
+    throw new Error("두 사람이 이미 서로 다른 그룹에 속해 있어 합칠 수 없어요.");
+  }
+
+  const targetTeam = requesterTeam ?? receiverTeam;
+  if (targetTeam) {
+    // 정원 확인 (멘토멘티는 1:1 페어라 합류 불가)
+    const cntRows = await db
+      .select({ c: count() })
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, targetTeam.id));
+    if (Number(cntRows[0]?.c ?? 0) >= maxSize) {
+      throw new Error(`정원(${maxSize}명)이 가득 찼어요.`);
+    }
+    // 그룹에 없는 쪽을 합류시키고 매칭 수락 처리
+    const joiningUserId = requesterTeam ? match.receiverId : match.requesterId;
+    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+    try {
+      await db.insert(teamMembers).values({ teamId: targetTeam.id, userId: joiningUserId });
+    } catch (error: any) {
+      if (error.code !== "ER_DUP_ENTRY") throw error; // 이미 멤버면 무시
+    }
+    return { teamId: targetTeam.id };
+  }
+
+  // 둘 다 그룹이 없으면 새 2인 그룹 생성 (기존 동작)
+  try {
+    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
     const teamResult = await db.insert(teams).values({
       matchId,
       courseId: match.courseId,
+      teamType: matchType,
       status: "active",
       evaluationStatus: "pending",
     });
     const teamId = teamResult[0].insertId;
-
-    // Add both members (unique constraint on teamId+userId prevents duplicates)
     await db.insert(teamMembers).values([
       { teamId, userId: match.requesterId },
       { teamId, userId: match.receiverId },
     ]);
-
     return { teamId };
   } catch (error: any) {
-    // Handle unique constraint violations gracefully
+    // race condition: 동시에 다른 요청이 팀을 만든 경우
     if (error.code === "ER_DUP_ENTRY") {
-      // Likely race condition: another request already created the team
-      const existingTeam = await db
-        .select()
-        .from(teams)
-        .where(eq(teams.matchId, matchId))
-        .limit(1);
+      const existingTeam = await db.select().from(teams).where(eq(teams.matchId, matchId)).limit(1);
       if (existingTeam.length > 0) {
         return { teamId: existingTeam[0].id };
       }
@@ -611,12 +676,16 @@ export async function completeTeam(teamId: number) {
   const db = await getDb();
   if (!db) return;
 
+  // 팀플(project)만 동료 평가 단계로 진입 — 스터디·멘토멘티는 평가 없이 바로 종료.
+  const teamRow = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
+  const isProject = teamRow.length === 0 || teamRow[0].teamType === "project";
+
   try {
     // Atomic update: only update if status is still 'active'
     // This prevents race condition where multiple members click complete simultaneously
     const result = await db
       .update(teams)
-      .set({ status: "completed", evaluationStatus: "in_progress" })
+      .set({ status: "completed", evaluationStatus: isProject ? "in_progress" : "done" })
       .where(and(eq(teams.id, teamId), eq(teams.status, "active")));
 
     // Check if update actually happened (affected rows > 0)

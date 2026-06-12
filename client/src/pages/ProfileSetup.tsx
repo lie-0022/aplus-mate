@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { consumeReturnTo } from "@/lib/returnTo";
 import {
   Select,
@@ -28,6 +29,7 @@ export default function ProfileSetup() {
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState<string>("");
   const [kakaoUrl, setKakaoUrl] = useState("");
+  const [skillTags, setSkillTags] = useState<string[]>([]);
   const [isAdult, setIsAdult] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -68,6 +70,7 @@ export default function ProfileSetup() {
       department: department.trim(),
       year: parseInt(year),
       kakaoOpenChatUrl: kakaoUrl.trim() || undefined,
+      skillTags: skillTags.length > 0 ? skillTags : undefined,
     });
   };
 
@@ -137,6 +140,13 @@ export default function ProfileSetup() {
               />
               <p className="text-xs text-muted-foreground">
                 매칭 수락 후에만 상대방에게 공개됩니다
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>스킬 태그 (선택)</Label>
+              <SkillTagsInput value={skillTags} onChange={setSkillTags} />
+              <p className="text-xs text-muted-foreground">
+                팀원 매칭 목록에 표시돼요. 나중에 프로필에서 바꿀 수 있어요.
               </p>
             </div>
             <div className="flex items-start gap-2 pt-1">

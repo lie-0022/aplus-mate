@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
 
 const BADGE_ICONS: Record<string, typeof Shield> = {
   promise: Shield,
@@ -52,7 +53,7 @@ export default function MatchingRequests() {
       utils.matching.received.invalidate();
       utils.matching.pendingCount.invalidate();
       utils.teams.list.invalidate();
-      toast.success("매칭을 수락했습니다! 팀이 생성되었어요.");
+      toast.success("매칭을 수락했어요! 팀 화면으로 이동할게요.");
       // 수락 직후 생성된 팀 화면으로 이동(수신자는 항상 팀 멤버라 teams.get 권한 통과).
       if (result?.teamId) {
         setLocation(`/teams/${result.teamId}`);
@@ -133,9 +134,14 @@ export default function MatchingRequests() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <Badge variant="secondary" className="text-xs mb-2">
-                    {item.course.name}
-                  </Badge>
+                  <div className="flex items-center gap-1 mb-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {item.course.name}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {MATCH_TYPE_LABELS[(item.match.matchType ?? "project") as MatchType]}
+                    </Badge>
+                  </div>
                   <div className="font-medium text-sm">
                     {item.requester.department} · {item.requester.year}학년
                   </div>

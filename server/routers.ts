@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
+import { generateTeamReport } from "./aiReport";
 
 // 동의 버전 — 약관/개인정보처리방침 개정 시 올리면 재동의가 추적된다.
 const CURRENT_CONSENT_VERSION = "2026.1";
@@ -186,6 +187,7 @@ export const appRouter = router({
         z.object({
           receiverId: z.number(),
           courseId: z.number(),
+          matchType: z.enum(["project", "study", "mentoring"]).default("project"),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -198,7 +200,12 @@ export const appRouter = router({
         if (!requesterEnrolled || !receiverEnrolled) {
           throw new Error("두 사용자 모두 해당 수업에 등록되어 있어야 합니다.");
         }
-        return db.createMatchRequest(ctx.user.id, input.receiverId, input.courseId);
+        return db.createMatchRequest(
+          ctx.user.id,
+          input.receiverId,
+          input.courseId,
+          input.matchType
+        );
       }),
     received: protectedProcedure.query(async ({ ctx }) => {
       return db.getReceivedMatchRequests(ctx.user.id);
@@ -275,6 +282,11 @@ export const appRouter = router({
         const isMember = team.members.some((m) => m.user.id === ctx.user.id);
         if (!isMember) throw new Error("팀 멤버만 평가할 수 있습니다.");
 
+        // 동료 평가는 팀플 전용 — 스터디·멘토멘티는 평가 단계가 없다.
+        if (team.team.teamType !== "project") {
+          throw new Error("팀플 팀만 평가할 수 있습니다.");
+        }
+
         // Team must be completed
         if (team.team.status !== "completed") {
           throw new Error("팀플이 완료된 후에만 평가할 수 있습니다.");
@@ -337,6 +349,34 @@ export const appRouter = router({
       .input(z.object({ consentType: z.enum(["signup", "evaluation"]) }))
       .query(async ({ ctx, input }) => {
         return db.hasConsent(ctx.user.id, input.consentType, CURRENT_CONSENT_VERSION);
+      }),
+  }),
+
+  // ─── AI (보고서 초안 생성) ────────────────────────────
+  ai: router({
+    generateReport: protectedProcedure
+      .input(
+        z.object({
+          teamId: z.number(),
+          topic: z.string().min(1).max(200),
+          details: z.string().max(2000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // 팀 멤버만 자기 팀 컨텍스트로 생성할 수 있다.
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        const isMember = team.members.some((m) => m.user.id === ctx.user.id);
+        if (!isMember) throw new Error("팀 멤버만 보고서를 생성할 수 있습니다.");
+
+        return generateTeamReport({
+          courseName: team.course.name,
+          professor: team.course.professor,
+          teamType: team.team.teamType,
+          memberCount: team.members.length,
+          topic: input.topic,
+          details: input.details,
+        });
       }),
   }),
 

@@ -1,6 +1,13 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { parseSkillTags } from "@/lib/utils-parse";
+import {
+  MAX_TEAM_SIZE,
+  MENTORING_MAX_SIZE,
+  MATCH_TYPES,
+  MATCH_TYPE_LABELS,
+  type MatchType,
+} from "@shared/const";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +71,8 @@ export default function CourseDetail() {
   const [connectKakaoOpen, setConnectKakaoOpen] = useState(false);
   const [pendingReceiverId, setPendingReceiverId] = useState<number | null>(null);
   const [kakaoInput, setKakaoInput] = useState("");
+  // 커넥트 종류 — 팀플(기본)·스터디·멘토멘티가 같은 화면에서 전환된다.
+  const [matchType, setMatchType] = useState<MatchType>("project");
 
   const course = trpc.courses.get.useQuery({ id: courseId });
   const posts = trpc.posts.list.useQuery({
@@ -80,6 +89,20 @@ export default function CourseDetail() {
     { courseId, semester: CURRENT_SEMESTER },
     { enabled: isEnrolled, retry: false }
   );
+
+  // 내가 이 수업에서 이미 속한 같은 종류의 활성 그룹 — 있으면 커넥트가 "그룹 합류 초대"가 됨.
+  // 팀플·스터디·멘토멘티는 독립이라 종류별로 따로 본다.
+  const myTeams = trpc.teams.list.useQuery();
+  const myTeamForCourse = myTeams.data?.find(
+    (t) =>
+      t.team.courseId === courseId &&
+      t.team.status === "active" &&
+      t.team.teamType === matchType
+  );
+  const inTeam = !!myTeamForCourse;
+  const myTeamSize = myTeamForCourse?.members.length ?? 0;
+  const maxSize = matchType === "mentoring" ? MENTORING_MAX_SIZE : MAX_TEAM_SIZE;
+  const teamFull = myTeamSize >= maxSize;
 
   const createPost = trpc.posts.create.useMutation({
     onSuccess: () => {
@@ -106,7 +129,7 @@ export default function CourseDetail() {
     onSuccess: () => {
       utils.auth.me.invalidate();
       if (pendingReceiverId != null) {
-        matchRequest.mutate({ receiverId: pendingReceiverId, courseId });
+        matchRequest.mutate({ receiverId: pendingReceiverId, courseId, matchType });
       }
       setConnectKakaoOpen(false);
       setKakaoInput("");
@@ -117,7 +140,7 @@ export default function CourseDetail() {
 
   const handleConnect = (receiverId: number) => {
     if (user?.kakaoOpenChatUrl) {
-      matchRequest.mutate({ receiverId, courseId });
+      matchRequest.mutate({ receiverId, courseId, matchType });
     } else {
       setPendingReceiverId(receiverId);
       setKakaoInput("");
@@ -332,6 +355,29 @@ export default function CourseDetail() {
 
         {/* Team Tab - Students */}
         <TabsContent value="team" className="mt-4 space-y-3">
+          {/* 커넥트 종류 선택 — 팀플 / 스터디 / 멘토멘티 */}
+          {!myCourses.isLoading && isEnrolled && (
+            <div className="space-y-1.5">
+              <div className="flex gap-1.5">
+                {MATCH_TYPES.map((t) => (
+                  <Button
+                    key={t}
+                    size="sm"
+                    variant={matchType === t ? "default" : "outline"}
+                    className={matchType === t ? "gradient-primary text-white border-0" : ""}
+                    onClick={() => setMatchType(t)}
+                  >
+                    {MATCH_TYPE_LABELS[t]}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {matchType === "project" && "같은 수업에서 팀플 팀원을 찾아요."}
+                {matchType === "study" && "수업 내용을 함께 공부할 스터디원을 찾아요."}
+                {matchType === "mentoring" && "선배·동기와 1:1 멘토멘티로 연결돼요."}
+              </p>
+            </div>
+          )}
           {myCourses.isLoading ? (
             [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
           ) : !isEnrolled ? (
@@ -376,36 +422,57 @@ export default function CourseDetail() {
               </CardContent>
             </Card>
           ) : (
-            (students.data ?? [])
-              .filter((s) => s.user.id !== user?.id)
-              .map((student) => (
-                <Card key={student.user.id} className="border shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">
-                          {student.user.department} · {student.user.year}학년
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {parseSkillTags(student.user.skillTags).slice(0, 3).map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleConnect(student.user.id)}
-                        disabled={matchRequest.isPending || saveKakao.isPending}
-                        className="gradient-primary text-white border-0"
-                      >
-                        <Handshake className="mr-1 h-4 w-4" /> 커넥트
-                      </Button>
-                    </div>
+            <>
+              {inTeam && (
+                <Card className="border-primary/30 bg-primary/5 shadow-none">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">
+                      이 수업에 이미{" "}
+                      <span className="font-medium text-foreground">
+                        {myTeamSize}명 {MATCH_TYPE_LABELS[matchType]}
+                      </span>{" "}
+                      그룹이 있어요. 커넥트하면 상대가 수락 시{" "}
+                      <span className="font-medium text-foreground">내 그룹에 합류</span>해요 (최대{" "}
+                      {maxSize}명).
+                      {teamFull && " 정원이 가득 찼어요."}
+                    </p>
                   </CardContent>
                 </Card>
-              ))
+              )}
+              {(students.data ?? [])
+                .filter((s) => s.user.id !== user?.id)
+                .map((student) => (
+                  <Card key={student.user.id} className="border shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm">
+                            {student.user.department} · {student.user.year}학년
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {parseSkillTags(student.user.skillTags).slice(0, 3).map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleConnect(student.user.id)}
+                          disabled={matchRequest.isPending || saveKakao.isPending || teamFull}
+                          className="gradient-primary text-white border-0"
+                        >
+                          <Handshake className="mr-1 h-4 w-4" />
+                          {inTeam && matchType !== "mentoring"
+                            ? `${MATCH_TYPE_LABELS[matchType]}에 초대`
+                            : "커넥트"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </>
           )}
         </TabsContent>
       </Tabs>

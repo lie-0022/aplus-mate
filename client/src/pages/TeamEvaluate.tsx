@@ -128,6 +128,22 @@ export default function TeamEvaluate() {
     );
   }
 
+  // 동료 평가는 팀플 전용 — 스터디·멘토멘티 그룹에는 평가 단계가 없다(서버도 차단).
+  if (data && data.team.teamType !== "project") {
+    return (
+      <div className="text-center py-12">
+        <Star className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">팀플 팀만 평가할 수 있어요</h2>
+        <p className="text-muted-foreground text-sm mb-4">
+          스터디·멘토멘티 활동에는 동료 평가가 없어요.
+        </p>
+        <Button variant="outline" onClick={() => setLocation(`/teams/${teamId}`)}>
+          팀 상세로 돌아가기
+        </Button>
+      </div>
+    );
+  }
+
   if (hasEvaluated.data) {
     return (
       <div className="text-center py-12">
