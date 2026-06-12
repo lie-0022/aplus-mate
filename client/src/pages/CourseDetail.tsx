@@ -61,6 +61,9 @@ export default function CourseDetail() {
   const [postTitle, setPostTitle] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postCategory, setPostCategory] = useState<string>("");
+  const [connectKakaoOpen, setConnectKakaoOpen] = useState(false);
+  const [pendingReceiverId, setPendingReceiverId] = useState<number | null>(null);
+  const [kakaoInput, setKakaoInput] = useState("");
 
   const course = trpc.courses.get.useQuery({ id: courseId });
   const posts = trpc.posts.list.useQuery({
@@ -96,6 +99,31 @@ export default function CourseDetail() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // 요청자가 오픈채팅 URL이 없으면 커넥트 시점에 받아 저장한 뒤 매칭 요청을 보낸다.
+  // (매칭 성사 시 팀원에게 연락처가 필요한데, 운영자 개입 없는 self-serve 경로를 대비.)
+  const saveKakao = trpc.profile.update.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      if (pendingReceiverId != null) {
+        matchRequest.mutate({ receiverId: pendingReceiverId, courseId });
+      }
+      setConnectKakaoOpen(false);
+      setKakaoInput("");
+      setPendingReceiverId(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleConnect = (receiverId: number) => {
+    if (user?.kakaoOpenChatUrl) {
+      matchRequest.mutate({ receiverId, courseId });
+    } else {
+      setPendingReceiverId(receiverId);
+      setKakaoInput("");
+      setConnectKakaoOpen(true);
+    }
+  };
 
   const enroll = trpc.courses.enroll.useMutation({
     onSuccess: () => {
@@ -368,13 +396,8 @@ export default function CourseDetail() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() =>
-                          matchRequest.mutate({
-                            receiverId: student.user.id,
-                            courseId,
-                          })
-                        }
-                        disabled={matchRequest.isPending}
+                        onClick={() => handleConnect(student.user.id)}
+                        disabled={matchRequest.isPending || saveKakao.isPending}
                         className="gradient-primary text-white border-0"
                       >
                         <Handshake className="mr-1 h-4 w-4" /> 커넥트
@@ -386,6 +409,38 @@ export default function CourseDetail() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 요청자 연락처(오픈채팅) 수집 — kakao 없을 때 커넥트 직전에 입력받음 */}
+      <Dialog open={connectKakaoOpen} onOpenChange={setConnectKakaoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>카카오 오픈채팅 링크</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              매칭이 수락되면 팀원에게 이 링크가 공개돼요. 커넥트하려면 먼저 입력해주세요.
+            </p>
+            <Input
+              value={kakaoInput}
+              onChange={(e) => setKakaoInput(e.target.value)}
+              placeholder="https://open.kakao.com/o/..."
+            />
+            <Button
+              className="w-full gradient-primary text-white border-0"
+              onClick={() => {
+                if (!kakaoInput.trim()) {
+                  toast.error("오픈채팅 링크를 입력해주세요.");
+                  return;
+                }
+                saveKakao.mutate({ kakaoOpenChatUrl: kakaoInput.trim() });
+              }}
+              disabled={saveKakao.isPending || matchRequest.isPending}
+            >
+              {saveKakao.isPending ? "저장 중..." : "저장하고 커넥트"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

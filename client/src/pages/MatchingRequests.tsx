@@ -1,9 +1,17 @@
 import { trpc } from "@/lib/trpc";
 import { parseSkillTags } from "@/lib/utils-parse";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Handshake,
   Check,
@@ -15,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { useState } from "react";
 
 const BADGE_ICONS: Record<string, typeof Shield> = {
   promise: Shield,
@@ -28,9 +37,15 @@ const BADGE_LABELS: Record<string, string> = {
 };
 
 export default function MatchingRequests() {
+  const { user } = useAuth();
   const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.matching.received.useQuery();
+
+  // 수락 시점 kakao 수집(연락처 없는 수신자) — 요청자 커넥트 흐름과 대칭.
+  const [kakaoModalOpen, setKakaoModalOpen] = useState(false);
+  const [pendingMatchId, setPendingMatchId] = useState<number | null>(null);
+  const [kakaoInput, setKakaoInput] = useState("");
 
   const acceptMutation = trpc.matching.accept.useMutation({
     onSuccess: (result) => {
@@ -45,6 +60,30 @@ export default function MatchingRequests() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const saveKakao = trpc.profile.update.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      if (pendingMatchId != null) {
+        acceptMutation.mutate({ matchId: pendingMatchId });
+      }
+      setKakaoModalOpen(false);
+      setKakaoInput("");
+      setPendingMatchId(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 연락처 있으면 바로 수락, 없으면 모달로 받고 저장 후 수락.
+  const handleAccept = (matchId: number) => {
+    if (user?.kakaoOpenChatUrl) {
+      acceptMutation.mutate({ matchId });
+    } else {
+      setPendingMatchId(matchId);
+      setKakaoInput("");
+      setKakaoModalOpen(true);
+    }
+  };
 
   const rejectMutation = trpc.matching.reject.useMutation({
     onSuccess: () => {
@@ -122,8 +161,8 @@ export default function MatchingRequests() {
                 <Button
                   className="flex-1 gradient-primary text-white border-0"
                   size="sm"
-                  onClick={() => acceptMutation.mutate({ matchId: item.match.id })}
-                  disabled={acceptMutation.isPending}
+                  onClick={() => handleAccept(item.match.id)}
+                  disabled={acceptMutation.isPending || saveKakao.isPending}
                 >
                   <Check className="mr-1 h-4 w-4" /> 수락
                 </Button>
@@ -141,6 +180,37 @@ export default function MatchingRequests() {
           </Card>
         ))
       )}
+
+      <Dialog open={kakaoModalOpen} onOpenChange={setKakaoModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>카카오 오픈채팅 링크</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              수락하면 팀원에게 이 링크가 공개돼요. 수락하려면 먼저 입력해주세요.
+            </p>
+            <Input
+              value={kakaoInput}
+              onChange={(e) => setKakaoInput(e.target.value)}
+              placeholder="https://open.kakao.com/o/..."
+            />
+            <Button
+              className="w-full gradient-primary text-white border-0"
+              onClick={() => {
+                if (!kakaoInput.trim()) {
+                  toast.error("오픈채팅 링크를 입력해주세요.");
+                  return;
+                }
+                saveKakao.mutate({ kakaoOpenChatUrl: kakaoInput.trim() });
+              }}
+              disabled={saveKakao.isPending || acceptMutation.isPending}
+            >
+              {saveKakao.isPending ? "저장 중..." : "저장하고 수락"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
