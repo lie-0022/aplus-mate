@@ -36,6 +36,38 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  // ─── 로컬 개발 전용 로그인 (DEV_LOCAL=1일 때만) ─────────────
+  // httpOnly 세션 쿠키는 서버만 설정 가능하고, localhost HTTP에선 sameSite:"none"이
+  // 브라우저에서 거부되므로 dev 전용으로 sameSite:"lax" 쿠키를 발급한다.
+  // 프로덕션엔 DEV_LOCAL을 절대 설정하지 않는다(미설정 시 이 라우트는 등록되지 않음).
+  if (process.env.DEV_LOCAL === "1") {
+    const { COOKIE_NAME, ONE_YEAR_MS } = await import("@shared/const");
+    const { sdk } = await import("./sdk");
+    app.get("/api/dev/login", async (req, res) => {
+      const openId =
+        typeof req.query.as === "string" ? req.query.as : "dev-local";
+      const token = await sdk.createSessionToken(openId, {
+        name: "개발테스트",
+        expiresInMs: ONE_YEAR_MS,
+      });
+      res.cookie(COOKIE_NAME, token, {
+        httpOnly: true,
+        path: "/",
+        sameSite: "lax",
+        secure: false,
+        maxAge: ONE_YEAR_MS,
+      });
+      // 실제 OAuth 콜백처럼 "/"로 착지 → App.tsx Router가 returnTo 복원/프로필 게이트 처리
+      res.redirect(302, "/");
+    });
+    app.get("/api/dev/logout", (_req, res) => {
+      res.clearCookie(COOKIE_NAME, { path: "/" });
+      res.redirect(302, "/");
+    });
+    console.log("[DEV] /api/dev/login & /api/dev/logout enabled (DEV_LOCAL=1)");
+  }
+
   // tRPC API
   app.use(
     "/api/trpc",
