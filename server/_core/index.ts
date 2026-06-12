@@ -28,7 +28,44 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+// 부팅 시 DB 마이그레이션 자동 적용 — 배포자는 코드만 배포하면 스키마가 따라온다.
+// drizzle 저널(__drizzle_migrations)로 멱등 처리되어 이미 적용된 건 건너뛴다.
+// 실패해도 서버는 띄운다(구 스키마로라도 서비스 유지) — 로그로 크게 알린다.
+async function runMigrations() {
+  if (!process.env.DATABASE_URL || process.env.SKIP_MIGRATIONS === "1") return;
+  try {
+    const fs = await import("fs");
+    const path = await import("path");
+    const migrationsFolder = path.resolve(process.cwd(), "drizzle");
+    if (!fs.existsSync(path.join(migrationsFolder, "meta", "_journal.json"))) {
+      console.warn(`[MIGRATE] drizzle 폴더를 찾을 수 없어 건너뜀: ${migrationsFolder}`);
+      return;
+    }
+    const { migrate } = await import("drizzle-orm/mysql2/migrator");
+    const { drizzle } = await import("drizzle-orm/mysql2");
+    const mysql = await import("mysql2/promise");
+    // charset 명시 필수 — 미지정 시 한글 enum 값('족보' 등)이 '??'로 깨져 DDL이 실패한다.
+    const conn = await mysql.createConnection({
+      uri: process.env.DATABASE_URL,
+      charset: "utf8mb4",
+    });
+    try {
+      await migrate(drizzle(conn), { migrationsFolder });
+      console.log("[MIGRATE] DB 마이그레이션 적용 완료 (최신 상태)");
+    } finally {
+      await conn.end();
+    }
+  } catch (e) {
+    console.error("[MIGRATE] 마이그레이션 실패 — 서버는 계속 기동합니다:", e);
+    if (e instanceof Error && e.cause) {
+      console.error("[MIGRATE] cause:", e.cause);
+    }
+  }
+}
+
 async function startServer() {
+  await runMigrations();
+
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
