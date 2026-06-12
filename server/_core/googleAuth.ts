@@ -126,16 +126,18 @@ export function registerGoogleAuthRoutes(app: Express) {
       }
 
       const openId = `google:${profile.sub}`;
+      // name이 비면 세션 payload 필수 필드 검증(verifySession)에 걸리므로 폴백을 둔다.
+      const displayName = profile.name || profile.email || "사용자";
       await db.upsertUser({
         openId,
-        name: profile.name ?? null,
+        name: displayName,
         email: profile.email ?? null,
         loginMethod: "google",
         lastSignedIn: new Date(),
       });
 
       const sessionToken = await sdk.createSessionToken(openId, {
-        name: profile.name ?? "",
+        name: displayName,
         expiresInMs: ONE_YEAR_MS,
       });
       const cookieOptions = getSessionCookieOptions(req);

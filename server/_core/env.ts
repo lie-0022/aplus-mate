@@ -1,5 +1,7 @@
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
+  // 세션 payload의 필수 필드 — 독립 배포에선 단일 앱이라 식별만 되면 되므로
+  // VITE_APP_ID 미설정 시 기본값을 쓴다(미설정 시 세션 검증이 전부 실패하는 것 방지).
+  appId: process.env.VITE_APP_ID || "aplus-mate",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
