@@ -253,7 +253,9 @@ export async function getCourseStudents(courseId: number, semester?: string) {
     })
     .from(userCourses)
     .innerJoin(users, eq(userCourses.userId, users.id))
-    .where(and(...conditions))
+    // 프로필 미완성 유저는 제외 — 학과·학년이 비어 "· 학년"으로 보이고,
+    // 커넥트해도 createMatchRequest의 profileCompleted 검증에서 막혀 dead-end가 된다.
+    .where(and(...conditions, eq(users.profileCompleted, true)))
     .orderBy(desc(userCourses.createdAt));
 }
 
