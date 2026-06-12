@@ -68,10 +68,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     values.lastSignedIn = user.lastSignedIn;
     updateSet.lastSignedIn = user.lastSignedIn;
   }
+  const isOwner =
+    user.openId === ENV.ownerOpenId ||
+    (!!ENV.ownerEmail && !!user.email && user.email === ENV.ownerEmail);
   if (user.role !== undefined) {
     values.role = user.role;
     updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
+  } else if (isOwner) {
     values.role = "admin";
     updateSet.role = "admin";
   }
