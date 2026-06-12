@@ -12,6 +12,8 @@ import {
   UserCircle,
   Bell,
   Handshake,
+  Presentation,
+  ShieldCheck,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -131,6 +133,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <UserCircle className="mr-2 h-4 w-4" />
                   내 프로필
                 </DropdownMenuItem>
+                {(user.role === "professor" || user.role === "admin") && (
+                  <DropdownMenuItem
+                    onClick={() => setLocation("/professor")}
+                    className="cursor-pointer"
+                  >
+                    <Presentation className="mr-2 h-4 w-4" />
+                    교수 페이지
+                  </DropdownMenuItem>
+                )}
+                {user.role === "admin" && (
+                  <DropdownMenuItem
+                    onClick={() => setLocation("/admin")}
+                    className="cursor-pointer"
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    운영자 페이지
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

@@ -12,6 +12,8 @@ import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
 import PostDetail from "./pages/PostDetail";
 import Admin from "./pages/Admin";
+import Professor from "./pages/Professor";
+import SurveyAnswer from "./pages/SurveyAnswer";
 import MatchingRequests from "./pages/MatchingRequests";
 import Teams from "./pages/Teams";
 import TeamDetail from "./pages/TeamDetail";
@@ -109,6 +111,12 @@ function Router() {
       </Route>
       <Route path="/admin">
         <ProtectedPage component={Admin} />
+      </Route>
+      <Route path="/professor">
+        <ProtectedPage component={Professor} />
+      </Route>
+      <Route path="/surveys/:id">
+        <ProtectedPage component={SurveyAnswer} />
       </Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

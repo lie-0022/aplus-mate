@@ -7,6 +7,10 @@ import {
   userCourses,
   posts,
   postComments,
+  courseAnnouncements,
+  surveys,
+  surveyQuestions,
+  surveyResponses,
   teamMatches,
   teams,
   teamMembers,
@@ -1064,6 +1068,284 @@ export async function getUserBadges(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(badges).where(eq(badges.userId, userId));
+}
+
+// ─── Professor (담당 수업·수강생·팀 현황) ─────────────────
+
+// 담당 교수 없는 수업을 클레임. 이미 배정돼 있으면 거부.
+export async function claimCourse(courseId: number, professorId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db.select().from(courses).where(eq(courses.id, courseId)).limit(1);
+  if (rows.length === 0) throw new Error("수업을 찾을 수 없습니다.");
+  if (rows[0].professorId != null) {
+    throw new Error("이미 담당 교수가 등록된 수업입니다.");
+  }
+  await db.update(courses).set({ professorId }).where(eq(courses.id, courseId));
+}
+
+export async function getProfessorCourses(professorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(courses)
+    .where(eq(courses.professorId, professorId))
+    .orderBy(desc(courses.createdAt));
+}
+
+// 교수용 수강생 목록 — 학생 간 매칭 전 마스킹과 달리 교수에게는 실명을 공개한다.
+export async function getCourseStudentsForProfessor(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      user: {
+        id: users.id,
+        name: users.name,
+        department: users.department,
+        year: users.year,
+        skillTags: users.skillTags,
+      },
+      userCourse: userCourses,
+    })
+    .from(userCourses)
+    .innerJoin(users, eq(userCourses.userId, users.id))
+    .where(eq(userCourses.courseId, courseId))
+    .orderBy(desc(userCourses.createdAt));
+}
+
+// 교수용 팀 현황 — 수업의 모든 그룹과 멤버(실명·역할), 평가 진행 상태까지.
+export async function getCourseTeamsForProfessor(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const teamRows = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.courseId, courseId))
+    .orderBy(desc(teams.createdAt));
+  if (teamRows.length === 0) return [];
+
+  const teamIds = teamRows.map((t) => t.id);
+  const memberRows = await db
+    .select({
+      teamMember: teamMembers,
+      user: { id: users.id, name: users.name, department: users.department, year: users.year },
+    })
+    .from(teamMembers)
+    .innerJoin(users, eq(teamMembers.userId, users.id))
+    .where(inArray(teamMembers.teamId, teamIds));
+
+  return teamRows.map((team) => ({
+    team,
+    members: memberRows.filter((m) => m.teamMember.teamId === team.id),
+  }));
+}
+
+// ─── Announcements (교수 공지) ────────────────────────────
+
+export async function createAnnouncement(data: {
+  courseId: number;
+  professorId: number;
+  title: string;
+  content: string;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(courseAnnouncements).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function getCourseAnnouncements(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(courseAnnouncements)
+    .where(eq(courseAnnouncements.courseId, courseId))
+    .orderBy(desc(courseAnnouncements.createdAt));
+}
+
+// ─── Surveys (교수 설문) ──────────────────────────────────
+
+export async function createSurvey(data: {
+  courseId: number;
+  professorId: number;
+  title: string;
+  questions: Array<{ type: "scale" | "choice" | "text"; text: string; options?: string[] }>;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(surveys).values({
+    courseId: data.courseId,
+    professorId: data.professorId,
+    title: data.title,
+    status: "open",
+  });
+  const surveyId = result[0].insertId;
+  await db.insert(surveyQuestions).values(
+    data.questions.map((q, i) => ({
+      surveyId,
+      order: i,
+      type: q.type,
+      text: q.text,
+      options: q.type === "choice" ? (q.options ?? []) : null,
+    }))
+  );
+  return { id: surveyId };
+}
+
+export async function getCourseSurveys(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(surveys)
+    .where(eq(surveys.courseId, courseId))
+    .orderBy(desc(surveys.createdAt));
+}
+
+export async function getSurveyById(surveyId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(surveys).where(eq(surveys.id, surveyId)).limit(1);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export async function getSurveyQuestions(surveyId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(surveyQuestions)
+    .where(eq(surveyQuestions.surveyId, surveyId))
+    .orderBy(surveyQuestions.order);
+}
+
+export async function setSurveyStatus(surveyId: number, status: "open" | "closed") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(surveys).set({ status }).where(eq(surveys.id, surveyId));
+}
+
+export async function hasRespondedSurvey(surveyId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db
+    .select({ id: surveyResponses.id })
+    .from(surveyResponses)
+    .where(and(eq(surveyResponses.surveyId, surveyId), eq(surveyResponses.userId, userId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function submitSurveyResponses(data: {
+  surveyId: number;
+  userId: number;
+  answers: Array<{ questionId: number; value?: number | null; textValue?: string | null }>;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(surveyResponses).values(
+      data.answers.map((a) => ({
+        surveyId: data.surveyId,
+        questionId: a.questionId,
+        userId: data.userId,
+        value: a.value ?? null,
+        textValue: a.textValue ?? null,
+      }))
+    );
+  } catch (error: any) {
+    if (error.code === "ER_DUP_ENTRY") {
+      throw new Error("이미 설문에 응답했습니다.");
+    }
+    throw error;
+  }
+}
+
+// MySQL json 컬럼이 드라이버에 따라 문자열로 올 수 있어 배열로 정규화.
+export function parseOptions(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* not JSON */
+    }
+  }
+  return [];
+}
+
+// 문항별 집계 — scale: 평균·분포(1~5), choice: 선택지별 카운트.
+export async function getSurveyResults(surveyId: number) {
+  const db = await getDb();
+  if (!db) return { questions: [], respondentCount: 0 };
+  const questions = await getSurveyQuestions(surveyId);
+  const responses = await db
+    .select()
+    .from(surveyResponses)
+    .where(eq(surveyResponses.surveyId, surveyId));
+
+  const respondentCount = new Set(responses.map((r) => r.userId)).size;
+  const byQuestion = questions.map((q) => {
+    const rs = responses.filter((r) => r.questionId === q.id);
+    const base = {
+      question: q,
+      count: rs.length,
+      average: null as number | null,
+      distribution: null as number[] | null,
+      choiceCounts: null as number[] | null,
+      textAnswers: null as string[] | null,
+    };
+    if (q.type === "scale") {
+      const dist = [0, 0, 0, 0, 0];
+      rs.forEach((r) => {
+        if (r.value != null && r.value >= 1 && r.value <= 5) dist[r.value - 1]++;
+      });
+      const avg =
+        rs.length > 0 ? rs.reduce((s, r) => s + (r.value ?? 0), 0) / rs.length : 0;
+      return { ...base, average: Math.round(avg * 100) / 100, distribution: dist };
+    }
+    if (q.type === "choice") {
+      const opts = parseOptions(q.options);
+      const counts = opts.map((_, i) => rs.filter((r) => r.value === i).length);
+      return { ...base, choiceCounts: counts };
+    }
+    // 주관식 — 응답 본문을 익명으로 나열
+    const texts = rs
+      .map((r) => r.textValue)
+      .filter((t): t is string => !!t && t.trim().length > 0);
+    return { ...base, textAnswers: texts };
+  });
+
+  return { questions: byQuestion, respondentCount };
+}
+
+// ─── Admin (역할 관리) ────────────────────────────────────
+
+export async function listAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      university: users.university,
+      department: users.department,
+      profileCompleted: users.profileCompleted,
+    })
+    .from(users)
+    .orderBy(desc(users.createdAt));
+}
+
+export async function setUserRole(userId: number, role: "user" | "professor" | "admin") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ role }).where(eq(users.id, userId));
 }
 
 // ─── Consents ────────────────────────────────────────────

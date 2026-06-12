@@ -82,6 +82,9 @@ export default function CourseDetail() {
     courseId,
     category: catFilter === "all" ? undefined : catFilter,
   });
+  // 교수 공지·설문 — 정보 탭 상단에 노출
+  const courseAnnouncements = trpc.announcements.list.useQuery({ courseId });
+  const courseSurveys = trpc.surveys.listForCourse.useQuery({ courseId });
   const myCourses = trpc.courses.myCourses.useQuery({ semester: CURRENT_SEMESTER });
   const isEnrolled = !!myCourses.data?.some((c) => c.course.id === courseId);
   // 미등록 상태에서는 students 쿼리를 호출하지 않는다 — courses.students는 미등록자에게
@@ -268,6 +271,60 @@ export default function CourseDetail() {
 
         {/* Info Tab - Posts */}
         <TabsContent value="info" className="mt-4 space-y-4">
+          {/* 교수 공지 — 최신순 */}
+          {courseAnnouncements.data && courseAnnouncements.data.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50/60 shadow-none">
+              <CardContent className="p-3 space-y-2.5">
+                {courseAnnouncements.data.slice(0, 3).map((a) => (
+                  <div key={a.id}>
+                    <div className="text-sm font-medium flex items-center gap-1.5">
+                      📢 {a.title}
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-0.5">
+                      {a.content}
+                    </p>
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      교수님 공지 ·{" "}
+                      {new Date(a.createdAt).toLocaleDateString("ko-KR", {
+                        month: "numeric",
+                        day: "numeric",
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 진행 중인 교수 설문 */}
+          {courseSurveys.data
+            ?.filter((s) => s.survey.status === "open")
+            .map(({ survey, responded }) => (
+              <Card key={survey.id} className="border-primary/30 bg-primary/5 shadow-none">
+                <CardContent className="p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">📋 {survey.title}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      교수님 설문 · 익명 집계
+                    </div>
+                  </div>
+                  {responded ? (
+                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 shrink-0">
+                      참여 완료
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="gradient-primary text-white border-0 shrink-0"
+                      onClick={() => setLocation(`/surveys/${survey.id}`)}
+                    >
+                      참여하기
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+
           <div className="flex items-center justify-between">
             <div className="flex gap-1.5 overflow-x-auto">
               <Button

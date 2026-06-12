@@ -1,13 +1,29 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import {
+  publicProcedure,
+  protectedProcedure,
+  professorProcedure,
+  adminProcedure,
+  router,
+} from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { generateTeamReport } from "./aiReport";
 
 // 동의 버전 — 약관/개인정보처리방침 개정 시 올리면 재동의가 추적된다.
 const CURRENT_CONSENT_VERSION = "2026.1";
+
+// 교수 권한 헬퍼 — 해당 수업의 담당 교수(또는 admin)만 통과.
+async function assertOwnsCourse(userId: number, role: string, courseId: number) {
+  const course = await db.getCourseById(courseId);
+  if (!course) throw new Error("수업을 찾을 수 없습니다.");
+  if (role !== "admin" && course.professorId !== userId) {
+    throw new Error("담당 교수만 사용할 수 있습니다.");
+  }
+  return course;
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -489,6 +505,198 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Professor (교수 — 담당 수업·수강생·팀·공지·설문) ──
+  professor: router({
+    myCourses: professorProcedure.query(async ({ ctx }) => {
+      return db.getProfessorCourses(ctx.user.id);
+    }),
+    claimCourse: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.claimCourse(input.courseId, ctx.user.id);
+        return { success: true };
+      }),
+    students: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.getCourseStudentsForProfessor(input.courseId);
+      }),
+    teams: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.getCourseTeamsForProfessor(input.courseId);
+      }),
+  }),
+
+  // ─── Announcements (교수 공지) ────────────────────────
+  announcements: router({
+    create: professorProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          title: z.string().min(1).max(300),
+          content: z.string().min(1).max(5000),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.createAnnouncement({
+          courseId: input.courseId,
+          professorId: ctx.user.id,
+          title: input.title,
+          content: input.content,
+        });
+      }),
+    // 학생(수강생)·교수 모두 조회 가능
+    list: protectedProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getCourseAnnouncements(input.courseId);
+      }),
+  }),
+
+  // ─── Surveys (교수 설문 — 5점 척도·객관식 빌더) ────────
+  surveys: router({
+    create: professorProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          title: z.string().min(1).max(300),
+          questions: z
+            .array(
+              z.object({
+                type: z.enum(["scale", "choice", "text"]),
+                text: z.string().min(1).max(500),
+                options: z.array(z.string().min(1).max(200)).max(10).optional(),
+              })
+            )
+            .min(1)
+            .max(20),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        // 객관식은 선택지 2개 이상 필수
+        for (const q of input.questions) {
+          if (q.type === "choice" && (!q.options || q.options.length < 2)) {
+            throw new Error("객관식 문항은 선택지를 2개 이상 추가해주세요.");
+          }
+        }
+        return db.createSurvey({
+          courseId: input.courseId,
+          professorId: ctx.user.id,
+          title: input.title,
+          questions: input.questions,
+        });
+      }),
+    close: professorProcedure
+      .input(z.object({ surveyId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const survey = await db.getSurveyById(input.surveyId);
+        if (!survey) throw new Error("설문을 찾을 수 없습니다.");
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, survey.courseId);
+        await db.setSurveyStatus(input.surveyId, "closed");
+        return { success: true };
+      }),
+    results: professorProcedure
+      .input(z.object({ surveyId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const survey = await db.getSurveyById(input.surveyId);
+        if (!survey) throw new Error("설문을 찾을 수 없습니다.");
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, survey.courseId);
+        return db.getSurveyResults(input.surveyId);
+      }),
+    // 학생: 수업의 설문 목록(+내 응답 여부)
+    listForCourse: protectedProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const list = await db.getCourseSurveys(input.courseId);
+        const withResponded = await Promise.all(
+          list.map(async (s) => ({
+            survey: s,
+            responded: await db.hasRespondedSurvey(s.id, ctx.user.id),
+          }))
+        );
+        return withResponded;
+      }),
+    // 학생: 응답용 설문 단건(문항 포함)
+    get: protectedProcedure
+      .input(z.object({ surveyId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const survey = await db.getSurveyById(input.surveyId);
+        if (!survey) throw new Error("설문을 찾을 수 없습니다.");
+        const enrolled = await db.isUserEnrolled(ctx.user.id, survey.courseId);
+        const isProfessorSide =
+          ctx.user.role === "admin" ||
+          (ctx.user.role === "professor" && (await db.getCourseById(survey.courseId))?.professorId === ctx.user.id);
+        if (!enrolled && !isProfessorSide) {
+          throw new Error("해당 수업 수강생만 설문에 참여할 수 있습니다.");
+        }
+        const questions = await db.getSurveyQuestions(input.surveyId);
+        const responded = await db.hasRespondedSurvey(input.surveyId, ctx.user.id);
+        return { survey, questions, responded };
+      }),
+    submit: protectedProcedure
+      .input(
+        z.object({
+          surveyId: z.number(),
+          answers: z
+            .array(
+              z.object({
+                questionId: z.number(),
+                value: z.number().min(0).max(10).optional(),
+                textValue: z.string().max(2000).optional(),
+              })
+            )
+            .min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const survey = await db.getSurveyById(input.surveyId);
+        if (!survey) throw new Error("설문을 찾을 수 없습니다.");
+        if (survey.status !== "open") throw new Error("마감된 설문입니다.");
+        const enrolled = await db.isUserEnrolled(ctx.user.id, survey.courseId);
+        if (!enrolled) throw new Error("해당 수업 수강생만 설문에 참여할 수 있습니다.");
+
+        // 전 문항 응답 + 유형별 값 검증 (scale 1~5, choice 인덱스, text 본문)
+        const questions = await db.getSurveyQuestions(input.surveyId);
+        const answerMap = new Map(input.answers.map((a) => [a.questionId, a]));
+        for (const q of questions) {
+          const a = answerMap.get(q.id);
+          if (!a) throw new Error("모든 문항에 응답해주세요.");
+          if (q.type === "scale") {
+            if (a.value === undefined || a.value < 1 || a.value > 5) {
+              throw new Error("척도 문항은 1~5점으로 응답해주세요.");
+            }
+          }
+          if (q.type === "choice") {
+            const optCount = db.parseOptions(q.options).length;
+            if (a.value === undefined || a.value < 0 || a.value >= optCount) {
+              throw new Error("올바른 선택지를 골라주세요.");
+            }
+          }
+          if (q.type === "text") {
+            if (!a.textValue || a.textValue.trim().length === 0) {
+              throw new Error("주관식 문항에 답변을 입력해주세요.");
+            }
+          }
+        }
+
+        await db.submitSurveyResponses({
+          surveyId: input.surveyId,
+          userId: ctx.user.id,
+          answers: input.answers.map((a) => ({
+            questionId: a.questionId,
+            value: a.value ?? null,
+            textValue: a.textValue?.trim() ?? null,
+          })),
+        });
+        return { success: true };
+      }),
+  }),
+
   // ─── AI (보고서 초안 생성) ────────────────────────────
   ai: router({
     generateReport: protectedProcedure
@@ -524,6 +732,24 @@ export const appRouter = router({
     pendingMatches: adminProcedure.query(async () => {
       return db.getPendingMatchesForAdmin();
     }),
+    // 유저 역할 관리 — 교수 지정은 운영자가 직접 한다(사칭 방지).
+    listUsers: adminProcedure.query(async () => {
+      return db.listAllUsers();
+    }),
+    setUserRole: adminProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          role: z.enum(["user", "professor", "admin"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.user.id) {
+          throw new Error("자기 자신의 역할은 변경할 수 없습니다.");
+        }
+        await db.setUserRole(input.userId, input.role);
+        return { success: true };
+      }),
   }),
 });
 

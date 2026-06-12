@@ -17,7 +17,8 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  // professor: 운영자가 지정하는 교수 계정 — 담당 수업의 학생·팀 조회, 공지, 설문 권한.
+  role: mysqlEnum("role", ["user", "professor", "admin"]).default("user").notNull(),
   // A+ Mate profile fields
   university: varchar("university", { length: 100 }),
   department: varchar("department", { length: 100 }),
@@ -44,6 +45,8 @@ export const courses = mysqlTable(
     hasTeamProject: boolean("hasTeamProject").default(false).notNull(),
     university: varchar("university", { length: 100 }).notNull(),
     courseCode: varchar("courseCode", { length: 20 }),
+    // 담당 교수(users.id, role=professor). null이면 미배정 — 교수가 클레임하거나 운영자가 지정.
+    professorId: int("professorId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
@@ -233,6 +236,65 @@ export const badges = mysqlTable(
 );
 
 export type Badge = typeof badges.$inferSelect;
+
+// ─── Course Announcements (교수 공지) ─────────────────────
+export const courseAnnouncements = mysqlTable("course_announcements", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  professorId: int("professorId").notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CourseAnnouncement = typeof courseAnnouncements.$inferSelect;
+
+// ─── Surveys (교수 설문) ──────────────────────────────────
+// 교수가 문항을 직접 구성: scale(5점 척도) / choice(객관식, options에 선택지 배열).
+export const surveys = mysqlTable("surveys", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  professorId: int("professorId").notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Survey = typeof surveys.$inferSelect;
+
+export const surveyQuestions = mysqlTable("survey_questions", {
+  id: int("id").autoincrement().primaryKey(),
+  surveyId: int("surveyId").notNull(),
+  order: int("order").default(0).notNull(),
+  // scale: 5점 척도 / choice: 객관식 / text: 주관식(자유 서술)
+  type: mysqlEnum("type", ["scale", "choice", "text"]).notNull(),
+  text: varchar("text", { length: 500 }).notNull(),
+  // choice 전용 선택지 목록. scale·text는 null.
+  options: json("options").$type<string[]>(),
+});
+
+export type SurveyQuestion = typeof surveyQuestions.$inferSelect;
+
+export const surveyResponses = mysqlTable(
+  "survey_responses",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("surveyId").notNull(),
+    questionId: int("questionId").notNull(),
+    userId: int("userId").notNull(),
+    // scale: 1~5 점수, choice: 선택지 인덱스(0-base). text 문항은 null.
+    value: int("value"),
+    // 주관식 응답 본문 (text 문항 전용)
+    textValue: text("textValue"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    // 문항당 1인 1응답
+    uniqueIndex("uniq_survey_response").on(table.questionId, table.userId),
+  ]
+);
+
+export type SurveyResponse = typeof surveyResponses.$inferSelect;
 
 // ─── Consents (동의 기록) ─────────────────────────────────
 // PIPA: 항목별·이벤트별 동의 증빙 + 버전 관리(약관 개정 시 재동의 추적).
