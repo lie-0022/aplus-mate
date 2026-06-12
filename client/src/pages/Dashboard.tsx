@@ -11,13 +11,28 @@ import {
   Plus,
   ArrowRight,
   GraduationCap,
+  CalendarDays,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
+
+// D-day 계산 — TeamDetail과 동일 규칙(날짜 기준).
+function dday(due: Date | string): { label: string; tone: "over" | "soon" | "normal" } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(due);
+  d.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff < 0) return { label: `D+${-diff}`, tone: "over" };
+  if (diff <= 3) return { label: diff === 0 ? "D-DAY" : `D-${diff}`, tone: "soon" };
+  return { label: `D-${diff}`, tone: "normal" };
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.dashboard.getData.useQuery();
+  const upcoming = trpc.events.upcoming.useQuery();
 
   if (isLoading) {
     return (
@@ -75,6 +90,62 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 다가오는 일정 — 내 활성 그룹들의 미완료 일정(임박순) */}
+      {upcoming.data && upcoming.data.length > 0 && (
+        <div>
+          <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-primary" />
+            다가오는 일정
+          </h2>
+          <div className="space-y-2">
+            {upcoming.data.map((item) => {
+              const d = dday(item.event.dueAt);
+              return (
+                <Card
+                  key={item.event.id}
+                  className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setLocation(`/teams/${item.team.id}`)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                          <span className="truncate">{item.event.title}</span>
+                          {item.event.assigneeId === user?.id && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] py-0 bg-primary/10 text-primary border-0 shrink-0"
+                            >
+                              내 담당
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {item.course.name} ·{" "}
+                          {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
+                        </div>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          d.tone === "over"
+                            ? "text-xs bg-red-100 text-red-700 shrink-0"
+                            : d.tone === "soon"
+                              ? "text-xs bg-amber-100 text-amber-700 shrink-0"
+                              : "text-xs shrink-0"
+                        }
+                      >
+                        {d.label}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* My Courses */}
       <div>

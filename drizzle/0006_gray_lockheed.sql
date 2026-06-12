@@ -1,0 +1,1 @@
+ALTER TABLE `team_events` ADD `assigneeId` int;

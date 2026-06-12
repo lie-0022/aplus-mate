@@ -6,7 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MATCH_TYPE_LABELS, ROLE_LABELS, type MatchType, type MentoringRole } from "@shared/const";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,10 +37,27 @@ import {
   Clock,
   Sparkles,
   Copy,
+  CalendarDays,
+  Circle,
+  Trash2,
+  Plus,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
+
+// D-day 계산 — 날짜 기준(시각 무시).
+function dday(due: Date | string): { label: string; tone: "over" | "soon" | "normal" } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(due);
+  d.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff < 0) return { label: `D+${-diff}`, tone: "over" };
+  if (diff <= 3) return { label: diff === 0 ? "D-DAY" : `D-${diff}`, tone: "soon" };
+  return { label: `D-${diff}`, tone: "normal" };
+}
 
 export default function TeamDetail() {
   const params = useParams<{ id: string }>();
@@ -53,6 +77,48 @@ export default function TeamDetail() {
     onSuccess: (res) => {
       setReport(res.content);
       toast.success("보고서 초안이 생성됐어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 팀 일정 — 멤버 전용 CRUD + D-day 표시.
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDue, setEventDue] = useState("");
+  const [eventAssignee, setEventAssignee] = useState<string>("none");
+  const events = trpc.events.list.useQuery({ teamId });
+  const invalidateEvents = () => {
+    utils.events.list.invalidate({ teamId });
+    utils.events.upcoming.invalidate();
+  };
+  const createEvent = trpc.events.create.useMutation({
+    onSuccess: () => {
+      invalidateEvents();
+      setEventTitle("");
+      setEventDue("");
+      setEventAssignee("none");
+      toast.success("일정을 추가했어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const setEventDone = trpc.events.setDone.useMutation({
+    onSuccess: invalidateEvents,
+    onError: (err) => toast.error(err.message),
+  });
+  const setAssignee = trpc.events.setAssignee.useMutation({
+    onSuccess: invalidateEvents,
+    onError: (err) => toast.error(err.message),
+  });
+  const removeEvent = trpc.events.remove.useMutation({
+    onSuccess: invalidateEvents,
+    onError: (err) => toast.error(err.message),
+  });
+
+  const leaveMutation = trpc.teams.leave.useMutation({
+    onSuccess: () => {
+      utils.teams.list.invalidate();
+      utils.events.upcoming.invalidate();
+      toast.success("팀에서 나왔어요.");
+      setLocation("/teams");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -165,6 +231,18 @@ export default function TeamDetail() {
                         나
                       </Badge>
                     )}
+                    {member.teamMember.role !== "member" && (
+                      <Badge
+                        variant="secondary"
+                        className={
+                          member.teamMember.role === "mentor"
+                            ? "text-[10px] py-0 bg-sky-100 text-sky-700 border-0"
+                            : "text-[10px] py-0"
+                        }
+                      >
+                        {ROLE_LABELS[member.teamMember.role as MentoringRole]}
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {member.user.department} · {member.user.year}학년
@@ -200,6 +278,188 @@ export default function TeamDetail() {
             </a>
             할 수 있어요.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* 팀 일정 */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            일정
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2.5 pb-4">
+          {events.data?.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              아직 일정이 없어요. 과제 마감일이나 회의 일정을 등록해보세요!
+            </p>
+          )}
+          {events.data?.map((ev) => {
+            const d = dday(ev.dueAt);
+            return (
+              <div
+                key={ev.id}
+                className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/50"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEventDone.mutate({ eventId: ev.id, isDone: !ev.isDone })
+                  }
+                  disabled={setEventDone.isPending}
+                  aria-label={ev.isDone ? "완료 해제" : "완료 처리"}
+                >
+                  {ev.isDone ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground/50" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={`text-sm font-medium truncate ${
+                      ev.isDone ? "line-through text-muted-foreground" : ""
+                    }`}
+                  >
+                    {ev.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(ev.dueAt).toLocaleString("ko-KR", {
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {!isActive &&
+                      (() => {
+                        if (!ev.assigneeId) return null;
+                        const m = data.members.find((x) => x.user.id === ev.assigneeId);
+                        if (!m) return null;
+                        const mine = ev.assigneeId === user?.id;
+                        return (
+                          <>
+                            {" · 담당 "}
+                            <span className={mine ? "font-medium text-primary" : ""}>
+                              {m.user.name}
+                              {mine ? " (나)" : ""}
+                            </span>
+                          </>
+                        );
+                      })()}
+                  </div>
+                  {/* 활성 팀은 행에서 담당자를 바로 바꿀 수 있다 */}
+                  {isActive && (
+                    <Select
+                      value={String(ev.assigneeId ?? "none")}
+                      onValueChange={(v) =>
+                        setAssignee.mutate({
+                          eventId: ev.id,
+                          assigneeId: v === "none" ? null : Number(v),
+                        })
+                      }
+                    >
+                      <SelectTrigger className="mt-1 h-6 w-fit gap-1 border-dashed px-2 py-0 text-xs text-muted-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">담당 없음</SelectItem>
+                        {data.members.map((m) => (
+                          <SelectItem key={m.user.id} value={String(m.user.id)}>
+                            {m.user.name}
+                            {m.user.id === user?.id ? " (나)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                {ev.isDone ? (
+                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                    완료
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className={
+                      d.tone === "over"
+                        ? "text-xs bg-red-100 text-red-700"
+                        : d.tone === "soon"
+                          ? "text-xs bg-amber-100 text-amber-700"
+                          : "text-xs"
+                    }
+                  >
+                    {d.label}
+                  </Badge>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeEvent.mutate({ eventId: ev.id })}
+                  disabled={removeEvent.isPending}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="일정 삭제"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+          {isActive && (
+            <div className="flex flex-col gap-2 pt-1">
+              <Input
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                placeholder="일정 제목 (예: 발표자료 마감)"
+                maxLength={200}
+              />
+              <Select value={eventAssignee} onValueChange={setEventAssignee}>
+                <SelectTrigger>
+                  <SelectValue placeholder="담당자 (선택)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">담당 없음 (공동)</SelectItem>
+                  {data.members.map((m) => (
+                    <SelectItem key={m.user.id} value={String(m.user.id)}>
+                      {m.user.name}
+                      {m.user.id === user?.id ? " (나)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Input
+                  type="datetime-local"
+                  value={eventDue}
+                  onChange={(e) => setEventDue(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!eventTitle.trim()) {
+                      toast.error("일정 제목을 입력해주세요.");
+                      return;
+                    }
+                    const due = new Date(eventDue);
+                    if (!eventDue || isNaN(due.getTime())) {
+                      toast.error("마감 일시를 선택해주세요.");
+                      return;
+                    }
+                    createEvent.mutate({
+                      teamId,
+                      title: eventTitle.trim(),
+                      dueAt: due,
+                      assigneeId:
+                        eventAssignee !== "none" ? Number(eventAssignee) : undefined,
+                    });
+                  }}
+                  disabled={createEvent.isPending}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> 추가
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -324,6 +584,40 @@ export default function TeamDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* 팀 나가기 — 활성 그룹만 */}
+      {isActive && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-destructive"
+              disabled={leaveMutation.isPending}
+            >
+              <LogOut className="mr-1 h-4 w-4" /> 팀 나가기
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>팀을 나가시겠습니까?</AlertDialogTitle>
+              <AlertDialogDescription>
+                나가면 다시 초대받아야 들어올 수 있어요. 내 담당 일정은 공동으로
+                전환되고, 마지막 멤버가 나가면 그룹이 삭제됩니다.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => leaveMutation.mutate({ teamId })}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                나가기
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

@@ -10,6 +10,8 @@ import ProfileSetup from "./pages/ProfileSetup";
 import Profile from "./pages/Profile";
 import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
+import PostDetail from "./pages/PostDetail";
+import Admin from "./pages/Admin";
 import MatchingRequests from "./pages/MatchingRequests";
 import Teams from "./pages/Teams";
 import TeamDetail from "./pages/TeamDetail";
@@ -90,6 +92,9 @@ function Router() {
       <Route path="/courses/:id">
         <ProtectedPage component={CourseDetail} />
       </Route>
+      <Route path="/posts/:id">
+        <ProtectedPage component={PostDetail} />
+      </Route>
       <Route path="/matching/requests">
         <ProtectedPage component={MatchingRequests} />
       </Route>
@@ -101,6 +106,9 @@ function Router() {
       </Route>
       <Route path="/teams/:id/evaluate">
         <ProtectedPage component={TeamEvaluate} />
+      </Route>
+      <Route path="/admin">
+        <ProtectedPage component={Admin} />
       </Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

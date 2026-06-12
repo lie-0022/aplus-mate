@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,15 @@ export default function MatchingRequests() {
   const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.matching.received.useQuery();
+  const sent = trpc.matching.sent.useQuery();
+
+  const cancelMutation = trpc.matching.cancel.useMutation({
+    onSuccess: () => {
+      utils.matching.sent.invalidate();
+      toast.success("요청을 취소했어요. 다시 커넥트할 수 있어요.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   // 수락 시점 kakao 수집(연락처 없는 수신자) — 요청자 커넥트 흐름과 대칭.
   const [kakaoModalOpen, setKakaoModalOpen] = useState(false);
@@ -118,6 +128,17 @@ export default function MatchingRequests() {
         )}
       </div>
 
+      <Tabs defaultValue="received">
+        <TabsList className="w-full">
+          <TabsTrigger value="received" className="flex-1">
+            받은 요청 ({data?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="sent" className="flex-1">
+            보낸 요청 ({sent.data?.length ?? 0})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="received" className="mt-4 space-y-3">
       {data?.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center">
@@ -141,6 +162,13 @@ export default function MatchingRequests() {
                     <Badge variant="outline" className="text-xs">
                       {MATCH_TYPE_LABELS[(item.match.matchType ?? "project") as MatchType]}
                     </Badge>
+                    {item.match.matchType === "mentoring" && (
+                      <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-700">
+                        {item.match.requesterRole === "mentor"
+                          ? "멘토로 지원했어요"
+                          : "멘토를 찾고 있어요"}
+                      </Badge>
+                    )}
                   </div>
                   <div className="font-medium text-sm">
                     {item.requester.department} · {item.requester.year}학년
@@ -186,6 +214,63 @@ export default function MatchingRequests() {
           </Card>
         ))
       )}
+        </TabsContent>
+
+        <TabsContent value="sent" className="mt-4 space-y-3">
+          {sent.data?.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center">
+                <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="font-medium mb-1">보낸 요청이 없어요</p>
+                <p className="text-sm text-muted-foreground">
+                  수업 상세의 팀원 찾기에서 커넥트를 보내보세요
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            sent.data?.map((item) => (
+              <Card key={item.match.id} className="border shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-1 mb-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {item.course.name}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {MATCH_TYPE_LABELS[(item.match.matchType ?? "project") as MatchType]}
+                        </Badge>
+                        {item.match.matchType === "mentoring" && (
+                          <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-700">
+                            {item.match.requesterRole === "mentor"
+                              ? "멘토로 지원"
+                              : "멘토 찾는 중"}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="font-medium text-sm">
+                        {item.receiver.department} · {item.receiver.year}학년
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {item.receiver.university} · 수락 대기 중
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full text-muted-foreground hover:text-destructive"
+                    size="sm"
+                    onClick={() => cancelMutation.mutate({ matchId: item.match.id })}
+                    disabled={cancelMutation.isPending}
+                  >
+                    <X className="mr-1 h-4 w-4" /> 요청 취소
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={kakaoModalOpen} onOpenChange={setKakaoModalOpen}>
         <DialogContent>

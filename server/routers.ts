@@ -178,6 +178,36 @@ export const appRouter = router({
           category: input.category,
         });
       }),
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        // 조회수를 먼저 올리고 읽어야 화면에 현재 조회수가 보인다.
+        await db.incrementPostView(input.id);
+        const post = await db.getPost(input.id);
+        if (!post) throw new Error("게시글을 찾을 수 없습니다.");
+        return post;
+      }),
+    comments: protectedProcedure
+      .input(z.object({ postId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getPostComments(input.postId);
+      }),
+    addComment: protectedProcedure
+      .input(
+        z.object({
+          postId: z.number(),
+          content: z.string().min(1).max(1000),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const post = await db.getPost(input.postId);
+        if (!post) throw new Error("게시글을 찾을 수 없습니다.");
+        return db.createPostComment({
+          postId: input.postId,
+          userId: ctx.user.id,
+          content: input.content,
+        });
+      }),
   }),
 
   // ─── Matching ────────────────────────────────────────
@@ -188,6 +218,8 @@ export const appRouter = router({
           receiverId: z.number(),
           courseId: z.number(),
           matchType: z.enum(["project", "study", "mentoring"]).default("project"),
+          // 멘토멘티 전용: 요청자가 고른 자기 역할(미지정 시 멘티). 다른 종류는 무시.
+          requesterRole: z.enum(["mentor", "mentee"]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -204,12 +236,22 @@ export const appRouter = router({
           ctx.user.id,
           input.receiverId,
           input.courseId,
-          input.matchType
+          input.matchType,
+          input.requesterRole
         );
       }),
     received: protectedProcedure.query(async ({ ctx }) => {
       return db.getReceivedMatchRequests(ctx.user.id);
     }),
+    sent: protectedProcedure.query(async ({ ctx }) => {
+      return db.getSentMatchRequests(ctx.user.id);
+    }),
+    cancel: protectedProcedure
+      .input(z.object({ matchId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.cancelMatchRequest(input.matchId, ctx.user.id);
+        return { success: true };
+      }),
     pendingCount: protectedProcedure.query(async ({ ctx }) => {
       const cnt = await db.getPendingMatchCount(ctx.user.id);
       return { count: cnt };
@@ -256,6 +298,101 @@ export const appRouter = router({
         await db.completeTeam(input.teamId);
         return { success: true };
       }),
+    leave: protectedProcedure
+      .input(z.object({ teamId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.leaveTeam(input.teamId, ctx.user.id);
+      }),
+  }),
+
+  // ─── Team Events (팀 일정) ────────────────────────────
+  events: router({
+    list: protectedProcedure
+      .input(z.object({ teamId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        if (!team.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 일정을 볼 수 있습니다.");
+        }
+        return db.getTeamEvents(input.teamId);
+      }),
+    create: protectedProcedure
+      .input(
+        z.object({
+          teamId: z.number(),
+          title: z.string().min(1).max(200),
+          dueAt: z.date(),
+          assigneeId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        if (!team.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 일정을 추가할 수 있습니다.");
+        }
+        // 담당자는 팀 멤버만 지정 가능
+        if (
+          input.assigneeId != null &&
+          !team.members.some((m) => m.user.id === input.assigneeId)
+        ) {
+          throw new Error("담당자는 팀 멤버 중에서만 지정할 수 있습니다.");
+        }
+        return db.createTeamEvent({
+          teamId: input.teamId,
+          createdBy: ctx.user.id,
+          title: input.title,
+          dueAt: input.dueAt,
+          assigneeId: input.assigneeId ?? null,
+        });
+      }),
+    setAssignee: protectedProcedure
+      .input(z.object({ eventId: z.number(), assigneeId: z.number().nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        const ev = await db.getTeamEventById(input.eventId);
+        if (!ev) throw new Error("일정을 찾을 수 없습니다.");
+        const team = await db.getTeamDetail(ev.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 일정을 수정할 수 있습니다.");
+        }
+        if (
+          input.assigneeId != null &&
+          !team.members.some((m) => m.user.id === input.assigneeId)
+        ) {
+          throw new Error("담당자는 팀 멤버 중에서만 지정할 수 있습니다.");
+        }
+        await db.setTeamEventAssignee(input.eventId, input.assigneeId);
+        return { success: true };
+      }),
+    setDone: protectedProcedure
+      .input(z.object({ eventId: z.number(), isDone: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const ev = await db.getTeamEventById(input.eventId);
+        if (!ev) throw new Error("일정을 찾을 수 없습니다.");
+        const team = await db.getTeamDetail(ev.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 일정을 수정할 수 있습니다.");
+        }
+        await db.setTeamEventDone(input.eventId, input.isDone);
+        return { success: true };
+      }),
+    remove: protectedProcedure
+      .input(z.object({ eventId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const ev = await db.getTeamEventById(input.eventId);
+        if (!ev) throw new Error("일정을 찾을 수 없습니다.");
+        const team = await db.getTeamDetail(ev.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 일정을 삭제할 수 있습니다.");
+        }
+        await db.deleteTeamEvent(input.eventId);
+        return { success: true };
+      }),
+    // 대시보드: 내 활성 그룹들의 미완료 일정(임박순 5개)
+    upcoming: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUpcomingEventsForUser(ctx.user.id, 5);
+    }),
   }),
 
   // ─── Evaluations ─────────────────────────────────────

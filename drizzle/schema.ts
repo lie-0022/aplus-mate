@@ -85,6 +85,17 @@ export const posts = mysqlTable("posts", {
 
 export type Post = typeof posts.$inferSelect;
 
+// ─── Post Comments (게시글 댓글, 익명 표시) ───────────────
+export const postComments = mysqlTable("post_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("postId").notNull(),
+  userId: int("userId").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PostComment = typeof postComments.$inferSelect;
+
 // ─── Team Matches (매칭 요청) ────────────────────────────
 // Unique constraint: prevent duplicate pending/accepted requests between same pair in same course
 // Allows: A→B pending, then A→B accepted (different status)
@@ -100,6 +111,8 @@ export const teamMatches = mysqlTable(
     matchType: mysqlEnum("matchType", ["project", "study", "mentoring"])
       .default("project")
       .notNull(),
+    // 멘토멘티 전용: 요청자가 고른 자기 역할(상대는 반대 역할). 다른 종류는 null.
+    requesterRole: mysqlEnum("requesterRole", ["mentor", "mentee"]),
     status: mysqlEnum("status", ["pending", "accepted", "rejected"])
       .default("pending")
       .notNull(),
@@ -153,6 +166,8 @@ export const teamMembers = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     teamId: int("teamId").notNull(),
     userId: int("userId").notNull(),
+    // 멘토멘티 그룹에서만 mentor/mentee, 팀플·스터디는 member.
+    role: mysqlEnum("role", ["member", "mentor", "mentee"]).default("member").notNull(),
     hasEvaluated: boolean("hasEvaluated").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
@@ -163,6 +178,22 @@ export const teamMembers = mysqlTable(
 );
 
 export type TeamMember = typeof teamMembers.$inferSelect;
+
+// ─── Team Events (팀 일정) ───────────────────────────────
+// 그룹(팀플·스터디·멘토멘티) 단위 일정/마일스톤. 멤버 전용 CRUD.
+export const teamEvents = mysqlTable("team_events", {
+  id: int("id").autoincrement().primaryKey(),
+  teamId: int("teamId").notNull(),
+  createdBy: int("createdBy").notNull(),
+  // 담당자(팀 멤버 중 1명). null이면 공동/미배정.
+  assigneeId: int("assigneeId"),
+  title: varchar("title", { length: 200 }).notNull(),
+  dueAt: timestamp("dueAt").notNull(),
+  isDone: boolean("isDone").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TeamEvent = typeof teamEvents.$inferSelect;
 
 // ─── Evaluations (블라인드 평가) ─────────────────────────
 export const evaluations = mysqlTable(

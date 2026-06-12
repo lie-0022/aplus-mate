@@ -2,11 +2,12 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { parseSkillTags } from "@/lib/utils-parse";
 import {
-  MAX_TEAM_SIZE,
-  MENTORING_MAX_SIZE,
+  TEAM_SIZE_LIMITS,
+  MENTORING_MAX_MENTEES,
   MATCH_TYPES,
   MATCH_TYPE_LABELS,
   type MatchType,
+  type MentoringRole,
 } from "@shared/const";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,8 @@ export default function CourseDetail() {
   const [kakaoInput, setKakaoInput] = useState("");
   // 커넥트 종류 — 팀플(기본)·스터디·멘토멘티가 같은 화면에서 전환된다.
   const [matchType, setMatchType] = useState<MatchType>("project");
+  // 멘토멘티 전용: 내 역할 선택(기본 멘티 = 멘토를 찾는 요청).
+  const [myRole, setMyRole] = useState<MentoringRole>("mentee");
 
   const course = trpc.courses.get.useQuery({ id: courseId });
   const posts = trpc.posts.list.useQuery({
@@ -101,7 +104,7 @@ export default function CourseDetail() {
   );
   const inTeam = !!myTeamForCourse;
   const myTeamSize = myTeamForCourse?.members.length ?? 0;
-  const maxSize = matchType === "mentoring" ? MENTORING_MAX_SIZE : MAX_TEAM_SIZE;
+  const maxSize = TEAM_SIZE_LIMITS[matchType];
   const teamFull = myTeamSize >= maxSize;
 
   const createPost = trpc.posts.create.useMutation({
@@ -129,7 +132,14 @@ export default function CourseDetail() {
     onSuccess: () => {
       utils.auth.me.invalidate();
       if (pendingReceiverId != null) {
-        matchRequest.mutate({ receiverId: pendingReceiverId, courseId, matchType });
+        matchRequest.mutate({
+          receiverId: pendingReceiverId,
+          courseId,
+          matchType,
+          // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
+          requesterRole:
+            matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
+        });
       }
       setConnectKakaoOpen(false);
       setKakaoInput("");
@@ -140,7 +150,13 @@ export default function CourseDetail() {
 
   const handleConnect = (receiverId: number) => {
     if (user?.kakaoOpenChatUrl) {
-      matchRequest.mutate({ receiverId, courseId, matchType });
+      matchRequest.mutate({
+        receiverId,
+        courseId,
+        matchType,
+        // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
+        requesterRole: matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
+      });
     } else {
       setPendingReceiverId(receiverId);
       setKakaoInput("");
@@ -330,7 +346,11 @@ export default function CourseDetail() {
             </Card>
           ) : (
             posts.data?.map((item) => (
-              <Card key={item.post.id} className="border shadow-sm">
+              <Card
+                key={item.post.id}
+                className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => setLocation(`/posts/${item.post.id}`)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-1">
                     <Badge variant="outline" className="text-xs">
@@ -372,10 +392,34 @@ export default function CourseDetail() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                {matchType === "project" && "같은 수업에서 팀플 팀원을 찾아요."}
-                {matchType === "study" && "수업 내용을 함께 공부할 스터디원을 찾아요."}
-                {matchType === "mentoring" && "선배·동기와 1:1 멘토멘티로 연결돼요."}
+                {matchType === "project" &&
+                  `같은 수업에서 팀플 팀원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.project}명)`}
+                {matchType === "study" &&
+                  `수업 내용을 함께 공부할 스터디원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.study}명)`}
+                {matchType === "mentoring" &&
+                  `멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명으로 연결돼요.`}
               </p>
+              {/* 역할 토글은 그룹이 없을 때만 — 이미 그룹이 있으면 커넥트=멘티 초대로 고정 */}
+              {matchType === "mentoring" && !inTeam && (
+                <div className="flex gap-1.5 pt-0.5">
+                  <Button
+                    size="sm"
+                    variant={myRole === "mentee" ? "default" : "outline"}
+                    className={myRole === "mentee" ? "gradient-primary text-white border-0" : ""}
+                    onClick={() => setMyRole("mentee")}
+                  >
+                    멘토 찾기 (나는 멘티)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={myRole === "mentor" ? "default" : "outline"}
+                    className={myRole === "mentor" ? "gradient-primary text-white border-0" : ""}
+                    onClick={() => setMyRole("mentor")}
+                  >
+                    멘티 찾기 (나는 멘토)
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           {myCourses.isLoading ? (
@@ -432,9 +476,11 @@ export default function CourseDetail() {
                         {myTeamSize}명 {MATCH_TYPE_LABELS[matchType]}
                       </span>{" "}
                       그룹이 있어요. 커넥트하면 상대가 수락 시{" "}
-                      <span className="font-medium text-foreground">내 그룹에 합류</span>해요 (최대{" "}
-                      {maxSize}명).
-                      {teamFull && " 정원이 가득 찼어요."}
+                      <span className="font-medium text-foreground">내 그룹에 합류</span>해요{" "}
+                      {matchType === "mentoring"
+                        ? `(멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명)`
+                        : `(최대 ${maxSize}명)`}
+                      .{teamFull && " 정원이 가득 찼어요."}
                     </p>
                   </CardContent>
                 </Card>
@@ -464,8 +510,10 @@ export default function CourseDetail() {
                           className="gradient-primary text-white border-0"
                         >
                           <Handshake className="mr-1 h-4 w-4" />
-                          {inTeam && matchType !== "mentoring"
-                            ? `${MATCH_TYPE_LABELS[matchType]}에 초대`
+                          {inTeam
+                            ? matchType === "mentoring"
+                              ? "멘티 초대"
+                              : `${MATCH_TYPE_LABELS[matchType]}에 초대`
                             : "커넥트"}
                         </Button>
                       </div>
