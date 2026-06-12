@@ -1,17 +1,5 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-// Generate login URL at runtime so redirect URI reflects the current origin.
-export const getLoginUrl = () => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = btoa(redirectUri);
-
-  const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId);
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
-};
+// 독립 배포: Google OAuth로 로그인한다. 서버 라우트가 동의화면으로 보내고
+// 콜백에서 세션 쿠키를 심은 뒤 "/"로 돌려보낸다 (Manus OAuth와 동일한 착지 흐름).
+export const getLoginUrl = () => "/api/auth/google";

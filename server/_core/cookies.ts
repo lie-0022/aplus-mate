@@ -39,10 +39,12 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  // 독립 배포(단일 도메인 first-party)에서는 lax가 안전하고
+  // OAuth 콜백(최상위 GET 네비게이션)에서도 쿠키가 정상 전송된다.
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

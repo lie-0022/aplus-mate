@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerGoogleAuthRoutes } from "./googleAuth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -68,11 +69,14 @@ async function startServer() {
 
   const app = express();
   const server = createServer(app);
+  // Railway 등 리버스 프록시 뒤에서 https/호스트 판별이 정확하도록
+  app.set("trust proxy", 1);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerGoogleAuthRoutes(app);
 
   // ─── 로컬 개발 전용 로그인 (DEV_LOCAL=1일 때만) ─────────────
   // httpOnly 세션 쿠키는 서버만 설정 가능하고, localhost HTTP에선 sameSite:"none"이
@@ -121,7 +125,8 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // PORT가 명시된 환경(Railway 등)에선 반드시 그 포트로 listen해야 프록시가 연결한다.
+  const port = process.env.PORT ? preferredPort : await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);

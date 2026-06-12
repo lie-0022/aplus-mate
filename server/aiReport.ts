@@ -75,7 +75,7 @@ function mockReport({ courseName, professor, topic, details }: ReportParams): st
 export async function generateTeamReport(
   params: ReportParams
 ): Promise<{ content: string; generatedBy: "llm" | "mock" }> {
-  if (!ENV.forgeApiKey) {
+  if (!ENV.llmApiKey) {
     if (process.env.DEV_LOCAL === "1") {
       return { content: mockReport(params), generatedBy: "mock" };
     }

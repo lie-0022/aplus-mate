@@ -209,14 +209,23 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+// LLM_API_URL이 설정되면 그 엔드포인트(OpenAI 호환)로, 아니면 Manus forge로 폴백.
+// 예) Gemini: https://generativelanguage.googleapis.com/v1beta/openai
+const resolveApiUrl = () => {
+  const base = (ENV.llmApiUrl || "https://forge.manus.im").replace(/\/$/, "");
+  return base.endsWith("/chat/completions")
+    ? base
+    : base.endsWith("/v1") || base.endsWith("/openai") || base.endsWith("/v1beta/openai")
+      ? `${base}/chat/completions`
+      : `${base}/v1/chat/completions`;
+};
+
+// Manus forge가 아닌 일반 엔드포인트는 비표준 필드(thinking)를 거부할 수 있다.
+const isForge = () => resolveApiUrl().includes("forge.manus.im");
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!ENV.llmApiKey) {
+    throw new Error("LLM_API_KEY is not configured");
   }
 };
 
@@ -280,7 +289,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: ENV.llmModel,
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,9 +305,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  payload.max_tokens = 32768;
+  if (isForge()) {
+    payload.thinking = {
+      budget_tokens: 128,
+    };
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({
@@ -316,7 +327,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${ENV.llmApiKey}`,
     },
     body: JSON.stringify(payload),
   });
