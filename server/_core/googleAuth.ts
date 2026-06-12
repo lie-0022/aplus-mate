@@ -11,8 +11,35 @@ import { sdk } from "./sdk";
 // 세션은 기존과 동일한 JWT 쿠키(sdk.createSessionToken)를 그대로 재사용한다.
 // openId는 "google:{sub}" 형태로 저장해 기존 유저 모델과 충돌하지 않는다.
 
-const STATE_COOKIE = "g_oauth_state";
 const STATE_TTL_MS = 10 * 60 * 1000;
+
+// state를 쿠키 없이 검증한다(stateless CSRF) — cross-site 리다이렉트에서
+// sameSite 쿠키가 유실되는 문제를 피하기 위해 HMAC 서명 토큰을 쓴다.
+// 토큰 = "{timestamp}.{hex}.{sig}", sig = HMAC(secret, "{timestamp}.{hex}").
+const STATE_SECRET = ENV.cookieSecret || "aplus-mate-oauth-state";
+
+function makeState(): string {
+  const ts = Date.now().toString();
+  const nonce = crypto.randomBytes(8).toString("hex");
+  const body = `${ts}.${nonce}`;
+  const sig = crypto.createHmac("sha256", STATE_SECRET).update(body).digest("hex");
+  return `${body}.${sig}`;
+}
+
+function verifyState(state: string | undefined): boolean {
+  if (!state) return false;
+  const parts = state.split(".");
+  if (parts.length !== 3) return false;
+  const [ts, nonce, sig] = parts;
+  const expected = crypto
+    .createHmac("sha256", STATE_SECRET)
+    .update(`${ts}.${nonce}`)
+    .digest("hex");
+  if (sig.length !== expected.length) return false;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+  const age = Date.now() - Number(ts);
+  return Number.isFinite(age) && age >= 0 && age < STATE_TTL_MS;
+}
 
 // redirect_uri는 Google 콘솔 등록값과 정확히 일치해야 한다.
 // APP_URL이 있으면 그것을(프록시 뒤에서 안전), 없으면 요청 호스트 기준으로 만든다.
@@ -34,17 +61,9 @@ export function registerGoogleAuthRoutes(app: Express) {
     return;
   }
 
-  // 1) 로그인 시작 — state 쿠키 심고 Google 동의화면으로
+  // 1) 로그인 시작 — 서명된 state를 만들어 Google 동의화면으로(쿠키 불필요)
   app.get("/api/auth/google", (req: Request, res: Response) => {
-    const state = crypto.randomBytes(16).toString("hex");
-    res.cookie(STATE_COOKIE, state, {
-      httpOnly: true,
-      path: "/",
-      sameSite: "lax",
-      secure: getSessionCookieOptions(req).secure,
-      maxAge: STATE_TTL_MS,
-    });
-
+    const state = makeState();
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", ENV.googleClientId);
     url.searchParams.set("redirect_uri", getRedirectUri(req));
@@ -59,10 +78,9 @@ export function registerGoogleAuthRoutes(app: Express) {
     try {
       const code = typeof req.query.code === "string" ? req.query.code : undefined;
       const state = typeof req.query.state === "string" ? req.query.state : undefined;
-      const expected = req.cookies?.[STATE_COOKIE] ?? parseCookie(req, STATE_COOKIE);
-      res.clearCookie(STATE_COOKIE, { path: "/" });
 
-      if (!code || !state || !expected || state !== expected) {
+      if (!code || !verifyState(state)) {
+        console.warn("[GoogleAuth] state 검증 실패", { hasCode: !!code, state });
         res.status(400).send("잘못된 로그인 요청입니다. 다시 시도해주세요.");
         return;
       }
@@ -132,15 +150,4 @@ export function registerGoogleAuthRoutes(app: Express) {
   });
 
   console.log("[GoogleAuth] /api/auth/google 활성화");
-}
-
-// cookie-parser 미들웨어가 없어도 동작하도록 원시 헤더에서 직접 파싱한다.
-function parseCookie(req: Request, name: string): string | undefined {
-  const raw = req.headers.cookie;
-  if (!raw) return undefined;
-  for (const part of raw.split(";")) {
-    const [k, ...v] = part.trim().split("=");
-    if (k === name) return decodeURIComponent(v.join("="));
-  }
-  return undefined;
 }
