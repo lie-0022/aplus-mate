@@ -29,10 +29,15 @@ export default function ProfileSetup() {
   const [year, setYear] = useState<string>("");
   const [kakaoUrl, setKakaoUrl] = useState("");
   const [isAdult, setIsAdult] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  const recordConsent = trpc.consents.record.useMutation();
 
   const updateProfile = trpc.profile.update.useMutation({
     onSuccess: () => {
       utils.auth.me.invalidate();
+      // 가입 동의 기록(개인정보 수집·이용 + 이용약관). 네비게이트를 막지 않게 fire-and-forget.
+      recordConsent.mutate({ consentType: "signup" });
       toast.success("프로필이 설정되었습니다!");
       // 딥링크로 들어왔다가 프로필을 완성한 유저는 원래 목적지로 복원(소비).
       // consumeReturnTo가 '/profile/setup' 자기참조·만료를 걸러내므로 안전.
@@ -51,6 +56,10 @@ export default function ProfileSetup() {
     }
     if (!isAdult) {
       toast.error("만 19세 이상만 이용할 수 있어요.");
+      return;
+    }
+    if (!agreedToTerms) {
+      toast.error("개인정보 수집·이용 및 이용약관에 동의해주세요.");
       return;
     }
     updateProfile.mutate({
@@ -141,6 +150,37 @@ export default function ProfileSetup() {
                 만 19세 이상입니다.{" "}
                 <span className="text-muted-foreground">
                   (현재 베타는 성인만 이용할 수 있어요)
+                </span>
+              </Label>
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(c) => setAgreedToTerms(c === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="terms" className="text-sm font-normal leading-snug">
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  개인정보 수집·이용
+                </a>
+                {" 및 "}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  이용약관
+                </a>
+                에 동의합니다.{" "}
+                <span className="text-muted-foreground">
+                  (이름·학교는 같은 수업 팀원에게만, 평가는 익명 처리)
                 </span>
               </Label>
             </div>

@@ -14,6 +14,8 @@ import MatchingRequests from "./pages/MatchingRequests";
 import Teams from "./pages/Teams";
 import TeamDetail from "./pages/TeamDetail";
 import TeamEvaluate from "./pages/TeamEvaluate";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import AppLayout from "./components/AppLayout";
 import { useAuth } from "./_core/hooks/useAuth";
 import { useEffect } from "react";
@@ -100,6 +102,8 @@ function Router() {
       <Route path="/teams/:id/evaluate">
         <ProtectedPage component={TeamEvaluate} />
       </Route>
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

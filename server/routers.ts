@@ -5,6 +5,9 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_
 import { z } from "zod";
 import * as db from "./db";
 
+// 동의 버전 — 약관/개인정보처리방침 개정 시 올리면 재동의가 추적된다.
+const CURRENT_CONSENT_VERSION = "2026.1";
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -319,6 +322,21 @@ export const appRouter = router({
       .input(z.object({ userId: z.number() }))
       .query(async ({ input }) => {
         return db.getUserBadges(input.userId);
+      }),
+  }),
+
+  // ─── Consents (동의 기록) ─────────────────────────────
+  consents: router({
+    record: protectedProcedure
+      .input(z.object({ consentType: z.enum(["signup", "evaluation"]) }))
+      .mutation(async ({ ctx, input }) => {
+        await db.recordConsent(ctx.user.id, input.consentType, CURRENT_CONSENT_VERSION);
+        return { success: true, version: CURRENT_CONSENT_VERSION };
+      }),
+    has: protectedProcedure
+      .input(z.object({ consentType: z.enum(["signup", "evaluation"]) }))
+      .query(async ({ ctx, input }) => {
+        return db.hasConsent(ctx.user.id, input.consentType, CURRENT_CONSENT_VERSION);
       }),
   }),
 

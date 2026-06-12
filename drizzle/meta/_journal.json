@@ -22,6 +22,13 @@
       "when": 1778497027003,
       "tag": "0002_lucky_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1781224155733,
+      "tag": "0003_wise_warbound",
+      "breakpoints": true
     }
   ]
 }

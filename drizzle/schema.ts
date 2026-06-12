@@ -193,3 +193,26 @@ export const badges = mysqlTable(
 );
 
 export type Badge = typeof badges.$inferSelect;
+
+// ─── Consents (동의 기록) ─────────────────────────────────
+// PIPA: 항목별·이벤트별 동의 증빙 + 버전 관리(약관 개정 시 재동의 추적).
+// consentType: signup(가입 시 개인정보 수집·이용 + 이용약관), evaluation(평가 데이터 동의)
+export const consents = mysqlTable(
+  "consents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    consentType: mysqlEnum("consentType", ["signup", "evaluation"]).notNull(),
+    consentVersion: varchar("consentVersion", { length: 20 }).notNull(),
+    agreedAt: timestamp("agreedAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("uniq_consent").on(
+      table.userId,
+      table.consentType,
+      table.consentVersion
+    ),
+  ]
+);
+
+export type Consent = typeof consents.$inferSelect;

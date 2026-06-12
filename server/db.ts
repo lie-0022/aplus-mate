@@ -11,6 +11,7 @@ import {
   teamMembers,
   evaluations,
   badges,
+  consents,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -771,6 +772,45 @@ export async function getUserBadges(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(badges).where(eq(badges.userId, userId));
+}
+
+// ─── Consents ────────────────────────────────────────────
+
+export async function recordConsent(
+  userId: number,
+  consentType: "signup" | "evaluation",
+  consentVersion: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(consents).values({ userId, consentType, consentVersion });
+  } catch (error: any) {
+    // 이미 동의한 버전이면 멱등 처리(중복 무시)
+    if (error.code === "ER_DUP_ENTRY") return;
+    throw error;
+  }
+}
+
+export async function hasConsent(
+  userId: number,
+  consentType: "signup" | "evaluation",
+  consentVersion: string
+) {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db
+    .select()
+    .from(consents)
+    .where(
+      and(
+        eq(consents.userId, userId),
+        eq(consents.consentType, consentType),
+        eq(consents.consentVersion, consentVersion)
+      )
+    )
+    .limit(1);
+  return result.length > 0;
 }
 
 // ─── Dashboard ───────────────────────────────────────────
