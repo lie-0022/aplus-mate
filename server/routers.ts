@@ -46,12 +46,24 @@ export const appRouter = router({
     update: protectedProcedure
       .input(
         z.object({
-          name: z.string().min(1).optional(),
-          university: z.string().min(1).optional(),
-          department: z.string().min(1).optional(),
+          // trim 후 min(1) — 공백만(" ") 입력이 길이 1로 통과해 profileCompleted가
+          // 잘못 켜지는 것을 막고, 저장값의 앞뒤 공백도 정규화한다(엣지 3-A).
+          name: z.string().trim().min(1).optional(),
+          university: z.string().trim().min(1).optional(),
+          department: z.string().trim().min(1).optional(),
           year: z.number().min(1).max(6).optional(),
-          skillTags: z.array(z.string()).optional(),
-          kakaoOpenChatUrl: z.string().optional(),
+          // 개수·길이 상한으로 거대 페이로드를 차단한다(엣지 6-B)
+          skillTags: z.array(z.string().trim().min(1).max(50)).max(30).optional(),
+          // 카카오 오픈채팅 링크만 허용 — 매칭 수락 후 상대에게 그대로 노출·링크되므로
+          // 도메인을 고정해 피싱·비정상 스킴(javascript: 등)을 차단한다(엣지 6-A).
+          kakaoOpenChatUrl: z
+            .string()
+            .trim()
+            .max(300)
+            .refine((v) => v === "" || /^https:\/\/open\.kakao\.com\//.test(v), {
+              message: "카카오 오픈채팅 링크(https://open.kakao.com/...)를 입력해주세요.",
+            })
+            .optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -80,6 +92,11 @@ export const appRouter = router({
         }
         return { user: null, badges: [] };
       }),
+    // 회원 탈퇴 — PII 익명화 + 활성 팀 정리 + pending 매칭 삭제
+    deleteSelf: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.deleteSelf(ctx.user.id);
+      return { success: true };
+    }),
   }),
 
   // ─── Dashboard ───────────────────────────────────────
@@ -109,12 +126,13 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          name: z.string().min(1),
-          professor: z.string().min(1),
+          // 길이 상한으로 거대 페이로드를 차단하고 저장값을 정규화한다(엣지 8-A)
+          name: z.string().trim().min(1).max(200),
+          professor: z.string().trim().min(1).max(100),
           credits: z.number().min(1).max(6),
           hasTeamProject: z.boolean().default(false),
-          university: z.string().min(1),
-          courseCode: z.string().optional(),
+          university: z.string().trim().min(1).max(100),
+          courseCode: z.string().trim().max(50).optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -139,6 +157,11 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // 활성 팀이 있는 채로 수강 취소하면 "비수강인데 팀 소속" 불일치가 생긴다.
+        // 먼저 팀을 정리하도록 막는다(엣지 8-E).
+        if (await db.hasActiveTeamInCourse(ctx.user.id, input.courseId)) {
+          throw new Error("이 수업의 팀에 소속되어 있어요. 먼저 팀에서 나간 뒤 수강 취소해주세요.");
+        }
         await db.unenrollCourse(ctx.user.id, input.courseId, input.semester);
         return { success: true };
       }),
@@ -180,12 +203,17 @@ export const appRouter = router({
       .input(
         z.object({
           courseId: z.number(),
-          title: z.string().min(1),
-          content: z.string().min(1),
+          // 길이 무제한이면 거대 페이로드로 DB·렌더 부담 → 상한을 둔다(엣지 4-E)
+          title: z.string().trim().min(1).max(200),
+          content: z.string().trim().min(1).max(10000),
           category: z.enum(["족보", "과제팁", "후기", "스터디"]),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // 글쓰기는 수강생만 — 읽기(list/get/comments)는 둘러보기 허용이지만
+        // write는 수강생으로 제한한다(설문과 동일한 정책, 엣지 4-D).
+        const enrolled = await db.isUserEnrolled(ctx.user.id, input.courseId);
+        if (!enrolled) throw new Error("해당 수업 수강생만 글을 쓸 수 있습니다.");
         return db.createPost({
           courseId: input.courseId,
           userId: ctx.user.id,
@@ -205,24 +233,40 @@ export const appRouter = router({
       }),
     comments: protectedProcedure
       .input(z.object({ postId: z.number() }))
-      .query(async ({ input }) => {
-        return db.getPostComments(input.postId);
+      .query(async ({ ctx, input }) => {
+        return db.getPostComments(input.postId, ctx.user.id);
       }),
     addComment: protectedProcedure
       .input(
         z.object({
           postId: z.number(),
-          content: z.string().min(1).max(1000),
+          content: z.string().trim().min(1).max(1000),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const post = await db.getPost(input.postId);
         if (!post) throw new Error("게시글을 찾을 수 없습니다.");
+        // 댓글 작성도 수강생만(엣지 4-D)
+        const enrolled = await db.isUserEnrolled(ctx.user.id, post.courseId);
+        if (!enrolled) throw new Error("해당 수업 수강생만 댓글을 쓸 수 있습니다.");
         return db.createPostComment({
           postId: input.postId,
           userId: ctx.user.id,
           content: input.content,
         });
+      }),
+    // 게시글·댓글 삭제(soft-hide) — 작성자 본인 또는 운영자만.
+    remove: protectedProcedure
+      .input(z.object({ postId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.hidePost(input.postId, ctx.user.id, ctx.user.role === "admin");
+        return { success: true };
+      }),
+    removeComment: protectedProcedure
+      .input(z.object({ commentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.hidePostComment(input.commentId, ctx.user.id, ctx.user.role === "admin");
+        return { success: true };
       }),
   }),
 
@@ -275,7 +319,20 @@ export const appRouter = router({
     accept: protectedProcedure
       .input(z.object({ matchId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        return db.acceptMatch(input.matchId, ctx.user.id);
+        const match = await db.getMatchById(input.matchId);
+        const result = await db.acceptMatch(input.matchId, ctx.user.id);
+        // 요청자에게 수락 알림 — 비대칭 매칭(요청자는 결과를 알 채널이 없던 문제) 해소
+        if (match && result?.teamId) {
+          const course = await db.getCourseById(match.courseId);
+          await db.createNotification({
+            userId: match.requesterId,
+            type: "match_accepted",
+            title: "매칭이 수락됐어요!",
+            body: `${course?.name ?? "수업"} 팀이 만들어졌어요.`,
+            linkPath: `/teams/${result.teamId}`,
+          });
+        }
+        return result;
       }),
     reject: protectedProcedure
       .input(z.object({ matchId: z.number() }))
@@ -411,6 +468,44 @@ export const appRouter = router({
     }),
   }),
 
+  // ─── Team Notes (팀 메모 보드) ────────────────────────
+  notes: router({
+    list: protectedProcedure
+      .input(z.object({ teamId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 볼 수 있습니다.");
+        }
+        return db.getTeamNotes(input.teamId);
+      }),
+    create: protectedProcedure
+      .input(z.object({ teamId: z.number(), content: z.string().trim().min(1).max(1000) }))
+      .mutation(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 작성할 수 있습니다.");
+        }
+        return db.createTeamNote({
+          teamId: input.teamId,
+          userId: ctx.user.id,
+          content: input.content,
+        });
+      }),
+    remove: protectedProcedure
+      .input(z.object({ noteId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const note = await db.getTeamNoteById(input.noteId);
+        if (!note) throw new Error("메모를 찾을 수 없습니다.");
+        const team = await db.getTeamDetail(note.teamId);
+        if (!team?.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 삭제할 수 있습니다.");
+        }
+        await db.deleteTeamNote(input.noteId);
+        return { success: true };
+      }),
+  }),
+
   // ─── Evaluations ─────────────────────────────────────
   evaluations: router({
     submit: protectedProcedure
@@ -451,6 +546,11 @@ export const appRouter = router({
 
         // Validate: must evaluate exactly all other team members
         const otherMembers = team.members.filter((m) => m.user.id !== ctx.user.id);
+        // 중복 evaluateeId([A,A,B] 등)를 명확히 차단 — Set 비교만으로는 길이를 맞춘
+        // 중복이 통과할 수 있어, 정확히 '다른 멤버 수'만큼 왔는지 먼저 확인한다(엣지 7-A).
+        if (input.evaluations.length !== otherMembers.length) {
+          throw new Error("모든 팀원을 한 번씩만 평가해야 합니다.");
+        }
         const evaluateeIds = new Set(input.evaluations.map((e) => e.evaluateeId));
         const expectedIds = new Set(otherMembers.map((m) => m.user.id));
 
@@ -478,6 +578,25 @@ export const appRouter = router({
       .input(z.object({ teamId: z.number() }))
       .query(async ({ ctx, input }) => {
         return db.hasUserEvaluated(input.teamId, ctx.user.id);
+      }),
+    // 평가 강제 마감 — 팀원이 미제출자를 무한정 기다리지 않고 평가 단계를 종료한다.
+    // 현재까지 제출된 평가로 배지를 계산한다(엣지 1-E).
+    forceClose: protectedProcedure
+      .input(z.object({ teamId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        if (!team.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 평가를 마감할 수 있습니다.");
+        }
+        if (team.team.teamType !== "project") {
+          throw new Error("팀플 팀만 평가 마감이 있습니다.");
+        }
+        if (team.team.status !== "completed") {
+          throw new Error("완료된 팀플만 평가를 마감할 수 있습니다.");
+        }
+        await db.closeEvaluation(input.teamId);
+        return { success: true };
       }),
   }),
 
@@ -528,6 +647,64 @@ export const appRouter = router({
         await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
         return db.getCourseTeamsForProfessor(input.courseId);
       }),
+    // 수업 현황 한눈에 — 참여·팀 구성·미배정 학생·설문 응답률
+    dashboard: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.getCourseDashboard(input.courseId);
+      }),
+    // ── 산출물(마일스톤) ──
+    createMilestone: professorProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          title: z.string().trim().min(1).max(200),
+          description: z.string().trim().max(2000).optional(),
+          dueAt: z.date().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.createMilestone({
+          courseId: input.courseId,
+          createdBy: ctx.user.id,
+          title: input.title,
+          description: input.description ?? null,
+          dueAt: input.dueAt ?? null,
+        });
+      }),
+    milestones: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.getCourseMilestones(input.courseId);
+      }),
+    removeMilestone: professorProcedure
+      .input(z.object({ milestoneId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const courseId = await db.getMilestoneCourseId(input.milestoneId);
+        if (!courseId) throw new Error("제출 항목을 찾을 수 없습니다.");
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, courseId);
+        await db.deleteMilestone(input.milestoneId);
+        return { success: true };
+      }),
+    // 제출 현황(팀×마일스톤 매트릭스 조립용)
+    submissions: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.getCourseSubmissions(input.courseId);
+      }),
+    reviewSubmission: professorProcedure
+      .input(z.object({ submissionId: z.number(), reviewed: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const courseId = await db.getSubmissionCourseId(input.submissionId);
+        if (!courseId) throw new Error("제출물을 찾을 수 없습니다.");
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, courseId);
+        await db.setSubmissionReviewed(input.submissionId, input.reviewed);
+        return { success: true };
+      }),
   }),
 
   // ─── Announcements (교수 공지) ────────────────────────
@@ -542,18 +719,39 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
-        return db.createAnnouncement({
+        const created = await db.createAnnouncement({
           courseId: input.courseId,
           professorId: ctx.user.id,
           title: input.title,
           content: input.content,
         });
+        // 수강생들에게 새 공지 알림(fanout)
+        const students = await db.getCourseStudentsForProfessor(input.courseId);
+        for (const s of students) {
+          await db.createNotification({
+            userId: s.user.id,
+            type: "announcement",
+            title: "새 공지가 올라왔어요",
+            body: input.title,
+            linkPath: `/courses/${input.courseId}`,
+          });
+        }
+        return created;
       }),
     // 학생(수강생)·교수 모두 조회 가능
     list: protectedProcedure
       .input(z.object({ courseId: z.number() }))
       .query(async ({ input }) => {
         return db.getCourseAnnouncements(input.courseId);
+      }),
+    remove: professorProcedure
+      .input(z.object({ announcementId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const courseId = await db.getAnnouncementCourseId(input.announcementId);
+        if (!courseId) throw new Error("공지를 찾을 수 없습니다.");
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, courseId);
+        await db.deleteAnnouncement(input.announcementId);
+        return { success: true };
       }),
   }),
 
@@ -714,6 +912,18 @@ export const appRouter = router({
         const isMember = team.members.some((m) => m.user.id === ctx.user.id);
         if (!isMember) throw new Error("팀 멤버만 보고서를 생성할 수 있습니다.");
 
+        // 팀이 실제로 한 활동(완료 일정·제출 산출물)을 컨텍스트로 넣어 초안을 구체화
+        const events = await db.getTeamEvents(input.teamId);
+        const milestones = await db.getTeamMilestones(input.teamId);
+        const progress: string[] = [
+          ...events.filter((e) => e.isDone).map((e) => `완료 일정: ${e.title}`),
+          ...milestones
+            .filter((m) => m.submission)
+            .map(
+              (m) =>
+                `제출: ${m.milestone.title}${m.submission?.note ? ` (${m.submission.note})` : ""}`
+            ),
+        ];
         return generateTeamReport({
           courseName: team.course.name,
           professor: team.course.professor,
@@ -721,8 +931,97 @@ export const appRouter = router({
           memberCount: team.members.length,
           topic: input.topic,
           details: input.details,
+          progress,
         });
       }),
+  }),
+
+  // ─── Deliverables (팀 산출물 제출) ────────────────────
+  deliverables: router({
+    // 팀 관점: 우리 수업의 마일스톤 목록 + 우리 팀 제출 현황
+    forTeam: protectedProcedure
+      .input(z.object({ teamId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        if (!team.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 볼 수 있습니다.");
+        }
+        return db.getTeamMilestones(input.teamId);
+      }),
+    // 산출물 제출/수정 — 외부 링크(구글드라이브·노션 등) + 메모
+    submit: protectedProcedure
+      .input(
+        z.object({
+          teamId: z.number(),
+          milestoneId: z.number(),
+          url: z.string().trim().url().max(1000),
+          note: z.string().trim().max(1000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const team = await db.getTeamDetail(input.teamId);
+        if (!team) throw new Error("팀을 찾을 수 없습니다.");
+        if (!team.members.some((m) => m.user.id === ctx.user.id)) {
+          throw new Error("팀 멤버만 제출할 수 있습니다.");
+        }
+        // 마일스톤이 이 팀의 수업 것인지 확인(다른 수업 제출 항목 차단)
+        const msCourseId = await db.getMilestoneCourseId(input.milestoneId);
+        if (msCourseId == null || msCourseId !== team.team.courseId) {
+          throw new Error("이 팀의 수업 제출 항목이 아닙니다.");
+        }
+        await db.submitDeliverable({
+          milestoneId: input.milestoneId,
+          teamId: input.teamId,
+          submittedBy: ctx.user.id,
+          url: input.url,
+          note: input.note ?? null,
+        });
+        return { success: true };
+      }),
+  }),
+
+  // ─── Reports (신고) ───────────────────────────────────
+  reports: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          targetType: z.enum(["post", "comment", "user"]),
+          targetId: z.number(),
+          reason: z.enum(["abuse", "spam", "privacy", "etc"]),
+          detail: z.string().trim().max(500).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await db.createReport({
+          reporterId: ctx.user.id,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reason: input.reason,
+          detail: input.detail ?? null,
+        });
+        return { success: true };
+      }),
+  }),
+
+  // ─── Notifications (인앱 알림) ────────────────────────
+  notifications: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return db.getNotifications(ctx.user.id);
+    }),
+    unreadCount: protectedProcedure.query(async ({ ctx }) => {
+      return { count: await db.countUnreadNotifications(ctx.user.id) };
+    }),
+    markRead: protectedProcedure
+      .input(z.object({ notificationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.markNotificationRead(input.notificationId, ctx.user.id);
+        return { success: true };
+      }),
+    markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.markAllNotificationsRead(ctx.user.id);
+      return { success: true };
+    }),
   }),
 
   // ─── Admin (운영자 전용) ──────────────────────────────
@@ -747,7 +1046,24 @@ export const appRouter = router({
         if (input.userId === ctx.user.id) {
           throw new Error("자기 자신의 역할은 변경할 수 없습니다.");
         }
+        // 마지막 운영자를 강등하면 역할 관리 자체가 불가능해지므로 차단(엣지 4-A).
+        if (input.role !== "admin") {
+          const target = await db.getUserById(input.userId);
+          if (target?.role === "admin" && (await db.countUsersByRole("admin")) <= 1) {
+            throw new Error("마지막 운영자는 강등할 수 없습니다.");
+          }
+        }
         await db.setUserRole(input.userId, input.role);
+        return { success: true };
+      }),
+    // 신고 큐 — 미처리 신고 조회 + 처리 완료 표시
+    reports: adminProcedure.query(async () => {
+      return db.getOpenReports();
+    }),
+    resolveReport: adminProcedure
+      .input(z.object({ reportId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.resolveReport(input.reportId);
         return { success: true };
       }),
   }),

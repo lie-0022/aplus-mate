@@ -59,6 +59,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     refetchInterval: 30000,
   });
 
+  // 인앱 알림센터
+  const utils = trpc.useUtils();
+  const notifications = trpc.notifications.list.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+  const unreadQuery = trpc.notifications.unreadCount.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+  const markRead = trpc.notifications.markRead.useMutation({
+    onSuccess: () => {
+      utils.notifications.list.invalidate();
+      utils.notifications.unreadCount.invalidate();
+    },
+  });
+  const markAllRead = trpc.notifications.markAllRead.useMutation({
+    onSuccess: () => {
+      utils.notifications.list.invalidate();
+      utils.notifications.unreadCount.invalidate();
+    },
+  });
+
   if (loading) return <AppLayoutSkeleton />;
 
   if (!user) {
@@ -104,17 +127,69 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-2">
-            {pendingCount > 0 && (
-              <button
-                onClick={() => setLocation("/matching/requests")}
-                className="relative p-2 hover:bg-muted rounded-lg transition-colors"
-              >
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span className="absolute -top-0.5 -right-0.5 bg-destructive text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {pendingCount > 9 ? "9+" : pendingCount}
-                </span>
-              </button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="relative p-2 hover:bg-muted rounded-lg transition-colors">
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                  {(unreadQuery.data?.count ?? 0) > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-destructive text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                      {(unreadQuery.data?.count ?? 0) > 9 ? "9+" : unreadQuery.data?.count}
+                    </span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-sm font-semibold">알림</span>
+                  {(unreadQuery.data?.count ?? 0) > 0 && (
+                    <button
+                      onClick={() => markAllRead.mutate()}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      모두 읽음
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {!notifications.data || notifications.data.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">알림이 없어요</p>
+                  ) : (
+                    notifications.data.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          if (!n.isRead) markRead.mutate({ notificationId: n.id });
+                          if (n.linkPath) setLocation(n.linkPath);
+                        }}
+                        className={`w-full text-left px-2 py-2 hover:bg-muted rounded-md ${
+                          !n.isRead ? "bg-primary/5" : ""
+                        }`}
+                      >
+                        <div className="text-sm font-medium flex items-center gap-1.5">
+                          {!n.isRead && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                          )}
+                          <span className="truncate">{n.title}</span>
+                        </div>
+                        {n.body && (
+                          <div className="text-xs text-muted-foreground truncate pl-3">
+                            {n.body}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-muted-foreground mt-0.5 pl-3">
+                          {new Date(n.createdAt).toLocaleString("ko-KR", {
+                            month: "numeric",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 p-1 hover:bg-muted rounded-lg transition-colors">

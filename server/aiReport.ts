@@ -12,6 +12,8 @@ export type ReportParams = {
   memberCount: number;
   topic: string;
   details?: string;
+  // 팀이 실제로 한 활동(완료 일정·제출 산출물) — 초안을 우리 팀에 맞게 구체화하는 컨텍스트.
+  progress?: string[];
 };
 
 const TEAM_TYPE_KO: Record<string, string> = {
@@ -20,7 +22,15 @@ const TEAM_TYPE_KO: Record<string, string> = {
   mentoring: "멘토링",
 };
 
-function buildMessages({ courseName, professor, teamType, memberCount, topic, details }: ReportParams) {
+function buildMessages({
+  courseName,
+  professor,
+  teamType,
+  memberCount,
+  topic,
+  details,
+  progress,
+}: ReportParams) {
   const kind = TEAM_TYPE_KO[teamType] ?? "팀 프로젝트";
   const system = [
     "너는 한국 대학생의 수업 보고서 초안 작성을 돕는 어시스턴트야.",
@@ -36,8 +46,11 @@ function buildMessages({ courseName, professor, teamType, memberCount, topic, de
     `활동 종류: ${kind} (${memberCount}명)`,
     `보고서 주제: ${topic}`,
     details ? `추가 요구사항: ${details}` : null,
+    progress && progress.length > 0
+      ? `\n팀이 실제로 진행한 활동(참고):\n${progress.map((p) => `- ${p}`).join("\n")}`
+      : null,
     "",
-    "위 정보를 바탕으로 보고서 초안을 작성해줘.",
+    "위 정보를 바탕으로 보고서 초안을 작성해줘. 진행한 활동이 있으면 본론에 자연스럽게 반영해.",
   ]
     .filter((l): l is string => l !== null)
     .join("\n");

@@ -17,6 +17,7 @@ import SurveyAnswer from "./pages/SurveyAnswer";
 import MatchingRequests from "./pages/MatchingRequests";
 import Teams from "./pages/Teams";
 import TeamDetail from "./pages/TeamDetail";
+import PublicProfile from "./pages/PublicProfile";
 import TeamEvaluate from "./pages/TeamEvaluate";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -114,6 +115,9 @@ function Router() {
       </Route>
       <Route path="/professor">
         <ProtectedPage component={Professor} />
+      </Route>
+      <Route path="/users/:id">
+        <ProtectedPage component={PublicProfile} />
       </Route>
       <Route path="/surveys/:id">
         <ProtectedPage component={SurveyAnswer} />

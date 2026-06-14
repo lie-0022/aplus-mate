@@ -157,7 +157,10 @@ export default function MatchingRequests() {
           <Card key={item.match.id} className="border shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
-                <div>
+                <div
+                  onClick={() => setLocation(`/users/${item.requester.id}`)}
+                  className="cursor-pointer"
+                >
                   <div className="flex items-center gap-1 mb-2">
                     <Badge variant="secondary" className="text-xs">
                       {item.course.name}

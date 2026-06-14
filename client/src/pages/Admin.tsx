@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
-import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users } from "lucide-react";
+import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -16,6 +16,13 @@ import {
 import { toast } from "sonner";
 
 const ROLE_KO: Record<string, string> = { user: "학생", professor: "교수", admin: "운영자" };
+const REASON_KO: Record<string, string> = {
+  abuse: "욕설·비방",
+  spam: "스팸·광고",
+  privacy: "개인정보 노출",
+  etc: "기타",
+};
+const TARGET_KO: Record<string, string> = { post: "게시글", comment: "댓글", user: "사용자" };
 
 // 운영자 전용 — pending 매칭 현황. 서버는 adminProcedure(role=admin)로 이중 가드.
 // 운영자에게는 수동 운영(연락·푸시)을 위해 실명·오픈채팅이 보인다.
@@ -35,6 +42,14 @@ export default function Admin() {
     onSuccess: () => {
       utils.admin.listUsers.invalidate();
       toast.success("역할을 변경했어요.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const reports = trpc.admin.reports.useQuery(undefined, { enabled: isAdmin, retry: false });
+  const resolveReport = trpc.admin.resolveReport.useMutation({
+    onSuccess: () => {
+      utils.admin.reports.invalidate();
+      toast.success("신고를 처리했어요.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -137,6 +152,45 @@ export default function Admin() {
           </Card>
         ))
       )}
+
+      {/* 신고 큐 */}
+      <div className="flex items-center gap-2 pt-2">
+        <Flag className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-bold">신고 ({reports.data?.length ?? 0})</h2>
+      </div>
+      {reports.data && reports.data.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="p-4 text-center text-sm text-muted-foreground">
+            처리할 신고가 없어요.
+          </CardContent>
+        </Card>
+      )}
+      {reports.data?.map((r) => (
+        <Card key={`report-${r.id}`} className="border shadow-sm">
+          <CardContent className="p-3 flex items-start justify-between gap-2">
+            <div className="text-sm min-w-0">
+              <div className="font-medium">
+                {TARGET_KO[r.targetType]} #{r.targetId} · {REASON_KO[r.reason]}
+              </div>
+              {r.detail && (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{r.detail}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {new Date(r.createdAt).toLocaleString("ko-KR")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => resolveReport.mutate({ reportId: r.id })}
+              disabled={resolveReport.isPending}
+            >
+              처리
+            </Button>
+          </CardContent>
+        </Card>
+      ))}
 
       {/* 유저 역할 관리 — 교수 지정은 운영자가 직접(사칭 방지) */}
       <div className="flex items-center gap-2 pt-2">

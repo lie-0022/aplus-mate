@@ -26,6 +26,8 @@ export const users = mysqlTable("users", {
   skillTags: json("skillTags").$type<string[]>().default([]),
   kakaoOpenChatUrl: varchar("kakaoOpenChatUrl", { length: 500 }),
   profileCompleted: boolean("profileCompleted").default(false).notNull(),
+  // 회원 탈퇴 시각(소프트-파기). null이면 활성 계정.
+  deletedAt: timestamp("deletedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -83,6 +85,8 @@ export const posts = mysqlTable("posts", {
   content: text("content").notNull(),
   category: mysqlEnum("category", ["족보", "과제팁", "후기", "스터디"]).notNull(),
   viewCount: int("viewCount").default(0).notNull(),
+  // 모더레이션 soft-hide — null이면 노출, 값이 있으면 숨김(작성자 삭제/운영자 차단).
+  hiddenAt: timestamp("hiddenAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -94,6 +98,8 @@ export const postComments = mysqlTable("post_comments", {
   postId: int("postId").notNull(),
   userId: int("userId").notNull(),
   content: text("content").notNull(),
+  // 모더레이션 soft-hide — null이면 노출, 값이 있으면 숨김.
+  hiddenAt: timestamp("hiddenAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -318,3 +324,89 @@ export const consents = mysqlTable(
 );
 
 export type Consent = typeof consents.$inferSelect;
+
+// ─── Course Milestones (교수 제출 항목) + Team Submissions (팀 산출물) ──
+// 교수가 "1차 기획안" 같은 제출 항목(마일스톤)을 만들면 각 팀이 링크+메모로 제출한다.
+// 교수는 마일스톤 × 팀 매트릭스로 제출 현황을 한눈에 본다. 파일 업로드 대신
+// 외부 링크(구글드라이브·노션 등)로 받아 인프라를 단순하게 유지한다.
+export const courseMilestones = mysqlTable("course_milestones", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  createdBy: int("createdBy").notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  dueAt: timestamp("dueAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CourseMilestone = typeof courseMilestones.$inferSelect;
+
+export const teamSubmissions = mysqlTable(
+  "team_submissions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    milestoneId: int("milestoneId").notNull(),
+    teamId: int("teamId").notNull(),
+    submittedBy: int("submittedBy").notNull(),
+    url: varchar("url", { length: 1000 }).notNull(),
+    note: text("note"),
+    // 교수가 제출물을 확인했음을 표시(검토 현황). null이면 미확인.
+    reviewedAt: timestamp("reviewedAt"),
+    submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    // 마일스톤당 팀당 1개 — 재제출은 update
+    uniqueIndex("uniq_team_submission").on(table.milestoneId, table.teamId),
+  ]
+);
+
+export type TeamSubmission = typeof teamSubmissions.$inferSelect;
+
+// ─── Reports (사용자·콘텐츠 신고) ─────────────────────────
+// 운영자가 신고 큐로 처리한다. 한 사람이 같은 대상을 중복 신고하지 못하게 unique.
+export const reports = mysqlTable(
+  "reports",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    reporterId: int("reporterId").notNull(),
+    targetType: mysqlEnum("targetType", ["post", "comment", "user"]).notNull(),
+    targetId: int("targetId").notNull(),
+    reason: mysqlEnum("reason", ["abuse", "spam", "privacy", "etc"]).notNull(),
+    detail: text("detail"),
+    status: mysqlEnum("status", ["open", "resolved"]).default("open").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("uniq_report").on(table.reporterId, table.targetType, table.targetId),
+  ]
+);
+
+export type Report = typeof reports.$inferSelect;
+
+// ─── Notifications (인앱 알림) ────────────────────────────
+// 매칭 수락·공지·일정 등 이벤트 발생 지점에서 적재. 헤더 알림센터가 소비한다.
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 40 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  body: varchar("body", { length: 500 }),
+  linkPath: varchar("linkPath", { length: 200 }),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+
+// ─── Team Notes (팀 메모/공지 보드) ───────────────────────
+// 팀 내 결정사항·역할합의·링크를 앱 안에 남긴다(외부 카톡 휘발 방지).
+export const teamNotes = mysqlTable("team_notes", {
+  id: int("id").autoincrement().primaryKey(),
+  teamId: int("teamId").notNull(),
+  userId: int("userId").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TeamNote = typeof teamNotes.$inferSelect;

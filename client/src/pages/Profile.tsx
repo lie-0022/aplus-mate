@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { KOREAN_UNIVERSITIES } from "@/lib/universities";
 import { parseSkillTags } from "@/lib/utils-parse";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   UserCircle,
   Edit3,
@@ -35,9 +47,16 @@ const BADGE_INFO: Record<string, { label: string; icon: typeof Shield; color: st
 };
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.profile.get.useQuery();
+  const deleteSelf = trpc.profile.deleteSelf.useMutation({
+    onSuccess: () => {
+      toast.success("탈퇴 처리됐어요. 이용해주셔서 감사합니다.");
+      logout();
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [university, setUniversity] = useState("");
@@ -146,7 +165,16 @@ export default function Profile() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">학교</Label>
-                  <Input value={university} onChange={(e) => setUniversity(e.target.value)} />
+                  <Input
+                    value={university}
+                    onChange={(e) => setUniversity(e.target.value)}
+                    list="university-list"
+                  />
+                  <datalist id="university-list">
+                    {KOREAN_UNIVERSITIES.map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">학과</Label>
@@ -265,6 +293,39 @@ export default function Profile() {
           )}
         </CardContent>
       </Card>
+
+      {/* 회원 탈퇴 */}
+      <div className="pt-2 text-center">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              회원 탈퇴
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>정말 탈퇴하시겠어요?</AlertDialogTitle>
+              <AlertDialogDescription>
+                프로필·연락처 정보가 삭제되고, 진행 중인 팀에서 나가게 됩니다. 이 작업은 되돌릴
+                수 없어요.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteSelf.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                탈퇴하기
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }

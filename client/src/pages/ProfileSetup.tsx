@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { consumeReturnTo } from "@/lib/returnTo";
+import { KOREAN_UNIVERSITIES } from "@/lib/universities";
 import {
   Select,
   SelectContent,
@@ -104,7 +105,13 @@ export default function ProfileSetup() {
                 value={university}
                 onChange={(e) => setUniversity(e.target.value)}
                 placeholder="서울대학교"
+                list="university-list"
               />
+              <datalist id="university-list">
+                {KOREAN_UNIVERSITIES.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">학과 *</Label>

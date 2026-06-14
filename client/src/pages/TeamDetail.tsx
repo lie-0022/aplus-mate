@@ -42,6 +42,9 @@ import {
   Trash2,
   Plus,
   LogOut,
+  FolderOpen,
+  CalendarClock,
+  StickyNote,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
@@ -138,6 +141,41 @@ export default function TeamDetail() {
     onError: (err) => toast.error(err.message),
   });
 
+  // 평가 강제 마감 — 미제출 팀원을 무한정 기다리지 않고 지금까지의 평가로 배지 정산.
+  const forceCloseMutation = trpc.evaluations.forceClose.useMutation({
+    onSuccess: () => {
+      utils.teams.get.invalidate();
+      toast.success("평가를 마감하고 배지를 정산했어요.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 산출물 제출 — 교수가 만든 제출 항목(마일스톤)에 링크+메모로 제출/수정.
+  const deliverables = trpc.deliverables.forTeam.useQuery({ teamId });
+  const [subInputs, setSubInputs] = useState<Record<number, { url: string; note: string }>>({});
+  const submitDeliverable = trpc.deliverables.submit.useMutation({
+    onSuccess: () => {
+      utils.deliverables.forTeam.invalidate({ teamId });
+      toast.success("제출했어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 팀 메모 보드 — 결정사항·역할·링크를 앱 안에 기록
+  const notes = trpc.notes.list.useQuery({ teamId });
+  const [noteContent, setNoteContent] = useState("");
+  const createNote = trpc.notes.create.useMutation({
+    onSuccess: () => {
+      utils.notes.list.invalidate({ teamId });
+      setNoteContent("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const removeNote = trpc.notes.remove.useMutation({
+    onSuccess: () => utils.notes.list.invalidate({ teamId }),
+    onError: (err) => toast.error(err.message),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -162,6 +200,8 @@ export default function TeamDetail() {
   const isActive = data.team.status === "active";
   const isCompleted = data.team.status === "completed";
   const isProject = data.team.teamType === "project";
+  const isMentoring = data.team.teamType === "mentoring";
+  const hasMentor = data.members.some((m) => m.teamMember.role === "mentor");
   const typeLabel = MATCH_TYPE_LABELS[(data.team.teamType ?? "project") as MatchType];
   const needsEvaluation =
     isProject &&
@@ -263,6 +303,11 @@ export default function TeamDetail() {
               )}
             </div>
           ))}
+          {isMentoring && !hasMentor && isActive && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md p-2 leading-relaxed">
+              👋 아직 멘토가 없는 멘토링 그룹이에요. 멘토가 커넥트하면 합류할 수 있어요.
+            </p>
+          )}
           {/* C3: 외부채널 안전수칙 고지 */}
           <p className="text-[11px] text-muted-foreground pt-1 leading-relaxed">
             ⚠️ 외부 오픈채팅에서는{" "}
@@ -281,6 +326,68 @@ export default function TeamDetail() {
         </CardContent>
       </Card>
 
+      {/* 팀 메모 보드 */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <StickyNote className="h-4 w-4 text-primary" /> 팀 메모
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 pb-4">
+          <div className="flex gap-2">
+            <Textarea
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              placeholder="결정사항·역할 분담·링크를 남겨보세요"
+              rows={2}
+              maxLength={1000}
+            />
+            <Button
+              variant="outline"
+              className="shrink-0 self-end"
+              disabled={createNote.isPending}
+              onClick={() => {
+                if (!noteContent.trim()) {
+                  toast.error("내용을 입력해주세요.");
+                  return;
+                }
+                createNote.mutate({ teamId, content: noteContent.trim() });
+              }}
+            >
+              남기기
+            </Button>
+          </div>
+          {notes.data?.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              아직 메모가 없어요. 회의 결정사항이나 역할을 기록해보세요.
+            </p>
+          )}
+          {notes.data?.map((n) => (
+            <div key={n.id} className="p-2.5 rounded-lg bg-muted/50">
+              <p className="text-sm whitespace-pre-wrap">{n.content}</p>
+              <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  {n.authorName} ·{" "}
+                  {new Date(n.createdAt).toLocaleString("ko-KR", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <button
+                  onClick={() => removeNote.mutate({ noteId: n.id })}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="메모 삭제"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* 팀 일정 */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-2">
@@ -288,6 +395,47 @@ export default function TeamDetail() {
             <CalendarDays className="h-4 w-4 text-primary" />
             일정
           </CardTitle>
+          {events.data &&
+            events.data.length > 0 &&
+            (() => {
+              // 팀 진척도 요약 — 완료율·내 담당 미완료·마감 지남(엣지 5)
+              const total = events.data.length;
+              const done = events.data.filter((e) => e.isDone).length;
+              const pct = Math.round((done / total) * 100);
+              const now = Date.now();
+              const myUndone = events.data.filter(
+                (e) => !e.isDone && e.assigneeId === user?.id
+              ).length;
+              const overdue = events.data.filter(
+                (e) => !e.isDone && new Date(e.dueAt).getTime() < now
+              ).length;
+              return (
+                <div className="pt-1.5 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      진행률 {done}/{total}
+                    </span>
+                    <span className="font-medium">{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {(myUndone > 0 || overdue > 0) && (
+                    <div className="flex gap-2 text-[11px] pt-0.5">
+                      {myUndone > 0 && (
+                        <span className="text-primary">내 담당 미완료 {myUndone}</span>
+                      )}
+                      {overdue > 0 && (
+                        <span className="text-destructive">마감 지남 {overdue}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
         </CardHeader>
         <CardContent className="space-y-2.5 pb-4">
           {events.data?.length === 0 && (
@@ -512,9 +660,122 @@ export default function TeamDetail() {
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto mb-2" />
             <p className="font-medium text-green-700">평가를 완료했습니다</p>
-            <p className="text-xs text-green-600 mt-1">
-              모든 팀원이 평가를 완료하면 배지가 부여됩니다
-            </p>
+            {data.team.evaluationStatus === "done" ? (
+              <p className="text-xs text-green-600 mt-1">
+                모든 평가가 끝나 배지가 부여되었습니다
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-green-600 mt-1">
+                  아직 평가하지 않은 팀원이 있어요. 기다리거나 지금 마감할 수 있어요.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  disabled={forceCloseMutation.isPending}
+                  onClick={() => forceCloseMutation.mutate({ teamId })}
+                >
+                  지금 평가 마감하고 배지 정산
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 산출물 제출 — 교수가 만든 제출 항목이 있을 때만 노출 */}
+      {deliverables.data && deliverables.data.length > 0 && (
+        <Card className="border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-primary" /> 제출 항목
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pb-4">
+            {deliverables.data.map(({ milestone, submission }) => {
+              const input = subInputs[milestone.id] ?? { url: "", note: "" };
+              return (
+                <div key={milestone.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-sm">{milestone.title}</span>
+                    {milestone.dueAt && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                        <CalendarClock className="h-3 w-3" />
+                        {new Date(milestone.dueAt).toLocaleDateString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                        })}{" "}
+                        마감
+                      </span>
+                    )}
+                  </div>
+                  {milestone.description && (
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {milestone.description}
+                    </p>
+                  )}
+                  {submission ? (
+                    <div className="flex items-center gap-2 text-xs bg-green-50 text-green-700 rounded-md p-2">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>제출 완료</span>
+                      <a
+                        href={submission.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-0.5 underline ml-auto"
+                      >
+                        링크 <ExternalLink className="h-3 w-3" />
+                      </a>
+                      {submission.reviewedAt && <span className="shrink-0">· 교수 확인함</span>}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700">아직 제출하지 않았어요.</p>
+                  )}
+                  <Input
+                    placeholder="결과물 링크 (https://… 구글드라이브·노션·깃허브)"
+                    value={input.url}
+                    onChange={(e) =>
+                      setSubInputs((prev) => ({
+                        ...prev,
+                        [milestone.id]: { ...input, url: e.target.value },
+                      }))
+                    }
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="메모 (선택)"
+                      value={input.note}
+                      onChange={(e) =>
+                        setSubInputs((prev) => ({
+                          ...prev,
+                          [milestone.id]: { ...input, note: e.target.value },
+                        }))
+                      }
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      disabled={submitDeliverable.isPending}
+                      onClick={() => {
+                        if (!input.url.trim()) {
+                          toast.error("결과물 링크를 입력해주세요.");
+                          return;
+                        }
+                        submitDeliverable.mutate({
+                          teamId,
+                          milestoneId: milestone.id,
+                          url: input.url.trim(),
+                          note: input.note.trim() || undefined,
+                        });
+                      }}
+                    >
+                      {submission ? "수정 제출" : "제출"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

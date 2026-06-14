@@ -12,6 +12,8 @@ import {
   ArrowRight,
   GraduationCap,
   CalendarDays,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
@@ -28,11 +30,52 @@ function dday(due: Date | string): { label: string; tone: "over" | "soon" | "nor
   return { label: `D-${diff}`, tone: "normal" };
 }
 
+// 온보딩 체크리스트의 한 단계 — 미완료면 클릭해 해당 화면으로 이동.
+function OnboardStep({
+  done,
+  label,
+  hint,
+  onClick,
+}: {
+  done: boolean;
+  label: string;
+  hint?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={!done ? onClick : undefined}
+      disabled={done || !onClick}
+      className="w-full flex items-center gap-2.5 text-left"
+    >
+      <span
+        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+          done ? "bg-primary text-white" : "border-2 border-muted-foreground/30"
+        }`}
+      >
+        {done && <Check className="h-3 w-3" />}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span
+          className={`text-sm font-medium ${done ? "text-muted-foreground line-through" : ""}`}
+        >
+          {label}
+        </span>
+        {!done && hint && (
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        )}
+      </span>
+      {!done && onClick && <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+    </button>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.dashboard.getData.useQuery();
   const upcoming = trpc.events.upcoming.useQuery();
+  const sent = trpc.matching.sent.useQuery();
 
   if (isLoading) {
     return (
@@ -48,6 +91,10 @@ export default function Dashboard() {
     );
   }
 
+  const hasCourse = (data?.courses.length ?? 0) > 0;
+  const hasConnected = (sent.data?.length ?? 0) > 0 || (data?.activeTeams ?? 0) > 0;
+  const onboardingDone = hasCourse && hasConnected;
+
   return (
     <div className="space-y-6">
       {/* Greeting */}
@@ -59,6 +106,31 @@ export default function Dashboard() {
           오늘도 좋은 팀원을 만나보세요
         </p>
       </div>
+
+      {/* 온보딩 체크리스트 — 수업 등록·첫 커넥트까지 안내(완료 시 자동 숨김) */}
+      {!onboardingDone && (
+        <Card className="border-primary/30 bg-primary/5 shadow-sm">
+          <CardContent className="p-4 space-y-2.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">시작하기</span>
+            </div>
+            <OnboardStep done label="프로필 완성" />
+            <OnboardStep
+              done={hasCourse}
+              label="수업 등록하기"
+              hint="같은 수업 학생과 매칭돼요"
+              onClick={() => setLocation("/courses")}
+            />
+            <OnboardStep
+              done={hasConnected}
+              label="첫 커넥트 보내기"
+              hint="마음에 드는 팀원에게 커넥트하세요"
+              onClick={() => setLocation("/courses")}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">

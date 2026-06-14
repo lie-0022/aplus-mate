@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Eye, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Eye, MessageSquare, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { ReportDialog } from "@/components/ReportDialog";
 
 // 게시글 상세 + 익명 댓글. 게시판 정책과 동일하게 작성자 식별정보는 표시하지 않는다.
 export default function PostDetail() {
@@ -19,12 +21,27 @@ export default function PostDetail() {
   const { data: post, isLoading, isError } = trpc.posts.get.useQuery({ id: postId });
   const comments = trpc.posts.comments.useQuery({ postId });
 
+  const { user: me } = useAuth();
   const [comment, setComment] = useState("");
   const addComment = trpc.posts.addComment.useMutation({
     onSuccess: () => {
       utils.posts.comments.invalidate({ postId });
       setComment("");
       toast.success("댓글을 남겼어요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const removePost = trpc.posts.remove.useMutation({
+    onSuccess: () => {
+      toast.success("게시글을 삭제했어요.");
+      if (post) setLocation(`/courses/${post.courseId}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const removeComment = trpc.posts.removeComment.useMutation({
+    onSuccess: () => {
+      utils.posts.comments.invalidate({ postId });
+      toast.success("댓글을 삭제했어요.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -72,8 +89,19 @@ export default function PostDetail() {
           </div>
           <h1 className="font-bold text-lg leading-snug">{post.title}</h1>
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.content}</p>
-          <div className="text-xs text-muted-foreground pt-1 border-t">
-            익명 · {new Date(post.createdAt).toLocaleDateString("ko-KR")}
+          <div className="text-xs text-muted-foreground pt-1 border-t flex items-center justify-between">
+            <span>익명 · {new Date(post.createdAt).toLocaleDateString("ko-KR")}</span>
+            {me?.id === post.userId || me?.role === "admin" ? (
+              <button
+                onClick={() => removePost.mutate({ postId })}
+                disabled={removePost.isPending}
+                className="flex items-center gap-0.5 text-destructive hover:underline"
+              >
+                <Trash2 className="h-3 w-3" /> 삭제
+              </button>
+            ) : (
+              <ReportDialog targetType="post" targetId={post.id} />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -95,14 +123,27 @@ export default function PostDetail() {
           {comments.data?.map((c) => (
             <div key={c.id} className="p-3 rounded-lg bg-muted/50">
               <p className="text-sm whitespace-pre-wrap">{c.content}</p>
-              <div className="text-xs text-muted-foreground mt-1.5">
-                익명 ·{" "}
-                {new Date(c.createdAt).toLocaleString("ko-KR", {
-                  month: "numeric",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+              <div className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between">
+                <span>
+                  익명 ·{" "}
+                  {new Date(c.createdAt).toLocaleString("ko-KR", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                {c.isMine || me?.role === "admin" ? (
+                  <button
+                    onClick={() => removeComment.mutate({ commentId: c.id })}
+                    disabled={removeComment.isPending}
+                    className="flex items-center gap-0.5 text-destructive hover:underline"
+                  >
+                    <Trash2 className="h-3 w-3" /> 삭제
+                  </button>
+                ) : (
+                  <ReportDialog targetType="comment" targetId={c.id} />
+                )}
               </div>
             </div>
           ))}

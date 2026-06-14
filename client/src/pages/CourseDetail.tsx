@@ -547,19 +547,42 @@ export default function CourseDetail() {
                   </CardContent>
                 </Card>
               )}
-              {(students.data ?? [])
-                .filter((s) => s.user.id !== user?.id)
-                .map((student) => (
+              {(() => {
+                // 내 스킬과 겹치는 후보를 위로 — 등록순 대신 적합도 정렬(엣지 3)
+                const mySkills = new Set(parseSkillTags(user?.skillTags));
+                const candidates = (students.data ?? [])
+                  .filter((s) => s.user.id !== user?.id)
+                  .map((s) => {
+                    const tags = parseSkillTags(s.user.skillTags).sort(
+                      (a, b) => (mySkills.has(b) ? 1 : 0) - (mySkills.has(a) ? 1 : 0)
+                    );
+                    const common = tags.filter((t) => mySkills.has(t)).length;
+                    return { student: s, tags, common };
+                  })
+                  .sort((a, b) => b.common - a.common);
+                return candidates.map(({ student, tags, common }) => (
                   <Card key={student.user.id} className="border shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-sm">
+                        <div
+                          onClick={() => setLocation(`/users/${student.user.id}`)}
+                          className="cursor-pointer min-w-0"
+                        >
+                          <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
                             {student.user.department} · {student.user.year}학년
+                            {common > 0 && (
+                              <Badge className="text-[10px] py-0 bg-primary/15 text-primary border-0">
+                                공통 스킬 {common}
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            {parseSkillTags(student.user.skillTags).slice(0, 3).map((tag) => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
+                            {tags.slice(0, 4).map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant={mySkills.has(tag) ? "default" : "secondary"}
+                                className="text-xs"
+                              >
                                 {tag}
                               </Badge>
                             ))}
@@ -581,7 +604,8 @@ export default function CourseDetail() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                ));
+              })()}
             </>
           )}
         </TabsContent>

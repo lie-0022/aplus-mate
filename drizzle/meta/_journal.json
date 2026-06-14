@@ -71,6 +71,48 @@
       "when": 1781253875754,
       "tag": "0009_calm_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1781407531101,
+      "tag": "0010_cultured_wrecker",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1781420402380,
+      "tag": "0011_bizarre_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1781426858218,
+      "tag": "0012_curly_tenebrous",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1781430968894,
+      "tag": "0013_old_wonder_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1781437905168,
+      "tag": "0014_acoustic_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1781439011683,
+      "tag": "0015_jittery_zodiak",
+      "breakpoints": true
     }
   ]
 }

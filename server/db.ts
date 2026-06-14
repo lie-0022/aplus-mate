@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, desc, count, sql, like } from "drizzle-orm";
+import { eq, and, or, inArray, desc, count, sql, like, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -18,6 +18,11 @@ import {
   evaluations,
   badges,
   consents,
+  courseMilestones,
+  teamSubmissions,
+  reports,
+  notifications,
+  teamNotes,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -139,6 +144,48 @@ export async function updateUserProfile(
   }
 }
 
+// 회원 탈퇴 — PII 익명화 + 활성 팀 정리 + pending 매칭 삭제(소프트-파기).
+// 평가·배지 통계는 보존하되 본인 식별정보를 끊어 PIPA 파기 의무를 이행한다.
+export async function deleteSelf(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  // 활성 팀에서 모두 나간다(담당 일정 정리·마지막이면 해산은 leaveTeam이 처리).
+  const memberRows = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+    .where(and(eq(teamMembers.userId, userId), eq(teams.status, "active")));
+  for (const m of memberRows) {
+    try {
+      await leaveTeam(m.teamId, userId);
+    } catch {
+      /* 이미 정리된 팀 등은 무시 */
+    }
+  }
+  // pending 매칭 정리 + PII 익명화를 한 트랜잭션으로
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(teamMatches)
+      .where(
+        and(
+          eq(teamMatches.status, "pending"),
+          or(eq(teamMatches.requesterId, userId), eq(teamMatches.receiverId, userId))
+        )
+      );
+    await tx
+      .update(users)
+      .set({
+        name: "(탈퇴한 사용자)",
+        email: null,
+        kakaoOpenChatUrl: null,
+        skillTags: [],
+        profileCompleted: false,
+        deletedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  });
+}
+
 // ─── Courses ─────────────────────────────────────────────
 
 export async function createCourse(data: InsertCourse) {
@@ -210,6 +257,25 @@ export async function unenrollCourse(userId: number, courseId: number, semester:
     .where(
       and(eq(userCourses.userId, userId), eq(userCourses.courseId, courseId), eq(userCourses.semester, semester))
     );
+}
+
+// 해당 수업에서 사용자가 활성 팀(종류 무관)에 속해 있는지 — 수강 취소 전 정합성 검사용.
+export async function hasActiveTeamInCourse(userId: number, courseId: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db
+    .select({ id: teams.id })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .where(
+      and(
+        eq(teamMembers.userId, userId),
+        eq(teams.courseId, courseId),
+        eq(teams.status, "active")
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 export async function getUserCourses(userId: number, semester?: string) {
@@ -292,7 +358,7 @@ export async function getCoursePosts(courseId: number, category?: string) {
   const db = await getDb();
   if (!db) return [];
 
-  let conditions = [eq(posts.courseId, courseId)];
+  let conditions = [eq(posts.courseId, courseId), isNull(posts.hiddenAt)];
   if (category) {
     conditions.push(eq(posts.category, category as any));
   }
@@ -315,7 +381,12 @@ export async function getCoursePosts(courseId: number, category?: string) {
 export async function getPost(postId: number) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
+  // 숨김 처리된 글은 상세에서도 보이지 않게 한다.
+  const rows = await db
+    .select()
+    .from(posts)
+    .where(and(eq(posts.id, postId), isNull(posts.hiddenAt)))
+    .limit(1);
   return rows.length > 0 ? rows[0] : null;
 }
 
@@ -329,18 +400,26 @@ export async function incrementPostView(postId: number) {
 }
 
 // 댓글 — 작성자 식별정보는 반환하지 않는다(게시글과 동일하게 익명 표시).
-export async function getPostComments(postId: number) {
+export async function getPostComments(postId: number, viewerId?: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const rows = await db
     .select({
       id: postComments.id,
       content: postComments.content,
       createdAt: postComments.createdAt,
+      userId: postComments.userId,
     })
     .from(postComments)
-    .where(eq(postComments.postId, postId))
+    .where(and(eq(postComments.postId, postId), isNull(postComments.hiddenAt)))
     .orderBy(postComments.createdAt);
+  // 익명 유지 — 식별자는 빼고 '내 댓글' 여부만 노출(본인 삭제 버튼 표시용).
+  return rows.map((r) => ({
+    id: r.id,
+    content: r.content,
+    createdAt: r.createdAt,
+    isMine: viewerId != null && r.userId === viewerId,
+  }));
 }
 
 export async function createPostComment(data: {
@@ -352,6 +431,33 @@ export async function createPostComment(data: {
   if (!db) return null;
   const result = await db.insert(postComments).values(data);
   return { id: result[0].insertId };
+}
+
+// 게시글 soft-hide — 작성자 본인 또는 운영자만. hiddenAt을 채워 목록·상세에서 가린다.
+export async function hidePost(postId: number, userId: number, isAdmin: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
+  if (rows.length === 0) throw new Error("게시글을 찾을 수 없습니다.");
+  if (!isAdmin && rows[0].userId !== userId) {
+    throw new Error("본인 글만 삭제할 수 있습니다.");
+  }
+  await db.update(posts).set({ hiddenAt: new Date() }).where(eq(posts.id, postId));
+}
+
+export async function hidePostComment(commentId: number, userId: number, isAdmin: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db
+    .select()
+    .from(postComments)
+    .where(eq(postComments.id, commentId))
+    .limit(1);
+  if (rows.length === 0) throw new Error("댓글을 찾을 수 없습니다.");
+  if (!isAdmin && rows[0].userId !== userId) {
+    throw new Error("본인 댓글만 삭제할 수 있습니다.");
+  }
+  await db.update(postComments).set({ hiddenAt: new Date() }).where(eq(postComments.id, commentId));
 }
 
 // ─── Matching ────────────────────────────────────────────
@@ -517,6 +623,14 @@ export async function cancelMatchRequest(matchId: number, userId: number) {
   await db.delete(teamMatches).where(eq(teamMatches.id, matchId));
 }
 
+// 매칭 단건 조회 — 수락 알림에서 요청자 식별용.
+export async function getMatchById(matchId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(teamMatches).where(eq(teamMatches.id, matchId)).limit(1);
+  return rows.length > 0 ? rows[0] : null;
+}
+
 export async function getPendingMatchCount(userId: number) {
   const db = await getDb();
   if (!db) return 0;
@@ -640,56 +754,66 @@ export async function acceptMatch(matchId: number, userId: number) {
 
   const targetTeam = requesterTeam ?? receiverTeam;
   if (targetTeam) {
-    const memberRows = await db
-      .select()
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, targetTeam.id));
-    if (memberRows.length >= maxSize) {
-      throw new Error(`정원(${maxSize}명)이 가득 찼어요.`);
-    }
     // 그룹에 없는 쪽이 합류한다
     const joiningUserId = requesterTeam ? match.receiverId : match.requesterId;
-    let joinRole: "member" | "mentor" | "mentee" = "member";
-    if (matchType === "mentoring") {
-      joinRole = roleOf(joiningUserId);
-      // 멘토는 1명만 — 단, 멘토가 나간 그룹에는 새 멘토가 합류할 수 있다.
-      if (joinRole === "mentor" && memberRows.some((m) => m.role === "mentor")) {
-        throw new Error("이미 멘토가 있는 그룹이에요. 멘티로 요청해보세요.");
+    // 정원·역할 검증과 합류 insert를 한 트랜잭션에서 처리한다. 기존 멤버 행을
+    // FOR UPDATE로 잠가, 두 수신자가 동시에 수락할 때 정원/멘토 제약을 함께
+    // 통과해 초과되는 TOCTOU race를 직렬화로 막는다(엣지 1-B).
+    return await db.transaction(async (tx) => {
+      const memberRows = await tx
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, targetTeam.id))
+        .for("update");
+      if (memberRows.length >= maxSize) {
+        throw new Error(`정원(${maxSize}명)이 가득 찼어요.`);
       }
-      const menteeCount = memberRows.filter((m) => m.role === "mentee").length;
-      if (menteeCount >= MENTORING_MAX_MENTEES) {
-        throw new Error(`멘티 정원(${MENTORING_MAX_MENTEES}명)이 가득 찼어요.`);
+      let joinRole: "member" | "mentor" | "mentee" = "member";
+      if (matchType === "mentoring") {
+        joinRole = roleOf(joiningUserId);
+        // 멘토는 1명만 — 단, 멘토가 나간 그룹에는 새 멘토가 합류할 수 있다.
+        if (joinRole === "mentor" && memberRows.some((m) => m.role === "mentor")) {
+          throw new Error("이미 멘토가 있는 그룹이에요. 멘티로 요청해보세요.");
+        }
+        const menteeCount = memberRows.filter((m) => m.role === "mentee").length;
+        if (menteeCount >= MENTORING_MAX_MENTEES) {
+          throw new Error(`멘티 정원(${MENTORING_MAX_MENTEES}명)이 가득 찼어요.`);
+        }
       }
-    }
-    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
-    try {
-      await db
-        .insert(teamMembers)
-        .values({ teamId: targetTeam.id, userId: joiningUserId, role: joinRole });
-    } catch (error: any) {
-      if (error.code !== "ER_DUP_ENTRY") throw error; // 이미 멤버면 무시
-    }
-    return { teamId: targetTeam.id };
+      await tx.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+      try {
+        await tx
+          .insert(teamMembers)
+          .values({ teamId: targetTeam.id, userId: joiningUserId, role: joinRole });
+      } catch (error: any) {
+        if (error.code !== "ER_DUP_ENTRY") throw error; // 이미 멤버면 무시
+      }
+      return { teamId: targetTeam.id };
+    });
   }
 
-  // 둘 다 그룹이 없으면 새 2인 그룹 생성 (기존 동작)
+  // 둘 다 그룹이 없으면 새 2인 그룹 생성 — 매칭 수락 + 팀/멤버 생성을 한
+  // 트랜잭션으로 묶어, 부분 실패 시 "accepted인데 팀 없음 / 멤버 0명 유령 팀"이
+  // 남는 비원자 쓰기 문제를 막는다(엣지 1-A).
   try {
-    await db.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
-    const teamResult = await db.insert(teams).values({
-      matchId,
-      courseId: match.courseId,
-      teamType: matchType,
-      status: "active",
-      evaluationStatus: "pending",
+    return await db.transaction(async (tx) => {
+      await tx.update(teamMatches).set({ status: "accepted" }).where(eq(teamMatches.id, matchId));
+      const teamResult = await tx.insert(teams).values({
+        matchId,
+        courseId: match.courseId,
+        teamType: matchType,
+        status: "active",
+        evaluationStatus: "pending",
+      });
+      const teamId = teamResult[0].insertId;
+      await tx.insert(teamMembers).values([
+        { teamId, userId: match.requesterId, role: roleOf(match.requesterId) },
+        { teamId, userId: match.receiverId, role: roleOf(match.receiverId) },
+      ]);
+      return { teamId };
     });
-    const teamId = teamResult[0].insertId;
-    await db.insert(teamMembers).values([
-      { teamId, userId: match.requesterId, role: roleOf(match.requesterId) },
-      { teamId, userId: match.receiverId, role: roleOf(match.receiverId) },
-    ]);
-    return { teamId };
   } catch (error: any) {
-    // race condition: 동시에 다른 요청이 팀을 만든 경우
+    // race condition: 동시에 다른 요청이 팀을 만든 경우(matchId unique 충돌) → 기존 팀 반환
     if (error.code === "ER_DUP_ENTRY") {
       const existingTeam = await db.select().from(teams).where(eq(teams.matchId, matchId)).limit(1);
       if (existingTeam.length > 0) {
@@ -807,12 +931,21 @@ export async function completeTeam(teamId: number) {
   const teamRow = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
   const isProject = teamRow.length === 0 || teamRow[0].teamType === "project";
 
+  // 평가할 동료가 없는(혼자 남은) 팀플은 평가 단계를 건너뛰고 바로 종료한다.
+  // 동료가 0명이면 평가가 영원히 들어올 수 없어 evaluationStatus가 in_progress로
+  // 영구 정체되므로, 멤버 2명 이상일 때만 평가 단계로 보낸다(엣지 1-E 부분 완화).
+  let needsEvaluation = isProject;
+  if (isProject) {
+    const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId));
+    needsEvaluation = members.length >= 2;
+  }
+
   try {
     // Atomic update: only update if status is still 'active'
     // This prevents race condition where multiple members click complete simultaneously
     const result = await db
       .update(teams)
-      .set({ status: "completed", evaluationStatus: isProject ? "in_progress" : "done" })
+      .set({ status: "completed", evaluationStatus: needsEvaluation ? "in_progress" : "done" })
       .where(and(eq(teams.id, teamId), eq(teams.status, "active")));
 
     // Check if update actually happened (affected rows > 0)
@@ -843,20 +976,24 @@ export async function leaveTeam(teamId: number, userId: number) {
     throw new Error("팀 멤버가 아닙니다.");
   }
 
-  await db
-    .delete(teamMembers)
-    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
-  await db
-    .update(teamEvents)
-    .set({ assigneeId: null })
-    .where(and(eq(teamEvents.teamId, teamId), eq(teamEvents.assigneeId, userId)));
+  // 멤버 삭제 → 담당 일정 해제 → (마지막 1명이면) 일정·팀 삭제를 한 트랜잭션으로
+  // 묶어, 중간 실패 시 부분 정리 상태가 남지 않게 한다(엣지 1-D).
+  return await db.transaction(async (tx) => {
+    await tx
+      .delete(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+    await tx
+      .update(teamEvents)
+      .set({ assigneeId: null })
+      .where(and(eq(teamEvents.teamId, teamId), eq(teamEvents.assigneeId, userId)));
 
-  if (memberRows.length <= 1) {
-    await db.delete(teamEvents).where(eq(teamEvents.teamId, teamId));
-    await db.delete(teams).where(eq(teams.id, teamId));
-    return { disbanded: true };
-  }
-  return { disbanded: false };
+    if (memberRows.length <= 1) {
+      await tx.delete(teamEvents).where(eq(teamEvents.teamId, teamId));
+      await tx.delete(teams).where(eq(teams.id, teamId));
+      return { disbanded: true };
+    }
+    return { disbanded: false };
+  });
 }
 
 // ─── Team Events (팀 일정) ────────────────────────────────
@@ -948,29 +1085,32 @@ export async function submitEvaluationBatch(data: {
   const db = await getDb();
   if (!db) return;
 
-  // Insert all evaluations first
+  // 여러 평가 insert와 "평가 완료" 표시를 한 트랜잭션으로 원자화한다. 일부 평가만
+  // insert된 채 실패하면, 재시도 때 ER_DUP_ENTRY("이미 평가 완료")로 막혀 나머지를
+  // 영영 제출하지 못하는 갇힘이 생긴다 — all-or-nothing으로 막는다(엣지 1-F).
   try {
-    for (const evalItem of data.evaluations) {
-      await db.insert(evaluations).values({
-        teamId: data.teamId,
-        evaluatorId: data.evaluatorId,
-        ...evalItem,
-      });
-    }
+    await db.transaction(async (tx) => {
+      for (const evalItem of data.evaluations) {
+        await tx.insert(evaluations).values({
+          teamId: data.teamId,
+          evaluatorId: data.evaluatorId,
+          ...evalItem,
+        });
+      }
+      // 모든 평가가 들어간 뒤에야 평가자를 '평가 완료'로 표시(같은 트랜잭션)
+      await tx
+        .update(teamMembers)
+        .set({ hasEvaluated: true })
+        .where(
+          and(eq(teamMembers.teamId, data.teamId), eq(teamMembers.userId, data.evaluatorId))
+        );
+    });
   } catch (error: any) {
     if (error.code === "ER_DUP_ENTRY") {
       throw new Error("이미 평가를 완료했습니다.");
     }
     throw error;
   }
-
-  // Mark evaluator as evaluated AFTER all evals are inserted
-  await db
-    .update(teamMembers)
-    .set({ hasEvaluated: true })
-    .where(
-      and(eq(teamMembers.teamId, data.teamId), eq(teamMembers.userId, data.evaluatorId))
-    );
 
   // Check if all members have evaluated
   const allMembers = await db
@@ -981,14 +1121,15 @@ export async function submitEvaluationBatch(data: {
   const allEvaluated = allMembers.every((m) => m.hasEvaluated);
 
   if (allEvaluated) {
-    // Check if badges already calculated for this team
-    const teamRow = await db.select().from(teams).where(eq(teams.id, data.teamId)).limit(1);
-    if (teamRow.length > 0 && teamRow[0].evaluationStatus !== "done") {
+    // done으로의 전환을 원자적으로 선점한다. 마지막 평가가 동시에 들어와도
+    // in_progress→done 전환에 성공하는 호출은 하나뿐이고, 그 호출만 배지를
+    // 계산하므로 같은 팀 기여분이 중복 집계되지 않는다(엣지 5-B / 1-G).
+    const claimed = await db
+      .update(teams)
+      .set({ evaluationStatus: "done" })
+      .where(and(eq(teams.id, data.teamId), eq(teams.evaluationStatus, "in_progress")));
+    if ((claimed[0]?.affectedRows ?? 0) > 0) {
       await calculateBadges(data.teamId);
-      await db
-        .update(teams)
-        .set({ evaluationStatus: "done" })
-        .where(eq(teams.id, data.teamId));
     }
   }
 }
@@ -1073,6 +1214,21 @@ export async function getUserBadges(userId: number) {
   return db.select().from(badges).where(eq(badges.userId, userId));
 }
 
+// 평가 강제 마감 — 미제출자가 있어도 현재까지 제출된 평가로 배지를 계산하고
+// 평가 단계를 종료한다. in_progress→done 전환을 원자적으로 선점해(5-B와 동일 패턴)
+// 동시 호출/중복 집계를 막는다. 미제출자는 받은 평가가 적어 배지를 덜/안 받는다(엣지 1-E).
+export async function closeEvaluation(teamId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const claimed = await db
+    .update(teams)
+    .set({ evaluationStatus: "done" })
+    .where(and(eq(teams.id, teamId), eq(teams.evaluationStatus, "in_progress")));
+  if ((claimed[0]?.affectedRows ?? 0) > 0) {
+    await calculateBadges(teamId);
+  }
+}
+
 // ─── Professor (담당 수업·수강생·팀 현황) ─────────────────
 
 // 담당 교수 없는 수업을 클레임. 이미 배정돼 있으면 거부.
@@ -1084,7 +1240,15 @@ export async function claimCourse(courseId: number, professorId: number) {
   if (rows[0].professorId != null) {
     throw new Error("이미 담당 교수가 등록된 수업입니다.");
   }
-  await db.update(courses).set({ professorId }).where(eq(courses.id, courseId));
+  // professorId가 여전히 NULL일 때만 갱신 — 두 교수가 동시에 클레임해도
+  // 한 명만 성공하도록 원자적 조건부 update로 경합을 막는다(엣지 5-A).
+  const claimed = await db
+    .update(courses)
+    .set({ professorId })
+    .where(and(eq(courses.id, courseId), isNull(courses.professorId)));
+  if ((claimed[0]?.affectedRows ?? 0) === 0) {
+    throw new Error("이미 담당 교수가 등록된 수업입니다.");
+  }
 }
 
 export async function getProfessorCourses(professorId: number) {
@@ -1095,6 +1259,206 @@ export async function getProfessorCourses(professorId: number) {
     .from(courses)
     .where(eq(courses.professorId, professorId))
     .orderBy(desc(courses.createdAt));
+}
+
+// 교수 대시보드 집계 — 수업 한 개의 참여·팀 구성·설문 응답 현황을 한 번에.
+// 교수가 로그인하면 "내 수업이 어떻게 돌아가는지"를 한눈에 보도록 한다.
+export async function getCourseDashboard(courseId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // 수강생(실명·프로필 완성 여부)
+  const studentRows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      department: users.department,
+      year: users.year,
+      profileCompleted: users.profileCompleted,
+      skillTags: users.skillTags,
+    })
+    .from(userCourses)
+    .innerJoin(users, eq(userCourses.userId, users.id))
+    .where(eq(userCourses.courseId, courseId));
+
+  // 이 수업의 팀과 (활성 팀) 멤버
+  const teamRows = await db.select().from(teams).where(eq(teams.courseId, courseId));
+  const activeTeamIds = teamRows.filter((t) => t.status === "active").map((t) => t.id);
+  let assignedIds = new Set<number>();
+  if (activeTeamIds.length > 0) {
+    const mem = await db
+      .select({ userId: teamMembers.userId })
+      .from(teamMembers)
+      .where(inArray(teamMembers.teamId, activeTeamIds));
+    assignedIds = new Set(mem.map((m) => m.userId));
+  }
+  // 활성 팀에 속하지 않은 수강생 = 팀 미배정
+  const unassignedStudents = studentRows.filter((s) => !assignedIds.has(s.id));
+
+  // 설문별 응답자 수(응답률 표시용)
+  const surveyRows = await db
+    .select()
+    .from(surveys)
+    .where(eq(surveys.courseId, courseId))
+    .orderBy(desc(surveys.createdAt));
+  const surveyStats = await Promise.all(
+    surveyRows.map(async (sv) => {
+      const resp = await db
+        .select({ userId: surveyResponses.userId })
+        .from(surveyResponses)
+        .where(eq(surveyResponses.surveyId, sv.id));
+      const respondents = new Set(resp.map((r) => r.userId)).size;
+      return { id: sv.id, title: sv.title, status: sv.status, respondents };
+    })
+  );
+
+  return {
+    studentCount: studentRows.length,
+    profileCompletedCount: studentRows.filter((s) => s.profileCompleted).length,
+    activeTeamCount: teamRows.filter((t) => t.status === "active").length,
+    completedTeamCount: teamRows.filter((t) => t.status === "completed").length,
+    assignedCount: assignedIds.size,
+    unassignedStudents,
+    surveys: surveyStats,
+  };
+}
+
+// ─── Milestones & Submissions (팀 산출물 제출) ────────────
+// 교수가 제출 항목(마일스톤)을 만들면 각 팀이 링크+메모로 제출하고,
+// 교수는 마일스톤 × 팀 매트릭스로 제출/미제출·확인 여부를 한눈에 본다.
+
+export async function createMilestone(data: {
+  courseId: number;
+  createdBy: number;
+  title: string;
+  description?: string | null;
+  dueAt?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  const r = await db.insert(courseMilestones).values({
+    courseId: data.courseId,
+    createdBy: data.createdBy,
+    title: data.title,
+    description: data.description ?? null,
+    dueAt: data.dueAt ?? null,
+  });
+  return { id: r[0].insertId };
+}
+
+export async function getCourseMilestones(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(courseMilestones)
+    .where(eq(courseMilestones.courseId, courseId))
+    .orderBy(courseMilestones.createdAt);
+}
+
+export async function getMilestoneCourseId(milestoneId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ courseId: courseMilestones.courseId })
+    .from(courseMilestones)
+    .where(eq(courseMilestones.id, milestoneId))
+    .limit(1);
+  return rows.length > 0 ? rows[0].courseId : null;
+}
+
+export async function deleteMilestone(milestoneId: number) {
+  const db = await getDb();
+  if (!db) return;
+  // FK가 없으므로 제출물도 함께 정리한다.
+  await db.transaction(async (tx) => {
+    await tx.delete(teamSubmissions).where(eq(teamSubmissions.milestoneId, milestoneId));
+    await tx.delete(courseMilestones).where(eq(courseMilestones.id, milestoneId));
+  });
+}
+
+// 교수 매트릭스용: 이 수업 마일스톤들에 달린 모든 제출.
+export async function getCourseSubmissions(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const ms = await getCourseMilestones(courseId);
+  if (ms.length === 0) return [];
+  return db
+    .select()
+    .from(teamSubmissions)
+    .where(
+      inArray(
+        teamSubmissions.milestoneId,
+        ms.map((m) => m.id)
+      )
+    );
+}
+
+// 팀 관점: 우리 수업의 마일스톤 목록 + 우리 팀 제출(있으면).
+export async function getTeamMilestones(teamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const teamRows = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
+  if (teamRows.length === 0) return [];
+  const ms = await getCourseMilestones(teamRows[0].courseId);
+  const subs = await db
+    .select()
+    .from(teamSubmissions)
+    .where(eq(teamSubmissions.teamId, teamId));
+  return ms.map((m) => ({
+    milestone: m,
+    submission: subs.find((s) => s.milestoneId === m.id) ?? null,
+  }));
+}
+
+// 팀 산출물 제출/수정 — 마일스톤당 팀당 1개. 재제출은 갱신하고 교수 확인표시는 리셋.
+export async function submitDeliverable(data: {
+  milestoneId: number;
+  teamId: number;
+  submittedBy: number;
+  url: string;
+  note?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(teamSubmissions)
+    .values({
+      milestoneId: data.milestoneId,
+      teamId: data.teamId,
+      submittedBy: data.submittedBy,
+      url: data.url,
+      note: data.note ?? null,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        url: data.url,
+        note: data.note ?? null,
+        submittedBy: data.submittedBy,
+        reviewedAt: null,
+      },
+    });
+}
+
+export async function setSubmissionReviewed(submissionId: number, reviewed: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(teamSubmissions)
+    .set({ reviewedAt: reviewed ? new Date() : null })
+    .where(eq(teamSubmissions.id, submissionId));
+}
+
+export async function getSubmissionCourseId(submissionId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ courseId: courseMilestones.courseId })
+    .from(teamSubmissions)
+    .innerJoin(courseMilestones, eq(courseMilestones.id, teamSubmissions.milestoneId))
+    .where(eq(teamSubmissions.id, submissionId))
+    .limit(1);
+  return rows.length > 0 ? rows[0].courseId : null;
 }
 
 // 교수용 수강생 목록 — 학생 간 매칭 전 마스킹과 달리 교수에게는 실명을 공개한다.
@@ -1167,6 +1531,23 @@ export async function getCourseAnnouncements(courseId: number) {
     .from(courseAnnouncements)
     .where(eq(courseAnnouncements.courseId, courseId))
     .orderBy(desc(courseAnnouncements.createdAt));
+}
+
+export async function getAnnouncementCourseId(announcementId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ courseId: courseAnnouncements.courseId })
+    .from(courseAnnouncements)
+    .where(eq(courseAnnouncements.id, announcementId))
+    .limit(1);
+  return rows.length > 0 ? rows[0].courseId : null;
+}
+
+export async function deleteAnnouncement(announcementId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(courseAnnouncements).where(eq(courseAnnouncements.id, announcementId));
 }
 
 // ─── Surveys (교수 설문) ──────────────────────────────────
@@ -1304,11 +1685,18 @@ export async function getSurveyResults(surveyId: number) {
     };
     if (q.type === "scale") {
       const dist = [0, 0, 0, 0, 0];
+      let sum = 0;
+      let valid = 0;
       rs.forEach((r) => {
-        if (r.value != null && r.value >= 1 && r.value <= 5) dist[r.value - 1]++;
+        if (r.value != null && r.value >= 1 && r.value <= 5) {
+          dist[r.value - 1]++;
+          sum += r.value;
+          valid++;
+        }
       });
-      const avg =
-        rs.length > 0 ? rs.reduce((s, r) => s + (r.value ?? 0), 0) / rs.length : 0;
+      // 평균 분모를 분포와 동일한 '유효(1~5) 응답 수'로 맞춘다 — null·범위밖 값이
+      // 섞여도 평균이 분포와 어긋나거나 0쪽으로 오염되지 않는다(엣지 2-B).
+      const avg = valid > 0 ? sum / valid : 0;
       return { ...base, average: Math.round(avg * 100) / 100, distribution: dist };
     }
     if (q.type === "choice") {
@@ -1349,6 +1737,148 @@ export async function setUserRole(userId: number, role: "user" | "professor" | "
   const db = await getDb();
   if (!db) return;
   await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+export async function countUsersByRole(role: "user" | "professor" | "admin") {
+  const db = await getDb();
+  if (!db) return 0;
+  const r = await db.select({ cnt: count() }).from(users).where(eq(users.role, role));
+  return r[0]?.cnt ?? 0;
+}
+
+// ─── Reports (신고) ──────────────────────────────────────
+export async function createReport(data: {
+  reporterId: number;
+  targetType: "post" | "comment" | "user";
+  targetId: number;
+  reason: "abuse" | "spam" | "privacy" | "etc";
+  detail?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(reports).values({
+      reporterId: data.reporterId,
+      targetType: data.targetType,
+      targetId: data.targetId,
+      reason: data.reason,
+      detail: data.detail ?? null,
+    });
+  } catch (error: any) {
+    if (error.code === "ER_DUP_ENTRY") {
+      throw new Error("이미 신고한 대상이에요.");
+    }
+    throw error;
+  }
+}
+
+export async function getOpenReports() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(reports)
+    .where(eq(reports.status, "open"))
+    .orderBy(desc(reports.createdAt));
+}
+
+export async function resolveReport(reportId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(reports).set({ status: "resolved" }).where(eq(reports.id, reportId));
+}
+
+// ─── Notifications (인앱 알림) ───────────────────────────
+export async function createNotification(data: {
+  userId: number;
+  type: string;
+  title: string;
+  body?: string | null;
+  linkPath?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(notifications).values({
+    userId: data.userId,
+    type: data.type,
+    title: data.title,
+    body: data.body ?? null,
+    linkPath: data.linkPath ?? null,
+  });
+}
+
+export async function getNotifications(userId: number, limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit);
+}
+
+export async function countUnreadNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const r = await db
+    .select({ cnt: count() })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  return r[0]?.cnt ?? 0;
+}
+
+export async function markNotificationRead(notificationId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+}
+
+export async function markAllNotificationsRead(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+}
+
+// ─── Team Notes (팀 메모 보드) ───────────────────────────
+export async function getTeamNotes(teamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: teamNotes.id,
+      content: teamNotes.content,
+      createdAt: teamNotes.createdAt,
+      userId: teamNotes.userId,
+      authorName: users.name,
+    })
+    .from(teamNotes)
+    .innerJoin(users, eq(users.id, teamNotes.userId))
+    .where(eq(teamNotes.teamId, teamId))
+    .orderBy(desc(teamNotes.createdAt));
+}
+
+export async function createTeamNote(data: { teamId: number; userId: number; content: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const r = await db.insert(teamNotes).values(data);
+  return { id: r[0].insertId };
+}
+
+export async function getTeamNoteById(noteId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(teamNotes).where(eq(teamNotes.id, noteId)).limit(1);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export async function deleteTeamNote(noteId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(teamNotes).where(eq(teamNotes.id, noteId));
 }
 
 // ─── Consents ────────────────────────────────────────────
