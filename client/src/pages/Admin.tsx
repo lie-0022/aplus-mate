@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
-import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag } from "lucide-react";
+import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag, Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -51,6 +51,16 @@ export default function Admin() {
       utils.admin.reports.invalidate();
       toast.success("신고를 처리했어요.");
     },
+    onError: (err) => toast.error(err.message),
+  });
+  const seedDemo = trpc.admin.seedDemo.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.skipped ? (r.reason ?? "이미 데모가 있어요") : "데모 데이터 생성 완료!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const clearDemo = trpc.admin.clearDemo.useMutation({
+    onSuccess: () => toast.success("데모 데이터를 정리했어요."),
     onError: (err) => toast.error(err.message),
   });
 
@@ -244,6 +254,37 @@ export default function Admin() {
           </CardContent>
         </Card>
       ))}
+
+      {/* 데모 데이터 (교수 시연용) */}
+      <div className="flex items-center gap-2 pt-4 border-t">
+        <Sparkles className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-bold">데모 데이터 (시연용)</h2>
+      </div>
+      <Card className="border shadow-sm">
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            교수님 시연용 예시 데이터를 한 번에 만듭니다 — '소프트웨어 캡스톤 디자인' 수업,
+            데모 학생 6명, 매칭·3인 팀(일정·메모·산출물), 설문(응답 4명), 공지, 게시글. 내가 담당
+            교수로 설정됩니다.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => seedDemo.mutate()}
+              disabled={seedDemo.isPending}
+              className="gradient-primary text-white border-0"
+            >
+              {seedDemo.isPending ? "생성 중..." : "데모 데이터 생성"}
+            </Button>
+            <Button
+              onClick={() => clearDemo.mutate()}
+              disabled={clearDemo.isPending}
+              variant="outline"
+            >
+              초기화
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

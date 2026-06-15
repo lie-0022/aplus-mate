@@ -1066,6 +1066,13 @@ export const appRouter = router({
         await db.resolveReport(input.reportId);
         return { success: true };
       }),
+    // 교수 시연용 데모 데이터 생성/정리 (운영자 전용)
+    seedDemo: adminProcedure.mutation(async ({ ctx }) => {
+      return db.seedDemoData(ctx.user.id);
+    }),
+    clearDemo: adminProcedure.mutation(async () => {
+      return db.clearDemoData();
+    }),
   }),
 });
 

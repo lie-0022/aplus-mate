@@ -1881,6 +1881,165 @@ export async function deleteTeamNote(noteId: number) {
   await db.delete(teamNotes).where(eq(teamNotes.id, noteId));
 }
 
+// ─── Demo Seed (교수 시연용 데모 데이터) ─────────────────
+// 데모 학생(openId 'google:demo-N')·예시 수업(courseCode 'DEMO-SW')·매칭·팀·설문·공지·게시판을 일괄 생성.
+// 운영자(레이)가 호출하면 자기 수업으로 클레임된다. 중복 방지: DEMO-SW가 이미 있으면 스킵.
+export async function seedDemoData(professorUserId: number) {
+  const db = await getDb();
+  if (!db) return { skipped: true, reason: "DB 연결 없음" };
+  const existing = await db
+    .select()
+    .from(courses)
+    .where(eq(courses.courseCode, "DEMO-SW"))
+    .limit(1);
+  if (existing.length > 0) {
+    return { skipped: true, reason: "이미 데모 데이터가 있어요. 초기화 후 다시 시도하세요.", courseId: existing[0].id };
+  }
+
+  const UNIV = "데모대학교";
+  const SEM = "2026-1";
+  const day = 86400000;
+  const demos = [
+    { openId: "google:demo-1", name: "김민준", dept: "컴퓨터공학과", year: 3, skills: ["React", "Node.js", "발표"] },
+    { openId: "google:demo-2", name: "이서연", dept: "디자인학과", year: 3, skills: ["Figma", "UI/UX", "기획"] },
+    { openId: "google:demo-3", name: "박지호", dept: "경영학과", year: 2, skills: ["기획", "PPT", "발표"] },
+    { openId: "google:demo-4", name: "최유진", dept: "컴퓨터공학과", year: 4, skills: ["Python", "데이터분석", "ML"] },
+    { openId: "google:demo-5", name: "정현우", dept: "전자공학과", year: 3, skills: ["C++", "임베디드", "하드웨어"] },
+    { openId: "google:demo-6", name: "강수아", dept: "경영학과", year: 2, skills: ["마케팅", "기획", "영어"] },
+  ];
+  const ids: number[] = [];
+  for (const d of demos) {
+    await upsertUser({ openId: d.openId, name: d.name, loginMethod: "demo", lastSignedIn: new Date() });
+    const u = await getUserByOpenId(d.openId);
+    if (!u) continue;
+    await updateUserProfile(u.id, {
+      university: UNIV,
+      department: d.dept,
+      year: d.year,
+      skillTags: d.skills,
+      kakaoOpenChatUrl: "https://open.kakao.com/o/demo",
+      name: d.name,
+    });
+    ids.push(u.id);
+  }
+
+  const c = await createCourse({
+    name: "소프트웨어 캡스톤 디자인",
+    professor: "데모 교수",
+    credits: 3,
+    hasTeamProject: true,
+    university: UNIV,
+    courseCode: "DEMO-SW",
+  });
+  const courseId = c!.id;
+  await claimCourse(courseId, professorUserId);
+  for (const id of ids) await enrollCourse(id, courseId, SEM);
+
+  // 팀플 팀(1·2·3번 3인) — 매칭 수락으로 결성
+  const m1 = await createMatchRequest(ids[0], ids[1], courseId, "project");
+  const team = await acceptMatch(m1!.id, ids[1]);
+  const teamId = team!.teamId;
+  const m2 = await createMatchRequest(ids[0], ids[2], courseId, "project");
+  await acceptMatch(m2!.id, ids[2]);
+
+  // 팀 일정·메모·산출물
+  await createTeamEvent({ teamId, createdBy: ids[0], title: "기획안 초안 작성", dueAt: new Date(Date.now() + 3 * day), assigneeId: ids[0] });
+  await createTeamEvent({ teamId, createdBy: ids[0], title: "중간 발표 준비", dueAt: new Date(Date.now() + 10 * day), assigneeId: ids[1] });
+  await createTeamNote({ teamId, userId: ids[0], content: "역할 분담 — 김민준: 백엔드 / 이서연: 디자인 / 박지호: 기획·발표" });
+  const ms = await createMilestone({ courseId, createdBy: professorUserId, title: "1차 기획안", description: "팀별 기획안을 링크로 제출하세요.", dueAt: new Date(Date.now() + 7 * day) });
+  await submitDeliverable({ milestoneId: ms!.id, teamId, submittedBy: ids[0], url: "https://docs.google.com/document/demo", note: "1차 기획안 초안입니다." });
+
+  // 설문 + 응답 4명
+  const sv = await createSurvey({
+    courseId,
+    professorId: professorUserId,
+    title: "중간 강의 만족도 조사",
+    questions: [
+      { type: "scale", text: "강의 내용에 만족하시나요?" },
+      { type: "scale", text: "강의 진도는 적절한가요?" },
+      { type: "choice", text: "가장 어려운 점은?", options: ["내용 난이도", "과제량", "팀플", "기타"] },
+      { type: "text", text: "바라는 점을 자유롭게 적어주세요." },
+    ],
+  });
+  const qs = await getSurveyQuestions(sv!.id);
+  const texts = ["과제가 조금 많아요", "팀플 일정 맞추기가 어려워요", "전반적으로 만족합니다", "발표가 부담돼요"];
+  for (let i = 0; i < 4; i++) {
+    await submitSurveyResponses({
+      surveyId: sv!.id,
+      userId: ids[i],
+      answers: [
+        { questionId: qs[0].id, value: 4 + (i % 2) },
+        { questionId: qs[1].id, value: 3 + (i % 3) },
+        { questionId: qs[2].id, value: i % 4 },
+        { questionId: qs[3].id, textValue: texts[i] },
+      ],
+    });
+  }
+
+  await createAnnouncement({ courseId, professorId: professorUserId, title: "중간고사 안내", content: "중간고사는 10주차에 진행됩니다. 팀별 1차 기획안 제출도 잊지 마세요!" });
+  await createPost({ courseId, userId: ids[3], title: "알고리즘 스터디 모집해요", content: "주 1회 알고리즘 스터디 같이 하실 분 환영합니다!", category: "스터디" });
+  await createPost({ courseId, userId: ids[4], title: "지난 학기 자료 공유", content: "도움 되시길 바랍니다.", category: "후기" });
+
+  // 미수락 매칭(받은 요청 체험) — 4번이 5번에게 스터디 요청
+  await createMatchRequest(ids[3], ids[4], courseId, "study");
+
+  return { skipped: false, courseId, teamId, students: ids.length };
+}
+
+// 데모 데이터 일괄 삭제 — 재시드/정리용.
+export async function clearDemoData() {
+  const db = await getDb();
+  if (!db) return { cleared: false };
+  const cRows = await db.select().from(courses).where(eq(courses.courseCode, "DEMO-SW")).limit(1);
+  const courseId = cRows[0]?.id;
+  const demoUsers = await db.select({ id: users.id }).from(users).where(like(users.openId, "google:demo-%"));
+  const uids = demoUsers.map((u) => u.id);
+
+  await db.transaction(async (tx) => {
+    if (courseId) {
+      const teamRows = await tx.select({ id: teams.id }).from(teams).where(eq(teams.courseId, courseId));
+      const tids = teamRows.map((t) => t.id);
+      if (tids.length) {
+        await tx.delete(teamNotes).where(inArray(teamNotes.teamId, tids));
+        await tx.delete(teamEvents).where(inArray(teamEvents.teamId, tids));
+        await tx.delete(teamMembers).where(inArray(teamMembers.teamId, tids));
+        await tx.delete(teamSubmissions).where(inArray(teamSubmissions.teamId, tids));
+        await tx.delete(evaluations).where(inArray(evaluations.teamId, tids));
+        await tx.delete(teams).where(inArray(teams.id, tids));
+      }
+      const msRows = await tx.select({ id: courseMilestones.id }).from(courseMilestones).where(eq(courseMilestones.courseId, courseId));
+      const msids = msRows.map((m) => m.id);
+      if (msids.length) {
+        await tx.delete(teamSubmissions).where(inArray(teamSubmissions.milestoneId, msids));
+        await tx.delete(courseMilestones).where(inArray(courseMilestones.id, msids));
+      }
+      const svRows = await tx.select({ id: surveys.id }).from(surveys).where(eq(surveys.courseId, courseId));
+      const svids = svRows.map((s) => s.id);
+      if (svids.length) {
+        await tx.delete(surveyResponses).where(inArray(surveyResponses.surveyId, svids));
+        await tx.delete(surveyQuestions).where(inArray(surveyQuestions.surveyId, svids));
+        await tx.delete(surveys).where(inArray(surveys.id, svids));
+      }
+      const postRows = await tx.select({ id: posts.id }).from(posts).where(eq(posts.courseId, courseId));
+      const pids = postRows.map((p) => p.id);
+      if (pids.length) {
+        await tx.delete(postComments).where(inArray(postComments.postId, pids));
+        await tx.delete(posts).where(inArray(posts.id, pids));
+      }
+      await tx.delete(courseAnnouncements).where(eq(courseAnnouncements.courseId, courseId));
+      await tx.delete(teamMatches).where(eq(teamMatches.courseId, courseId));
+      await tx.delete(userCourses).where(eq(userCourses.courseId, courseId));
+      await tx.delete(courses).where(eq(courses.id, courseId));
+    }
+    if (uids.length) {
+      await tx.delete(notifications).where(inArray(notifications.userId, uids));
+      await tx.delete(badges).where(inArray(badges.userId, uids));
+      await tx.delete(users).where(inArray(users.id, uids));
+    }
+  });
+  return { cleared: true, courseId: courseId ?? null, students: uids.length };
+}
+
 // ─── Consents ────────────────────────────────────────────
 
 export async function recordConsent(
