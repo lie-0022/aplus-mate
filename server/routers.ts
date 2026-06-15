@@ -1079,6 +1079,18 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return db.assignQaToUser(input.userId);
       }),
+    setupClassTeam: adminProcedure
+      .input(
+        z.object({
+          courseName: z.string(),
+          courseCode: z.string(),
+          university: z.string(),
+          userIds: z.array(z.number()),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return db.setupClassTeam(input);
+      }),
   }),
 });
 

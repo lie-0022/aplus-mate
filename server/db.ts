@@ -2090,6 +2090,88 @@ export async function assignQaToUser(userId: number) {
   return { ok: true, courseId, requests, profileFilled: !u.profileCompleted };
 }
 
+// QA용: 특정 수업을 만들고 지정한 유저들을 한 팀(팀플)으로 묶는다.
+// 친구들끼리 같은 팀에서 팀 활동(일정·메모 등)을 바로 테스트하게 한다.
+export async function setupClassTeam(data: {
+  courseName: string;
+  courseCode: string;
+  university: string;
+  userIds: number[];
+}) {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: "DB 연결 없음" };
+  // 수업 — 있으면 재사용, 없으면 생성
+  let courseId: number;
+  const ex = await db.select().from(courses).where(eq(courses.courseCode, data.courseCode)).limit(1);
+  if (ex.length > 0) {
+    courseId = ex[0].id;
+  } else {
+    const c = await createCourse({
+      name: data.courseName,
+      professor: "데모 교수",
+      credits: 3,
+      hasTeamProject: true,
+      university: data.university,
+      courseCode: data.courseCode,
+    });
+    courseId = c!.id;
+  }
+  // 수강 등록 (+ 프로필 미완성이면 최소값 채움)
+  for (const uid of data.userIds) {
+    const u = await getUserById(uid);
+    if (!u) continue;
+    if (!u.profileCompleted) {
+      await updateUserProfile(uid, {
+        university: u.university || data.university,
+        department: u.department || "게임학과",
+        year: u.year || 3,
+      });
+    }
+    await enrollCourse(uid, courseId, "2026-1");
+  }
+  // 한 팀(팀플, 최대 6명)으로 묶기 — ids[0] 중심으로 나머지 합류
+  const ids = data.userIds;
+  let teamId: number | undefined;
+  if (ids.length >= 2) {
+    try {
+      const m = await createMatchRequest(ids[0], ids[1], courseId, "project");
+      const t = await acceptMatch(m!.id, ids[1]);
+      teamId = t!.teamId;
+    } catch {
+      /* 이미 묶였을 수 있음 */
+    }
+    for (let i = 2; i < ids.length && i < 6; i++) {
+      try {
+        const mi = await createMatchRequest(ids[0], ids[i], courseId, "project");
+        await acceptMatch(mi!.id, ids[i]);
+      } catch {
+        /* 이미 멤버 등은 무시 */
+      }
+    }
+  }
+  // 팀에 일정·메모 시드(팀 활동 체험용)
+  if (teamId) {
+    const day = 86400000;
+    try {
+      await createTeamEvent({
+        teamId,
+        createdBy: ids[0],
+        title: "게임 컨셉 기획안",
+        dueAt: new Date(Date.now() + 5 * day),
+        assigneeId: ids[0],
+      });
+    } catch {}
+    try {
+      await createTeamNote({
+        teamId,
+        userId: ids[0],
+        content: "역할 분담 — 기획 / 아트 / 프로그래밍을 정해봅시다!",
+      });
+    } catch {}
+  }
+  return { ok: true, courseId, teamId, members: Math.min(ids.length, 6) };
+}
+
 // ─── Consents ────────────────────────────────────────────
 
 export async function recordConsent(
