@@ -2040,6 +2040,56 @@ export async function clearDemoData() {
   return { cleared: true, courseId: courseId ?? null, students: uids.length };
 }
 
+// QA용: 특정 유저(실제 친구 계정 등)를 데모 수업에 등록하고, 데모 학생들이
+// 그 유저에게 매칭 요청(팀플·스터디·멘토멘티)을 보낸 상태로 만든다.
+// 로그인하면 받은 요청 수락·커넥트·설문·게시판을 바로 체험할 수 있다.
+export async function assignQaToUser(userId: number) {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: "DB 연결 없음" };
+  const cRows = await db.select().from(courses).where(eq(courses.courseCode, "DEMO-SW")).limit(1);
+  if (cRows.length === 0) {
+    return { ok: false, reason: "데모 수업이 없어요. 먼저 데모 데이터를 생성하세요." };
+  }
+  const courseId = cRows[0].id;
+  const u = await getUserById(userId);
+  if (!u) return { ok: false, reason: "대상 유저를 찾을 수 없어요." };
+  // 매칭이 되려면 프로필 완성이 필요 — 미완성이면 최소값으로 채운다.
+  if (!u.profileCompleted) {
+    await updateUserProfile(userId, {
+      university: u.university || "백석대학교",
+      department: u.department || "컴퓨터공학과",
+      year: u.year || 3,
+    });
+  }
+  await enrollCourse(userId, courseId, "2026-1");
+
+  const demoUsers = await db
+    .select({ id: users.id, openId: users.openId })
+    .from(users)
+    .where(like(users.openId, "google:demo-%"));
+  const byOpen = (n: number) => demoUsers.find((d) => d.openId === `google:demo-${n}`)?.id;
+  const requests: string[] = [];
+  const tryReq = async (
+    fromN: number,
+    type: "project" | "study" | "mentoring",
+    role: "mentor" | "mentee" | undefined,
+    label: string
+  ) => {
+    const from = byOpen(fromN);
+    if (!from) return;
+    try {
+      await createMatchRequest(from, userId, courseId, type, role);
+      requests.push(label);
+    } catch {
+      /* 이미 있으면 무시 */
+    }
+  };
+  await tryReq(4, "project", undefined, "팀플");
+  await tryReq(5, "study", undefined, "스터디");
+  await tryReq(6, "mentoring", "mentor", "멘토멘티");
+  return { ok: true, courseId, requests, profileFilled: !u.profileCompleted };
+}
+
 // ─── Consents ────────────────────────────────────────────
 
 export async function recordConsent(

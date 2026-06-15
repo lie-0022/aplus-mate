@@ -1073,6 +1073,12 @@ export const appRouter = router({
     clearDemo: adminProcedure.mutation(async () => {
       return db.clearDemoData();
     }),
+    // QA용: 특정 유저(친구 계정)에게 데모 수업·매칭 요청 배정
+    assignQa: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.assignQaToUser(input.userId);
+      }),
   }),
 });
 
