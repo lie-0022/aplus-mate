@@ -2172,6 +2172,48 @@ export async function setupClassTeam(data: {
   return { ok: true, courseId, teamId, members: Math.min(ids.length, 6) };
 }
 
+// 운영자용: 전체 팀 현황 — 수업·타입·상태·멤버·일정 진척을 한눈에.
+export async function getAllTeamsForAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  const teamRows = await db
+    .select({
+      id: teams.id,
+      teamType: teams.teamType,
+      status: teams.status,
+      evaluationStatus: teams.evaluationStatus,
+      courseName: courses.name,
+      createdAt: teams.createdAt,
+    })
+    .from(teams)
+    .innerJoin(courses, eq(teams.courseId, courses.id))
+    .orderBy(desc(teams.createdAt));
+  if (teamRows.length === 0) return [];
+  const tids = teamRows.map((t) => t.id);
+  const mem = await db
+    .select({ teamId: teamMembers.teamId, role: teamMembers.role, name: users.name })
+    .from(teamMembers)
+    .innerJoin(users, eq(users.id, teamMembers.userId))
+    .where(inArray(teamMembers.teamId, tids));
+  const evs = await db
+    .select({ teamId: teamEvents.teamId, isDone: teamEvents.isDone })
+    .from(teamEvents)
+    .where(inArray(teamEvents.teamId, tids));
+  return teamRows.map((t) => {
+    const events = evs.filter((e) => e.teamId === t.id);
+    return {
+      id: t.id,
+      courseName: t.courseName,
+      teamType: t.teamType,
+      status: t.status,
+      evaluationStatus: t.evaluationStatus,
+      members: mem.filter((m) => m.teamId === t.id).map((m) => ({ name: m.name, role: m.role })),
+      eventsDone: events.filter((e) => e.isDone).length,
+      eventsTotal: events.length,
+    };
+  });
+}
+
 // ─── Consents ────────────────────────────────────────────
 
 export async function recordConsent(

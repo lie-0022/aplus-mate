@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
-import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag, Sparkles } from "lucide-react";
+import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag, Sparkles, Boxes } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,6 +23,12 @@ const REASON_KO: Record<string, string> = {
   etc: "기타",
 };
 const TARGET_KO: Record<string, string> = { post: "게시글", comment: "댓글", user: "사용자" };
+const TEAM_STATUS_KO: Record<string, string> = {
+  active: "진행 중",
+  completed: "완료",
+  disbanded: "해체",
+};
+const MEMBER_ROLE_SUFFIX: Record<string, string> = { mentor: " (멘토)", mentee: " (멘티)" };
 
 // 운영자 전용 — pending 매칭 현황. 서버는 adminProcedure(role=admin)로 이중 가드.
 // 운영자에게는 수동 운영(연락·푸시)을 위해 실명·오픈채팅이 보인다.
@@ -45,6 +51,7 @@ export default function Admin() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const allTeams = trpc.admin.allTeams.useQuery(undefined, { enabled: isAdmin, retry: false });
   const reports = trpc.admin.reports.useQuery(undefined, { enabled: isAdmin, retry: false });
   const resolveReport = trpc.admin.resolveReport.useMutation({
     onSuccess: () => {
@@ -162,6 +169,81 @@ export default function Admin() {
           </Card>
         ))
       )}
+
+      {/* 전체 팀 현황 — 운영자가 구성된 팀과 진행 상황을 한눈에 */}
+      <div className="flex items-center gap-2 pt-2">
+        <Boxes className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-bold">전체 팀 현황 ({allTeams.data?.length ?? 0})</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => allTeams.refetch()}
+          disabled={allTeams.isFetching}
+        >
+          <RefreshCw className={`h-4 w-4 ${allTeams.isFetching ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+      {allTeams.data && allTeams.data.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="p-4 text-center text-sm text-muted-foreground">
+            아직 구성된 팀이 없어요.
+          </CardContent>
+        </Card>
+      )}
+      {allTeams.data?.map((t) => {
+        const pct = t.eventsTotal > 0 ? Math.round((t.eventsDone / t.eventsTotal) * 100) : 0;
+        return (
+          <Card key={`team-${t.id}`} className="border shadow-sm">
+            <CardContent className="p-4 space-y-2.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="secondary" className="text-xs">
+                  {t.courseName}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {MATCH_TYPE_LABELS[(t.teamType ?? "project") as MatchType]}
+                </Badge>
+                <Badge
+                  variant="secondary"
+                  className={
+                    t.status === "active"
+                      ? "text-xs bg-emerald-100 text-emerald-700"
+                      : "text-xs"
+                  }
+                >
+                  {TEAM_STATUS_KO[t.status] ?? t.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {t.members.length}명
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {t.members.map((m, i) => (
+                  <Badge key={i} variant="outline" className="text-xs font-normal">
+                    {m.name ?? "?"}
+                    {MEMBER_ROLE_SUFFIX[m.role ?? ""] ?? ""}
+                  </Badge>
+                ))}
+              </div>
+              {t.eventsTotal > 0 ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>일정 진척</span>
+                    <span>
+                      {t.eventsDone}/{t.eventsTotal} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full gradient-primary" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">등록된 일정 없음</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       {/* 신고 큐 */}
       <div className="flex items-center gap-2 pt-2">

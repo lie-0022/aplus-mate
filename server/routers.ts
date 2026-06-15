@@ -1091,6 +1091,9 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return db.setupClassTeam(input);
       }),
+    allTeams: adminProcedure.query(async () => {
+      return db.getAllTeamsForAdmin();
+    }),
   }),
 });
 
