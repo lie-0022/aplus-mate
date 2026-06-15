@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
@@ -5,7 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
-import { ShieldCheck, RefreshCw, ExternalLink, Inbox, Users, Flag, Sparkles, Boxes } from "lucide-react";
+import {
+  ShieldCheck,
+  RefreshCw,
+  ExternalLink,
+  Inbox,
+  Users,
+  Flag,
+  Sparkles,
+  Boxes,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -36,6 +51,9 @@ export default function Admin() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const isAdmin = user?.role === "admin";
+  // 전체 팀 현황 — 펼친 팀 / "정체 팀만" 필터
+  const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
+  const [onlyStuck, setOnlyStuck] = useState(false);
   const pending = trpc.admin.pendingMatches.useQuery(undefined, {
     enabled: isAdmin,
     retry: false,
@@ -170,80 +188,141 @@ export default function Admin() {
         ))
       )}
 
-      {/* 전체 팀 현황 — 운영자가 구성된 팀과 진행 상황을 한눈에 */}
-      <div className="flex items-center gap-2 pt-2">
-        <Boxes className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-bold">전체 팀 현황 ({allTeams.data?.length ?? 0})</h2>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => allTeams.refetch()}
-          disabled={allTeams.isFetching}
-        >
-          <RefreshCw className={`h-4 w-4 ${allTeams.isFetching ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
-      {allTeams.data && allTeams.data.length === 0 && (
-        <Card className="border-dashed">
-          <CardContent className="p-4 text-center text-sm text-muted-foreground">
-            아직 구성된 팀이 없어요.
-          </CardContent>
-        </Card>
-      )}
-      {allTeams.data?.map((t) => {
-        const pct = t.eventsTotal > 0 ? Math.round((t.eventsDone / t.eventsTotal) * 100) : 0;
+      {/* 전체 팀 현황 — 운영자가 구성된 팀·진행 상황을 한눈에, 카드 탭하면 상세 */}
+      {(() => {
+        const teamList = allTeams.data ?? [];
+        const isStuck = (t: (typeof teamList)[number]) =>
+          t.status === "active" && t.eventsDone === 0;
+        const stuckCount = teamList.filter(isStuck).length;
+        const shown = onlyStuck ? teamList.filter(isStuck) : teamList;
         return (
-          <Card key={`team-${t.id}`} className="border shadow-sm">
-            <CardContent className="p-4 space-y-2.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Badge variant="secondary" className="text-xs">
-                  {t.courseName}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {MATCH_TYPE_LABELS[(t.teamType ?? "project") as MatchType]}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className={
-                    t.status === "active"
-                      ? "text-xs bg-emerald-100 text-emerald-700"
-                      : "text-xs"
-                  }
-                >
-                  {TEAM_STATUS_KO[t.status] ?? t.status}
-                </Badge>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {t.members.length}명
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {t.members.map((m, i) => (
-                  <Badge key={i} variant="outline" className="text-xs font-normal">
-                    {m.name ?? "?"}
-                    {MEMBER_ROLE_SUFFIX[m.role ?? ""] ?? ""}
-                  </Badge>
-                ))}
-              </div>
-              {t.eventsTotal > 0 ? (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>일정 진척</span>
-                    <span>
-                      {t.eventsDone}/{t.eventsTotal} ({pct}%)
-                    </span>
+          <>
+            <div className="flex items-center gap-2 pt-2">
+              <Boxes className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold">전체 팀 현황 ({teamList.length})</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                onClick={() => allTeams.refetch()}
+                disabled={allTeams.isFetching}
+              >
+                <RefreshCw className={`h-4 w-4 ${allTeams.isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+            {stuckCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // 필터를 토글하면 펼침 상태도 초기화(필터로 사라진 팀이 stale하게 되살아나는 것 방지)
+                  setOnlyStuck((v) => !v);
+                  setExpandedTeam(null);
+                }}
+                className={
+                  onlyStuck ? "gradient-primary text-white border-0 w-fit" : "w-fit text-amber-700"
+                }
+              >
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                {onlyStuck ? "전체 보기" : `정체 팀만 (${stuckCount})`}
+              </Button>
+            )}
+            {teamList.length === 0 && (
+              <Card className="border-dashed">
+                <CardContent className="p-4 text-center text-sm text-muted-foreground">
+                  아직 구성된 팀이 없어요.
+                </CardContent>
+              </Card>
+            )}
+            {shown.map((t) => {
+              const pct = t.eventsTotal > 0 ? Math.round((t.eventsDone / t.eventsTotal) * 100) : 0;
+              const stuck = isStuck(t);
+              const open = expandedTeam === t.id;
+              return (
+                <Card key={`team-${t.id}`} className="border shadow-sm">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={open}
+                    className="w-full text-left cursor-pointer rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setExpandedTeam(open ? null : t.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedTeam(open ? null : t.id);
+                      }
+                    }}
+                  >
+                    <CardContent className="p-4 space-y-2.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {open ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {t.courseName}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {MATCH_TYPE_LABELS[(t.teamType ?? "project") as MatchType]}
+                        </Badge>
+                        <Badge
+                          variant="secondary"
+                          className={
+                            t.status === "active"
+                              ? "text-xs bg-emerald-100 text-emerald-700"
+                              : "text-xs"
+                          }
+                        >
+                          {TEAM_STATUS_KO[t.status] ?? t.status}
+                        </Badge>
+                        {stuck && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-amber-100 text-amber-700"
+                          >
+                            정체
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {t.members.length}명
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {t.members.map((m, i) => (
+                          <Badge key={i} variant="outline" className="text-xs font-normal">
+                            {m.name ?? "?"}
+                            {MEMBER_ROLE_SUFFIX[m.role ?? ""] ?? ""}
+                          </Badge>
+                        ))}
+                      </div>
+                      {t.eventsTotal > 0 ? (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px] text-muted-foreground">
+                            <span>일정 진척</span>
+                            <span>
+                              {t.eventsDone}/{t.eventsTotal} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full gradient-primary"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">등록된 일정 없음</p>
+                      )}
+                    </CardContent>
                   </div>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full gradient-primary" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">등록된 일정 없음</p>
-              )}
-            </CardContent>
-          </Card>
+                  {open && <AdminTeamDetail teamId={t.id} />}
+                </Card>
+              );
+            })}
+          </>
         );
-      })}
+      })()}
 
       {/* 신고 큐 */}
       <div className="flex items-center gap-2 pt-2">
@@ -367,6 +446,132 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// 운영자가 팀 카드를 펼치면 보이는 상세 — 멤버 연락처·일정·메모·산출물.
+function AdminTeamDetail({ teamId }: { teamId: number }) {
+  const detail = trpc.admin.teamDetail.useQuery({ teamId }, { retry: false });
+  if (detail.isLoading) {
+    return (
+      <div className="px-4 pb-4">
+        <Skeleton className="h-20 rounded-lg" />
+      </div>
+    );
+  }
+  const d = detail.data;
+  if (!d) return null;
+  return (
+    <div className="px-4 pb-4 pt-1 border-t mt-1 space-y-3 text-sm">
+      {/* 멤버 연락처 */}
+      <div>
+        <div className="text-[11px] font-semibold text-muted-foreground mb-1">멤버 연락처</div>
+        <div className="space-y-1">
+          {d.members.map((m) => (
+            <div key={m.id} className="flex items-center gap-2">
+              <span className="font-medium">{m.name ?? "?"}</span>
+              <span className="text-xs text-muted-foreground">
+                {m.department}
+                {m.year ? ` · ${m.year}학년` : ""}
+                {m.role === "mentor" ? " · 멘토" : m.role === "mentee" ? " · 멘티" : ""}
+              </span>
+              {m.kakaoOpenChatUrl && (
+                <a
+                  href={m.kakaoOpenChatUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-0.5 ml-auto"
+                >
+                  오픈채팅 <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* 일정 */}
+      <div>
+        <div className="text-[11px] font-semibold text-muted-foreground mb-1">
+          일정 ({d.events.length})
+        </div>
+        {d.events.length === 0 ? (
+          <p className="text-xs text-muted-foreground">등록된 일정 없음</p>
+        ) : (
+          <div className="space-y-1">
+            {d.events.map((e) => (
+              <div key={e.id} className="flex items-center gap-2">
+                {e.isDone ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <CircleDashed className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                )}
+                <span className={e.isDone ? "line-through text-muted-foreground" : ""}>
+                  {e.title}
+                </span>
+                <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                  {e.assigneeName ? `${e.assigneeName} · ` : ""}
+                  {new Date(e.dueAt).toLocaleDateString("ko-KR", {
+                    month: "numeric",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* 팀 메모 */}
+      <div>
+        <div className="text-[11px] font-semibold text-muted-foreground mb-1">
+          팀 메모 ({d.notes.length})
+        </div>
+        {d.notes.length === 0 ? (
+          <p className="text-xs text-muted-foreground">메모 없음</p>
+        ) : (
+          <div className="space-y-1">
+            {d.notes.map((n) => (
+              <div key={n.id} className="p-2 rounded-lg bg-muted/50">
+                <p className="whitespace-pre-wrap">{n.content}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {n.authorName} · {new Date(n.createdAt).toLocaleDateString("ko-KR")}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* 산출물 제출 */}
+      <div>
+        <div className="text-[11px] font-semibold text-muted-foreground mb-1">
+          산출물 제출 ({d.submissions.length})
+        </div>
+        {d.submissions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">제출물 없음</p>
+        ) : (
+          <div className="space-y-1">
+            {d.submissions.map((s) => (
+              <div key={s.id} className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {s.milestoneTitle}
+                </Badge>
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline truncate inline-flex items-center gap-0.5"
+                >
+                  제출물 <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+                <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                  {s.submitterName}
+                  {s.reviewedAt ? " · 확인됨" : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1094,6 +1094,11 @@ export const appRouter = router({
     allTeams: adminProcedure.query(async () => {
       return db.getAllTeamsForAdmin();
     }),
+    teamDetail: adminProcedure
+      .input(z.object({ teamId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getTeamDetailForAdmin(input.teamId);
+      }),
   }),
 });
 

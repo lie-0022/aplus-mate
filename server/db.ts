@@ -2214,6 +2214,64 @@ export async function getAllTeamsForAdmin() {
   });
 }
 
+// 운영자용: 한 팀의 상세 — 멤버(오픈채팅 포함)·일정·메모·산출물 제출.
+export async function getTeamDetailForAdmin(teamId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const members = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      department: users.department,
+      year: users.year,
+      kakaoOpenChatUrl: users.kakaoOpenChatUrl,
+      role: teamMembers.role,
+    })
+    .from(teamMembers)
+    .innerJoin(users, eq(users.id, teamMembers.userId))
+    .where(eq(teamMembers.teamId, teamId));
+  const memberNameById = new Map(members.map((m) => [m.id, m.name]));
+  // events는 members(assigneeName 매핑)에만 의존하고 notes·submissions는 서로 독립이라
+  // 세 쿼리를 한 번에 병렬로 조회한다.
+  const [evRows, notes, submissions] = await Promise.all([
+    db.select().from(teamEvents).where(eq(teamEvents.teamId, teamId)).orderBy(teamEvents.dueAt),
+    db
+      .select({
+        id: teamNotes.id,
+        content: teamNotes.content,
+        createdAt: teamNotes.createdAt,
+        authorName: users.name,
+      })
+      .from(teamNotes)
+      .innerJoin(users, eq(users.id, teamNotes.userId))
+      .where(eq(teamNotes.teamId, teamId))
+      .orderBy(desc(teamNotes.createdAt)),
+    db
+      .select({
+        id: teamSubmissions.id,
+        url: teamSubmissions.url,
+        note: teamSubmissions.note,
+        reviewedAt: teamSubmissions.reviewedAt,
+        submittedAt: teamSubmissions.submittedAt,
+        milestoneTitle: courseMilestones.title,
+        submitterName: users.name,
+      })
+      .from(teamSubmissions)
+      .innerJoin(courseMilestones, eq(courseMilestones.id, teamSubmissions.milestoneId))
+      .innerJoin(users, eq(users.id, teamSubmissions.submittedBy))
+      .where(eq(teamSubmissions.teamId, teamId))
+      .orderBy(desc(teamSubmissions.submittedAt)),
+  ]);
+  const events = evRows.map((e) => ({
+    id: e.id,
+    title: e.title,
+    dueAt: e.dueAt,
+    isDone: e.isDone,
+    assigneeName: e.assigneeId ? (memberNameById.get(e.assigneeId) ?? null) : null,
+  }));
+  return { members, events, notes, submissions };
+}
+
 // ─── Consents ────────────────────────────────────────────
 
 export async function recordConsent(
