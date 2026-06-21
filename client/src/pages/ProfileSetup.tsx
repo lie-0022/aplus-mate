@@ -77,7 +77,7 @@ export default function ProfileSetup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
-      <Card className="w-full max-w-md border shadow-lg">
+      <Card className="w-full max-w-md rounded-2xl border border-border/50 shadow-sm">
         <CardHeader className="text-center pb-2">
           <div className="gradient-primary w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="h-7 w-7 text-white" />
