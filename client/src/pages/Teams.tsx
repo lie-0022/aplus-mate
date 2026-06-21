@@ -51,7 +51,7 @@ export default function Teams() {
     return teamList.map((item) => (
       <Card
         key={item.team.id}
-        className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+        className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
         onClick={() => setLocation(`/teams/${item.team.id}`)}
       >
         <CardContent className="p-4">

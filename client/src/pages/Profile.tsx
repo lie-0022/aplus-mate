@@ -138,7 +138,7 @@ export default function Profile() {
       </div>
 
       {/* Profile Card */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-5">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center">
@@ -227,7 +227,7 @@ export default function Profile() {
       </Card>
 
       {/* Skill Tags */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Tag className="h-4 w-4 text-primary" />
@@ -255,7 +255,7 @@ export default function Profile() {
       </Card>
 
       {/* Badges */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />

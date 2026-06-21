@@ -240,7 +240,7 @@ export default function CourseDetail() {
         <ArrowLeft className="h-4 w-4" /> 수업 목록
       </button>
 
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
@@ -410,7 +410,7 @@ export default function CourseDetail() {
             posts.data?.map((item) => (
               <Card
                 key={item.post.id}
-                className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
                 onClick={() => setLocation(`/posts/${item.post.id}`)}
               >
                 <CardContent className="p-4">
@@ -561,7 +561,7 @@ export default function CourseDetail() {
                   })
                   .sort((a, b) => b.common - a.common);
                 return candidates.map(({ student, tags, common }) => (
-                  <Card key={student.user.id} className="border shadow-sm">
+                  <Card key={student.user.id} className="rounded-2xl border border-border/50 shadow-none">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div

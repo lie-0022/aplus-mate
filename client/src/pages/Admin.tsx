@@ -136,7 +136,7 @@ export default function Admin() {
         </Card>
       ) : (
         pending.data?.map((item) => (
-          <Card key={`match-${item.match.id}`} className="border shadow-sm">
+          <Card key={`match-${item.match.id}`} className="rounded-2xl border border-border/50 shadow-none">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <Badge variant="secondary" className="text-xs">
@@ -239,7 +239,7 @@ export default function Admin() {
               const stuck = isStuck(t);
               const open = expandedTeam === t.id;
               return (
-                <Card key={`team-${t.id}`} className="border shadow-sm">
+                <Card key={`team-${t.id}`} className="rounded-2xl border border-border/50 shadow-none">
                   <div
                     role="button"
                     tabIndex={0}
@@ -337,7 +337,7 @@ export default function Admin() {
         </Card>
       )}
       {reports.data?.map((r) => (
-        <Card key={`report-${r.id}`} className="border shadow-sm">
+        <Card key={`report-${r.id}`} className="rounded-2xl border border-border/50 shadow-none">
           <CardContent className="p-3 flex items-start justify-between gap-2">
             <div className="text-sm min-w-0">
               <div className="font-medium">
@@ -369,7 +369,7 @@ export default function Admin() {
         <h2 className="text-lg font-bold">유저 역할 관리</h2>
       </div>
       {usersList.data?.map((u) => (
-        <Card key={`user-${u.id}`} className="border shadow-sm">
+        <Card key={`user-${u.id}`} className="rounded-2xl border border-border/50 shadow-none">
           <CardContent className="p-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="font-medium text-sm flex items-center gap-1.5">
@@ -421,7 +421,7 @@ export default function Admin() {
         <Sparkles className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-bold">데모 데이터 (시연용)</h2>
       </div>
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
             교수님 시연용 예시 데이터를 한 번에 만듭니다 — '소프트웨어 캡스톤 디자인' 수업,

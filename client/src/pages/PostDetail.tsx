@@ -77,7 +77,7 @@ export default function PostDetail() {
       </button>
 
       {/* 본문 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <Badge variant="outline" className="text-xs">
@@ -107,7 +107,7 @@ export default function PostDetail() {
       </Card>
 
       {/* 댓글 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-primary" />

@@ -154,7 +154,7 @@ export default function MatchingRequests() {
         </Card>
       ) : (
         data?.map((item) => (
-          <Card key={item.match.id} className="border shadow-sm">
+          <Card key={item.match.id} className="rounded-2xl border border-border/50 shadow-none">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div
@@ -235,7 +235,7 @@ export default function MatchingRequests() {
             </Card>
           ) : (
             sent.data?.map((item) => (
-              <Card key={item.match.id} className="border shadow-sm">
+              <Card key={item.match.id} className="rounded-2xl border border-border/50 shadow-none">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
