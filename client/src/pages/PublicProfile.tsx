@@ -36,7 +36,7 @@ export default function PublicProfile() {
       >
         <ArrowLeft className="h-4 w-4" /> 뒤로
       </button>
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">

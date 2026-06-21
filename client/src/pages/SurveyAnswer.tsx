@@ -119,7 +119,7 @@ export default function SurveyAnswer() {
       </div>
 
       {data.questions.map((q, i) => (
-        <Card key={q.id} className="border shadow-sm">
+        <Card key={q.id} className="rounded-2xl border border-border/50 shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium leading-snug">
               {i + 1}. {q.text}

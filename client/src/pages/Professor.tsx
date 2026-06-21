@@ -305,7 +305,7 @@ export default function Professor() {
       </div>
 
       {/* 담당 수업 선택 / 클레임 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardContent className="p-4 space-y-3">
           {myCourses.isLoading ? (
             <Skeleton className="h-9 w-full" />
@@ -442,7 +442,7 @@ export default function Professor() {
                       />
                     </div>
 
-                    <Card className="border shadow-sm">
+                    <Card className="rounded-2xl border border-border/50 shadow-none">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
                           <Users className="h-4 w-4 text-primary" /> 팀 미배정 학생 (
@@ -474,7 +474,7 @@ export default function Professor() {
                     </Card>
 
                     {d.surveys.length > 0 && (
-                      <Card className="border shadow-sm">
+                      <Card className="rounded-2xl border border-border/50 shadow-none">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-primary" /> 설문 응답률
@@ -575,7 +575,7 @@ export default function Professor() {
               </Card>
             )}
             {students.data?.map((s) => (
-              <Card key={s.userCourse.id} className="border shadow-sm">
+              <Card key={s.userCourse.id} className="rounded-2xl border border-border/50 shadow-none">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -607,7 +607,7 @@ export default function Professor() {
               </Card>
             )}
             {teams.data?.map((t) => (
-              <Card key={t.team.id} className="border shadow-sm">
+              <Card key={t.team.id} className="rounded-2xl border border-border/50 shadow-none">
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Badge variant="outline" className="text-xs">
@@ -656,7 +656,7 @@ export default function Professor() {
 
           {/* 공지 */}
           <TabsContent value="announce" className="mt-4 space-y-3">
-            <Card className="border shadow-sm">
+            <Card className="rounded-2xl border border-border/50 shadow-none">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Megaphone className="h-4 w-4 text-primary" /> 공지 작성
@@ -697,7 +697,7 @@ export default function Professor() {
             </Card>
 
             {announcements.data?.map((a) => (
-              <Card key={a.id} className="border shadow-sm">
+              <Card key={a.id} className="rounded-2xl border border-border/50 shadow-none">
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm">{a.title}</div>
@@ -728,7 +728,7 @@ export default function Professor() {
           {/* 설문 */}
           <TabsContent value="survey" className="mt-4 space-y-3">
             {/* 빌더 */}
-            <Card className="border shadow-sm">
+            <Card className="rounded-2xl border border-border/50 shadow-none">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ClipboardList className="h-4 w-4 text-primary" /> 새 설문 만들기
@@ -897,7 +897,7 @@ export default function Professor() {
 
             {/* 설문 목록 + 결과 */}
             {surveysList.data?.map(({ survey }) => (
-              <Card key={survey.id} className="border shadow-sm">
+              <Card key={survey.id} className="rounded-2xl border border-border/50 shadow-none">
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm flex-1">{survey.title}</span>
@@ -1063,7 +1063,7 @@ export default function Professor() {
           {/* 산출물 제출 현황 */}
           <TabsContent value="deliverables" className="mt-4 space-y-3">
             {/* 제출 항목 만들기 */}
-            <Card className="border shadow-sm">
+            <Card className="rounded-2xl border border-border/50 shadow-none">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FolderOpen className="h-4 w-4 text-primary" /> 제출 항목 만들기
@@ -1125,7 +1125,7 @@ export default function Professor() {
               const subs = submissions.data?.filter((s) => s.milestoneId === m.id) ?? [];
               const teamList = teams.data ?? [];
               return (
-                <Card key={m.id} className="border shadow-sm">
+                <Card key={m.id} className="rounded-2xl border border-border/50 shadow-none">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">

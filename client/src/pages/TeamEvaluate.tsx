@@ -210,7 +210,7 @@ export default function TeamEvaluate() {
       {otherMembers.map((member) => {
         const ev = evalData[member.user.id] || {};
         return (
-          <Card key={member.user.id} className="border shadow-sm">
+          <Card key={member.user.id} className="rounded-2xl border border-border/50 shadow-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">

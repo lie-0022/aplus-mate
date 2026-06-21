@@ -199,7 +199,7 @@ export default function Courses() {
               {myCourses.data?.map((item) => (
                 <Card
                   key={item.userCourse.id}
-                  className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
                   onClick={() => setLocation(`/courses/${item.course.id}`)}
                 >
                   <CardContent className="p-4">
@@ -266,7 +266,7 @@ export default function Courses() {
                 </Card>
               ) : (
                 searchResults.data?.map((course) => (
-                  <Card key={course.id} className="border shadow-sm">
+                  <Card key={course.id} className="rounded-2xl border border-border/50 shadow-none">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="min-w-0">
