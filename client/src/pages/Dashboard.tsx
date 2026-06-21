@@ -97,14 +97,27 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold">
-          안녕하세요, {user?.name || "학생"}님
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          오늘도 좋은 팀원을 만나보세요
-        </p>
+      {/* Hero — 그라데이션 히어로에 인사 + 핵심 지표 3종을 한데 모음 */}
+      <div className="gradient-primary rounded-2xl p-5 text-white shadow-lg shadow-primary/20">
+        <p className="text-sm text-white/80">반가워요 👋</p>
+        <h1 className="text-2xl font-bold mt-0.5">{user?.name || "학생"}님</h1>
+        <p className="text-white/85 text-sm mt-1">오늘도 좋은 팀원을 만나보세요</p>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { icon: BookOpen, label: "수강 과목", value: data?.courses.length ?? 0 },
+            { icon: Handshake, label: "대기 매칭", value: data?.pendingMatches ?? 0 },
+            { icon: Users, label: "진행 팀", value: data?.activeTeams ?? 0 },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-xl bg-white/15 backdrop-blur-sm p-3 text-center"
+            >
+              <s.icon className="h-4 w-4 mx-auto mb-1 text-white/90" />
+              <div className="text-xl font-bold leading-none">{s.value}</div>
+              <div className="text-[11px] text-white/80 mt-1">{s.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 온보딩 체크리스트 — 수업 등록·첫 커넥트까지 안내(완료 시 자동 숨김) */}
@@ -131,37 +144,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="border shadow-sm">
-          <CardContent className="p-4 text-center">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-            </div>
-            <div className="text-2xl font-bold">{data?.courses.length ?? 0}</div>
-            <div className="text-xs text-muted-foreground">수강 과목</div>
-          </CardContent>
-        </Card>
-        <Card className="border shadow-sm">
-          <CardContent className="p-4 text-center">
-            <div className="w-10 h-10 rounded-xl bg-sky-brand/10 flex items-center justify-center mx-auto mb-2">
-              <Handshake className="h-5 w-5 text-sky-brand" />
-            </div>
-            <div className="text-2xl font-bold">{data?.pendingMatches ?? 0}</div>
-            <div className="text-xs text-muted-foreground">대기 매칭</div>
-          </CardContent>
-        </Card>
-        <Card className="border shadow-sm">
-          <CardContent className="p-4 text-center">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-            <div className="text-2xl font-bold">{data?.activeTeams ?? 0}</div>
-            <div className="text-xs text-muted-foreground">진행 팀</div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* 다가오는 일정 — 내 활성 그룹들의 미완료 일정(임박순) */}
       {upcoming.data && upcoming.data.length > 0 && (

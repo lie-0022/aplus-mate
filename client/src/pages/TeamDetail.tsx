@@ -218,30 +218,38 @@ export default function TeamDetail() {
         <ArrowLeft className="h-4 w-4" /> 팀 목록
       </button>
 
-      {/* Team Info */}
-      <Card className="border shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="font-bold text-lg">{data.course.name}</h1>
-              <p className="text-sm text-muted-foreground">{data.course.professor}</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Badge variant="outline">{typeLabel}</Badge>
-              <Badge
-                variant="secondary"
-                className={
-                  isActive
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-green-100 text-green-700"
-                }
-              >
+      {/* Team hero — 그라데이션 히어로에 수업·타입·상태·멤버 아바타 미리보기 */}
+      <div className="gradient-primary rounded-2xl p-5 text-white shadow-lg shadow-primary/20">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Badge className="bg-white/20 text-white border-0 hover:bg-white/20">
+                {typeLabel}
+              </Badge>
+              <Badge className="bg-white/20 text-white border-0 hover:bg-white/20">
                 {isActive ? "진행 중" : "완료"}
               </Badge>
             </div>
+            <h1 className="font-bold text-xl truncate">{data.course.name}</h1>
+            <p className="text-sm text-white/80 mt-0.5">{data.course.professor}</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex -space-x-2 shrink-0">
+            {data.members.slice(0, 4).map((m) => (
+              <div
+                key={m.teamMember.id}
+                className="w-8 h-8 rounded-full bg-white/25 ring-2 ring-white/40 flex items-center justify-center text-xs font-bold"
+              >
+                {m.user.name?.charAt(0)?.toUpperCase() || "?"}
+              </div>
+            ))}
+            {data.members.length > 4 && (
+              <div className="w-8 h-8 rounded-full bg-white/25 ring-2 ring-white/40 flex items-center justify-center text-[10px] font-bold">
+                +{data.members.length - 4}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Team Members */}
       <Card className="border shadow-sm">

@@ -27,6 +27,9 @@ yarn-error.log*
 .dev_*.log
 .manus-logs/
 
+# stitch redesign 생성물(시안 HTML/이미지 URL)
+scripts/stitch/out/
+
 # local env files
 .env
 .env*.local
