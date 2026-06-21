@@ -1,3 +1,4 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/variable/pretendardvariable.min.css");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -58,7 +59,7 @@
   --chart-3: oklch(0.55 0.18 285);
   --chart-4: oklch(0.75 0.08 230);
   --chart-5: oklch(0.35 0.2 285);
-  --radius: 0.75rem;
+  --radius: 1rem;
   --background: oklch(0.985 0.002 290);
   --foreground: oklch(0.18 0.02 285);
   --card: oklch(1 0 0);
@@ -125,7 +126,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Apple SD Gothic Neo', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', 'Segoe UI',
+      system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
