@@ -251,29 +251,27 @@ export default function TeamDetail() {
         </div>
       </div>
 
-      {/* Team Members */}
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UserCircle className="h-4 w-4 text-primary" />
-            팀원 ({data.members.length}명)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* 팀원 — 토스식 미니멀 리디자인 시안 (카드 제거, 제목·분리선·여백으로 구분) */}
+      <section className="space-y-3">
+        <div className="flex items-baseline gap-2 px-1">
+          <h2 className="text-lg font-bold">팀원</h2>
+          <span className="text-sm text-muted-foreground">{data.members.length}명</span>
+        </div>
+        <div className="overflow-hidden rounded-2xl bg-card divide-y divide-border/60">
           {data.members.map((member) => (
             <div
               key={member.teamMember.id}
-              className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+              className="flex items-center justify-between gap-3 p-3.5"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl gradient-primary">
+                  <span className="text-sm font-bold text-white">
                     {member.user.name?.charAt(0)?.toUpperCase() || "?"}
                   </span>
                 </div>
-                <div>
-                  <div className="font-medium text-sm flex items-center gap-1.5">
-                    {member.user.name}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[15px] font-semibold">
+                    <span className="truncate">{member.user.name}</span>
                     {member.user.id === user?.id && (
                       <Badge variant="outline" className="text-[10px] py-0">
                         나
@@ -292,7 +290,7 @@ export default function TeamDetail() {
                       </Badge>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {member.user.department} · {member.user.year}학년
                   </div>
                 </div>
@@ -302,40 +300,36 @@ export default function TeamDetail() {
                   href={member.user.kakaoOpenChatUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
                   오픈채팅
-                  <ExternalLink className="h-3 w-3" />
                 </a>
               )}
             </div>
           ))}
-          {isMentoring && !hasMentor && isActive && (
-            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md p-2 leading-relaxed">
-              👋 아직 멘토가 없는 멘토링 그룹이에요. 멘토가 커넥트하면 합류할 수 있어요.
-            </p>
-          )}
-          {/* C3: 외부채널 안전수칙 고지 */}
-          <p className="text-[11px] text-muted-foreground pt-1 leading-relaxed">
-            ⚠️ 외부 오픈채팅에서는{" "}
-            <span className="font-medium text-foreground">
-              실명·금융정보·송금 요구에 응하지 마세요.
-            </span>{" "}
-            문제가 있으면{" "}
-            <a
-              href="mailto:jayjun.rim@gmail.com"
-              className="text-primary underline"
-            >
-              운영자에게 신고
-            </a>
-            할 수 있어요.
+        </div>
+        {isMentoring && !hasMentor && isActive && (
+          <p className="rounded-xl bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-700">
+            👋 아직 멘토가 없는 멘토링 그룹이에요. 멘토가 커넥트하면 합류할 수 있어요.
           </p>
-        </CardContent>
-      </Card>
+        )}
+        {/* C3: 외부채널 안전수칙 고지 */}
+        <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
+          ⚠️ 외부 오픈채팅에서는{" "}
+          <span className="font-medium text-foreground">
+            실명·금융정보·송금 요구에 응하지 마세요.
+          </span>{" "}
+          문제가 있으면{" "}
+          <a href="mailto:jayjun.rim@gmail.com" className="text-primary underline">
+            운영자에게 신고
+          </a>
+          할 수 있어요.
+        </p>
+      </section>
 
       {/* 팀 메모 보드 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <StickyNote className="h-4 w-4 text-primary" /> 팀 메모
@@ -397,7 +391,7 @@ export default function TeamDetail() {
       </Card>
 
       {/* 팀 일정 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />
@@ -694,7 +688,7 @@ export default function TeamDetail() {
 
       {/* 산출물 제출 — 교수가 만든 제출 항목이 있을 때만 노출 */}
       {deliverables.data && deliverables.data.length > 0 && (
-        <Card className="border shadow-sm">
+        <Card className="rounded-2xl border border-border/50 shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <FolderOpen className="h-4 w-4 text-primary" /> 제출 항목
@@ -789,7 +783,7 @@ export default function TeamDetail() {
       )}
 
       {/* AI 보고서 초안 */}
-      <Card className="border shadow-sm">
+      <Card className="rounded-2xl border border-border/50 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
