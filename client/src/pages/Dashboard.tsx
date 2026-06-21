@@ -158,7 +158,7 @@ export default function Dashboard() {
               return (
                 <Card
                   key={item.event.id}
-                  className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
                   onClick={() => setLocation(`/teams/${item.team.id}`)}
                 >
                   <CardContent className="p-3">
@@ -235,7 +235,7 @@ export default function Dashboard() {
             {data?.courses.slice(0, 5).map((item) => (
               <Card
                 key={item.userCourse.id}
-                className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
                 onClick={() => setLocation(`/courses/${item.course.id}`)}
               >
                 <CardContent className="p-4">
