@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { parseSkillTags } from "@/lib/utils-parse";
+import RecruitmentSection from "@/components/RecruitmentSection";
 import {
   TEAM_SIZE_LIMITS,
   MENTORING_MAX_MENTEES,
@@ -437,6 +438,17 @@ export default function CourseDetail() {
 
         {/* Team Tab - Students */}
         <TabsContent value="team" className="mt-4 space-y-3">
+          {/* 모집 공고 — 구조화된 모집 + 원클릭 지원 (게시판식 "같이하실분?" 대체) */}
+          {!myCourses.isLoading && isEnrolled && (
+            <>
+              <RecruitmentSection courseId={courseId} isEnrolled={isEnrolled} />
+              <div className="flex items-center gap-2 py-1">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground shrink-0">또는 직접 찾기</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            </>
+          )}
           {/* 커넥트 종류 선택 — 팀플 / 스터디 / 멘토멘티 */}
           {!myCourses.isLoading && isEnrolled && (
             <div className="space-y-1.5">

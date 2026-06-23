@@ -23,6 +23,7 @@ import {
   reports,
   notifications,
   teamNotes,
+  recruitments,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -467,7 +468,8 @@ export async function createMatchRequest(
   receiverId: number,
   courseId: number,
   matchType: MatchType = "project",
-  requesterRole?: MentoringRole
+  requesterRole?: MentoringRole,
+  opts?: { message?: string; recruitmentId?: number }
 ) {
   // 역할은 멘토멘티 전용 — 다른 종류는 무시, 멘토멘티 미지정 시 멘티(멘토를 찾는 요청)가 기본.
   const role: MentoringRole | null =
@@ -544,7 +546,23 @@ export async function createMatchRequest(
       matchType,
       requesterRole: role,
       status: "pending",
+      message: opts?.message ?? null,
+      recruitmentId: opts?.recruitmentId ?? null,
     });
+    // 수신자에게 요청 도착 알림 — 직접 커넥트·모집 지원 모두. (기존 누락 보완)
+    // 알림 실패가 매칭 자체를 막지 않도록 격리.
+    try {
+      const courseForNoti = await getCourseById(courseId);
+      await createNotification({
+        userId: receiverId,
+        type: opts?.recruitmentId ? "recruitment_applied" : "match_request",
+        title: opts?.recruitmentId ? "내 모집 공고에 지원이 왔어요" : "새 커넥트 요청이 왔어요",
+        body: `${courseForNoti?.name ?? "수업"} · ${requesterUser.department ?? ""} ${requesterUser.year ?? ""}학년`,
+        linkPath: "/matching/requests",
+      });
+    } catch {
+      /* 알림 실패 무시 */
+    }
     return { id: result[0].insertId };
   } catch (error: any) {
     if (error.code === "ER_DUP_ENTRY") {
@@ -2270,6 +2288,212 @@ export async function getTeamDetailForAdmin(teamId: number) {
     assigneeName: e.assigneeId ? (memberNameById.get(e.assigneeId) ?? null) : null,
   }));
   return { members, events, notes, submissions };
+}
+
+// ─── Recruitments (모집 공고) — 게시판식 모집을 구조화 + 지원으로 통합 ─────
+// desiredSkills(text JSON)를 안전하게 배열로 — 비정상 행이 목록 전체를 깨뜨리지 않게.
+function parseRecruitmentSkills(s: string | null): string[] {
+  if (!s) return [];
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createRecruitment(
+  authorId: number,
+  data: {
+    courseId: number;
+    matchType: MatchType;
+    authorRole?: MentoringRole;
+    title: string;
+    description?: string;
+    desiredSkills?: string[];
+    neededCount?: number;
+    teamId?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const enrolled = await isUserEnrolled(authorId, data.courseId);
+  if (!enrolled) throw new Error("해당 수업에 등록한 뒤 모집할 수 있어요.");
+  const u = await getUserById(authorId);
+  if (!u?.profileCompleted) throw new Error("프로필을 완성한 후 모집할 수 있어요.");
+  // 팀 연결 시 — 작성자가 속한 '이 수업의' 팀만 허용(데이터 무결성).
+  if (data.teamId != null) {
+    const owned = await db
+      .select({ id: teamMembers.id })
+      .from(teamMembers)
+      .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+      .where(
+        and(
+          eq(teamMembers.teamId, data.teamId),
+          eq(teamMembers.userId, authorId),
+          eq(teams.courseId, data.courseId)
+        )
+      )
+      .limit(1);
+    if (owned.length === 0)
+      throw new Error("내가 속한 이 수업의 팀만 모집에 연결할 수 있어요.");
+  }
+  const role: MentoringRole | null =
+    data.matchType === "mentoring" ? (data.authorRole ?? "mentee") : null;
+  const r = await db.insert(recruitments).values({
+    courseId: data.courseId,
+    authorId,
+    teamId: data.teamId ?? null,
+    matchType: data.matchType,
+    authorRole: role,
+    title: data.title,
+    description: data.description ?? null,
+    desiredSkills: data.desiredSkills?.length ? JSON.stringify(data.desiredSkills) : null,
+    neededCount: data.neededCount ?? 1,
+    status: "open",
+  });
+  return { id: r[0].insertId };
+}
+
+export async function listRecruitments(courseId: number, openOnly = true, viewerId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      recruitment: recruitments,
+      author: {
+        id: users.id,
+        department: users.department,
+        year: users.year,
+        skillTags: users.skillTags,
+      },
+    })
+    .from(recruitments)
+    .innerJoin(users, eq(users.id, recruitments.authorId))
+    .where(
+      openOnly
+        ? and(eq(recruitments.courseId, courseId), eq(recruitments.status, "open"))
+        : eq(recruitments.courseId, courseId)
+    )
+    .orderBy(desc(recruitments.createdAt));
+  if (rows.length === 0) return [];
+  // 각 공고의 대기 지원자 수 + 내가 이미 지원했는지
+  const ids = rows.map((r) => r.recruitment.id);
+  const apps = await db
+    .select({
+      recruitmentId: teamMatches.recruitmentId,
+      requesterId: teamMatches.requesterId,
+    })
+    .from(teamMatches)
+    .where(and(inArray(teamMatches.recruitmentId, ids), eq(teamMatches.status, "pending")));
+  const countByRec = new Map<number, number>();
+  const appliedByMe = new Set<number>();
+  for (const a of apps) {
+    if (a.recruitmentId != null) {
+      countByRec.set(a.recruitmentId, (countByRec.get(a.recruitmentId) ?? 0) + 1);
+      if (viewerId && a.requesterId === viewerId) appliedByMe.add(a.recruitmentId);
+    }
+  }
+  return rows.map((r) => ({
+    ...r.recruitment,
+    desiredSkills: parseRecruitmentSkills(r.recruitment.desiredSkills),
+    author: r.author,
+    pendingApplicants: countByRec.get(r.recruitment.id) ?? 0,
+    hasApplied: appliedByMe.has(r.recruitment.id),
+  }));
+}
+
+export async function getRecruitmentById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(recruitments).where(eq(recruitments.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+// 지원 = teamMatches 재사용(지원자 → 모집자), message·recruitmentId 연결.
+export async function applyToRecruitment(
+  applicantId: number,
+  recruitmentId: number,
+  message?: string
+) {
+  const rec = await getRecruitmentById(recruitmentId);
+  if (!rec) throw new Error("모집 공고를 찾을 수 없어요.");
+  if (rec.status !== "open") throw new Error("이미 마감된 모집이에요.");
+  if (rec.authorId === applicantId) throw new Error("내가 올린 모집에는 지원할 수 없어요.");
+  // 멘토멘티는 지원자 역할 = 모집자 역할의 반대.
+  const applicantRole: MentoringRole | undefined =
+    rec.matchType === "mentoring"
+      ? rec.authorRole === "mentor"
+        ? "mentee"
+        : "mentor"
+      : undefined;
+  return createMatchRequest(applicantId, rec.authorId, rec.courseId, rec.matchType, applicantRole, {
+    message,
+    recruitmentId,
+  });
+}
+
+export async function getRecruitmentApplicants(recruitmentId: number, authorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rec = await getRecruitmentById(recruitmentId);
+  if (!rec || rec.authorId !== authorId) throw new Error("권한이 없어요.");
+  return db
+    .select({
+      match: teamMatches,
+      applicant: {
+        id: users.id,
+        department: users.department,
+        year: users.year,
+        skillTags: users.skillTags,
+      },
+    })
+    .from(teamMatches)
+    .innerJoin(users, eq(users.id, teamMatches.requesterId))
+    .where(eq(teamMatches.recruitmentId, recruitmentId))
+    .orderBy(desc(teamMatches.createdAt));
+}
+
+export async function closeRecruitment(recruitmentId: number, authorId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rec = await getRecruitmentById(recruitmentId);
+  if (!rec || rec.authorId !== authorId) throw new Error("권한이 없어요.");
+  await db
+    .update(recruitments)
+    .set({ status: "closed", closedAt: new Date() })
+    .where(eq(recruitments.id, recruitmentId));
+  return { ok: true };
+}
+
+export async function getMyRecruitments(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select()
+    .from(recruitments)
+    .where(eq(recruitments.authorId, userId))
+    .orderBy(desc(recruitments.createdAt));
+  return rows.map((r) => ({ ...r, desiredSkills: parseRecruitmentSkills(r.desiredSkills) }));
+}
+
+// 모집 공고 경유 지원이 수락돼 팀 정원이 다 차면 공고를 자동 마감(지원자 dead-end 방지).
+export async function maybeCloseRecruitmentIfFull(recruitmentId: number, teamId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const rec = await getRecruitmentById(recruitmentId);
+  if (!rec || rec.status !== "open") return;
+  const members = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(eq(teamMembers.teamId, teamId));
+  const maxSize = TEAM_SIZE_LIMITS[rec.matchType as MatchType];
+  if (members.length >= maxSize) {
+    await db
+      .update(recruitments)
+      .set({ status: "closed", closedAt: new Date() })
+      .where(eq(recruitments.id, recruitmentId));
+  }
 }
 
 // ─── Consents ────────────────────────────────────────────

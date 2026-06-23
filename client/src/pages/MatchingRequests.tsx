@@ -196,6 +196,20 @@ export default function MatchingRequests() {
                 </div>
               )}
 
+              {/* 지원/요청 메시지 — 재설계: "왜 함께하고 싶은지" 의도 표현 */}
+              {item.match.message && (
+                <div className="mb-3 p-2.5 rounded-lg bg-muted/50 text-sm">
+                  {item.match.recruitmentId && (
+                    <span className="text-[10px] text-primary font-medium block mb-0.5">
+                      📋 내 모집 공고에 지원
+                    </span>
+                  )}
+                  <p className="whitespace-pre-wrap text-muted-foreground">
+                    {item.match.message}
+                  </p>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex gap-2">
                 <Button
