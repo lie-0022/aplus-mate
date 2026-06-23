@@ -267,6 +267,11 @@ export default function MatchingRequests() {
                               : "멘토 찾는 중"}
                           </Badge>
                         )}
+                        {item.match.recruitmentId && (
+                          <Badge className="text-[10px] py-0 bg-primary/15 text-primary border-0">
+                            📋 모집 지원
+                          </Badge>
+                        )}
                       </div>
                       <div className="font-medium text-sm">
                         {item.receiver.department} · {item.receiver.year}학년
@@ -274,6 +279,11 @@ export default function MatchingRequests() {
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {item.receiver.university} · 수락 대기 중
                       </div>
+                      {item.match.message && (
+                        <p className="text-xs text-muted-foreground mt-1.5 p-2 rounded-lg bg-muted/50 whitespace-pre-wrap">
+                          “{item.match.message}”
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Button

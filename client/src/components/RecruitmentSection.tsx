@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
+import { MATCH_TYPE_LABELS, type MatchType, type MentoringRole } from "@shared/const";
 import { Megaphone, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +48,7 @@ export default function RecruitmentSection({
   const [cDesc, setCDesc] = useState("");
   const [cSkills, setCSkills] = useState("");
   const [cCount, setCCount] = useState("1");
+  const [cRole, setCRole] = useState<MentoringRole>("mentee");
 
   const [applyTo, setApplyTo] = useState<{ id: number; title: string } | null>(null);
   const [applyMsg, setApplyMsg] = useState("");
@@ -205,6 +206,17 @@ export default function RecruitmentSection({
                 ))}
               </SelectContent>
             </Select>
+            {cType === "mentoring" && (
+              <Select value={cRole} onValueChange={(v) => setCRole(v as MentoringRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mentee">나는 멘티 — 멘토를 구해요</SelectItem>
+                  <SelectItem value="mentor">나는 멘토 — 멘티를 구해요</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Input
               placeholder="한 줄 소개 (예: React 프로젝트 같이 할 팀원 구해요)"
               value={cTitle}
@@ -245,6 +257,7 @@ export default function RecruitmentSection({
                 create.mutate({
                   courseId,
                   matchType: cType,
+                  authorRole: cType === "mentoring" ? cRole : undefined,
                   title: cTitle.trim(),
                   description: cDesc.trim() || undefined,
                   desiredSkills: Array.from(
