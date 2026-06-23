@@ -1100,6 +1100,41 @@ export const appRouter = router({
         return db.getTeamDetailForAdmin(input.teamId);
       }),
   }),
+
+  // 모집 공고 — 구조화된 모집 + 원클릭 지원(teamMatches 재사용)
+  recruitment: router({
+    list: protectedProcedure
+      .input(z.object({ courseId: z.number(), openOnly: z.boolean().default(true) }))
+      .query(async ({ input }) => db.listRecruitments(input.courseId, input.openOnly)),
+    mine: protectedProcedure.query(async ({ ctx }) => db.getMyRecruitments(ctx.user.id)),
+    create: protectedProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          matchType: z.enum(["project", "study", "mentoring"]).default("project"),
+          authorRole: z.enum(["mentor", "mentee"]).optional(),
+          title: z.string().min(1).max(200),
+          description: z.string().max(2000).optional(),
+          desiredSkills: z.array(z.string()).optional(),
+          neededCount: z.number().int().min(1).max(10).default(1),
+          teamId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => db.createRecruitment(ctx.user.id, input)),
+    apply: protectedProcedure
+      .input(z.object({ recruitmentId: z.number(), message: z.string().max(500).optional() }))
+      .mutation(async ({ ctx, input }) =>
+        db.applyToRecruitment(ctx.user.id, input.recruitmentId, input.message)
+      ),
+    applicants: protectedProcedure
+      .input(z.object({ recruitmentId: z.number() }))
+      .query(async ({ ctx, input }) =>
+        db.getRecruitmentApplicants(input.recruitmentId, ctx.user.id)
+      ),
+    close: protectedProcedure
+      .input(z.object({ recruitmentId: z.number() }))
+      .mutation(async ({ ctx, input }) => db.closeRecruitment(input.recruitmentId, ctx.user.id)),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

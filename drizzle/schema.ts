@@ -125,6 +125,10 @@ export const teamMatches = mysqlTable(
     status: mysqlEnum("status", ["pending", "accepted", "rejected"])
       .default("pending")
       .notNull(),
+    // 지원/요청 메시지 — "왜 함께하고 싶은지" 의도 표현(재설계). null 허용.
+    message: text("message"),
+    // 모집 공고를 통한 지원이면 해당 공고 연결. 직접 커넥트는 null.
+    recruitmentId: int("recruitmentId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
@@ -141,6 +145,33 @@ export const teamMatches = mysqlTable(
 );
 
 export type TeamMatch = typeof teamMatches.$inferSelect;
+
+// ─── Recruitments (팀원 모집 공고) ───────────────────────
+// 게시판 자유글("같이하실분?") 대신 구조화된 모집 공고. 다른 학생이 "지원"하면
+// teamMatches(요청자=지원자, 수신자=모집자, recruitmentId 연결)를 재사용한다.
+export const recruitments = mysqlTable("recruitments", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  authorId: int("authorId").notNull(),
+  // 기존 팀이 추가 멤버를 모집하면 그 팀 id. 새로 팀을 꾸리려는 모집이면 null.
+  teamId: int("teamId"),
+  matchType: mysqlEnum("matchType", ["project", "study", "mentoring"])
+    .default("project")
+    .notNull(),
+  // 모집자가 멘토멘티에서 고른 자기 역할(지원자는 반대). 다른 종류는 null.
+  authorRole: mysqlEnum("authorRole", ["mentor", "mentee"]),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  // 원하는 스킬 태그(JSON 문자열 배열). 비면 무관.
+  desiredSkills: text("desiredSkills"),
+  // 추가로 필요한 인원(안내용). 정원 검증은 acceptMatch가 담당.
+  neededCount: int("neededCount").default(1).notNull(),
+  status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  closedAt: timestamp("closedAt"),
+});
+
+export type Recruitment = typeof recruitments.$inferSelect;
 
 // ─── Teams ───────────────────────────────────────────────
 export const teams = mysqlTable(
