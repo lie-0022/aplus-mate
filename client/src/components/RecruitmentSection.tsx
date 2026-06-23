@@ -128,7 +128,8 @@ export default function RecruitmentSection({
                     </div>
                     <p className="font-medium text-sm mt-1.5">{r.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.author.department} · {r.author.year}학년
+                      {r.author.department ?? "학과 미입력"}
+                      {r.author.year ? ` · ${r.author.year}학년` : ""}
                     </p>
                   </div>
                   {mine ? (
@@ -146,6 +147,10 @@ export default function RecruitmentSection({
                         마감
                       </Button>
                     </div>
+                  ) : r.hasApplied ? (
+                    <Button size="sm" variant="outline" className="shrink-0" disabled>
+                      지원함
+                    </Button>
                   ) : (
                     <Button
                       size="sm"
@@ -163,8 +168,8 @@ export default function RecruitmentSection({
                 )}
                 {r.desiredSkills.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {r.desiredSkills.map((s) => (
-                      <Badge key={s} variant="secondary" className="text-[10px]">
+                    {r.desiredSkills.map((s, i) => (
+                      <Badge key={`${s}-${i}`} variant="secondary" className="text-[10px]">
                         {s}
                       </Badge>
                     ))}
@@ -242,10 +247,9 @@ export default function RecruitmentSection({
                   matchType: cType,
                   title: cTitle.trim(),
                   description: cDesc.trim() || undefined,
-                  desiredSkills: cSkills
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
+                  desiredSkills: Array.from(
+                    new Set(cSkills.split(",").map((s) => s.trim()).filter(Boolean))
+                  ),
                   neededCount: Math.max(1, Math.min(10, parseInt(cCount) || 1)),
                 });
               }}

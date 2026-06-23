@@ -331,6 +331,10 @@ export const appRouter = router({
             body: `${course?.name ?? "수업"} 팀이 만들어졌어요.`,
             linkPath: `/teams/${result.teamId}`,
           });
+          // 모집 공고 경유 지원이 수락돼 팀 정원이 차면 공고 자동 마감(dead-end 방지)
+          if (match.recruitmentId) {
+            await db.maybeCloseRecruitmentIfFull(match.recruitmentId, result.teamId);
+          }
         }
         return result;
       }),
@@ -1105,17 +1109,21 @@ export const appRouter = router({
   recruitment: router({
     list: protectedProcedure
       .input(z.object({ courseId: z.number(), openOnly: z.boolean().default(true) }))
-      .query(async ({ input }) => db.listRecruitments(input.courseId, input.openOnly)),
-    mine: protectedProcedure.query(async ({ ctx }) => db.getMyRecruitments(ctx.user.id)),
+      .query(async ({ ctx, input }) => {
+        // 로스터(courses.students)와 동일 정책 — 수강생만 조회(마스킹 PII 수집면 차단)
+        const enrolled = await db.isUserEnrolled(ctx.user.id, input.courseId);
+        if (!enrolled) throw new Error("해당 수업에 등록된 학생만 모집을 볼 수 있어요.");
+        return db.listRecruitments(input.courseId, input.openOnly, ctx.user.id);
+      }),
     create: protectedProcedure
       .input(
         z.object({
           courseId: z.number(),
           matchType: z.enum(["project", "study", "mentoring"]).default("project"),
           authorRole: z.enum(["mentor", "mentee"]).optional(),
-          title: z.string().min(1).max(200),
-          description: z.string().max(2000).optional(),
-          desiredSkills: z.array(z.string()).optional(),
+          title: z.string().trim().min(1).max(200),
+          description: z.string().trim().max(2000).optional(),
+          desiredSkills: z.array(z.string().trim().min(1).max(50)).max(30).optional(),
           neededCount: z.number().int().min(1).max(10).default(1),
           teamId: z.number().optional(),
         })
@@ -1125,11 +1133,6 @@ export const appRouter = router({
       .input(z.object({ recruitmentId: z.number(), message: z.string().max(500).optional() }))
       .mutation(async ({ ctx, input }) =>
         db.applyToRecruitment(ctx.user.id, input.recruitmentId, input.message)
-      ),
-    applicants: protectedProcedure
-      .input(z.object({ recruitmentId: z.number() }))
-      .query(async ({ ctx, input }) =>
-        db.getRecruitmentApplicants(input.recruitmentId, ctx.user.id)
       ),
     close: protectedProcedure
       .input(z.object({ recruitmentId: z.number() }))

@@ -549,6 +549,20 @@ export async function createMatchRequest(
       message: opts?.message ?? null,
       recruitmentId: opts?.recruitmentId ?? null,
     });
+    // 수신자에게 요청 도착 알림 — 직접 커넥트·모집 지원 모두. (기존 누락 보완)
+    // 알림 실패가 매칭 자체를 막지 않도록 격리.
+    try {
+      const courseForNoti = await getCourseById(courseId);
+      await createNotification({
+        userId: receiverId,
+        type: opts?.recruitmentId ? "recruitment_applied" : "match_request",
+        title: opts?.recruitmentId ? "내 모집 공고에 지원이 왔어요" : "새 커넥트 요청이 왔어요",
+        body: `${courseForNoti?.name ?? "수업"} · ${requesterUser.department ?? ""} ${requesterUser.year ?? ""}학년`,
+        linkPath: "/matching/requests",
+      });
+    } catch {
+      /* 알림 실패 무시 */
+    }
     return { id: result[0].insertId };
   } catch (error: any) {
     if (error.code === "ER_DUP_ENTRY") {
@@ -2277,6 +2291,17 @@ export async function getTeamDetailForAdmin(teamId: number) {
 }
 
 // ─── Recruitments (모집 공고) — 게시판식 모집을 구조화 + 지원으로 통합 ─────
+// desiredSkills(text JSON)를 안전하게 배열로 — 비정상 행이 목록 전체를 깨뜨리지 않게.
+function parseRecruitmentSkills(s: string | null): string[] {
+  if (!s) return [];
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function createRecruitment(
   authorId: number,
   data: {
@@ -2296,6 +2321,23 @@ export async function createRecruitment(
   if (!enrolled) throw new Error("해당 수업에 등록한 뒤 모집할 수 있어요.");
   const u = await getUserById(authorId);
   if (!u?.profileCompleted) throw new Error("프로필을 완성한 후 모집할 수 있어요.");
+  // 팀 연결 시 — 작성자가 속한 '이 수업의' 팀만 허용(데이터 무결성).
+  if (data.teamId != null) {
+    const owned = await db
+      .select({ id: teamMembers.id })
+      .from(teamMembers)
+      .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+      .where(
+        and(
+          eq(teamMembers.teamId, data.teamId),
+          eq(teamMembers.userId, authorId),
+          eq(teams.courseId, data.courseId)
+        )
+      )
+      .limit(1);
+    if (owned.length === 0)
+      throw new Error("내가 속한 이 수업의 팀만 모집에 연결할 수 있어요.");
+  }
   const role: MentoringRole | null =
     data.matchType === "mentoring" ? (data.authorRole ?? "mentee") : null;
   const r = await db.insert(recruitments).values({
@@ -2313,7 +2355,7 @@ export async function createRecruitment(
   return { id: r[0].insertId };
 }
 
-export async function listRecruitments(courseId: number, openOnly = true) {
+export async function listRecruitments(courseId: number, openOnly = true, viewerId?: number) {
   const db = await getDb();
   if (!db) return [];
   const rows = await db
@@ -2335,24 +2377,29 @@ export async function listRecruitments(courseId: number, openOnly = true) {
     )
     .orderBy(desc(recruitments.createdAt));
   if (rows.length === 0) return [];
-  // 각 공고의 대기 지원자 수 집계
+  // 각 공고의 대기 지원자 수 + 내가 이미 지원했는지
   const ids = rows.map((r) => r.recruitment.id);
   const apps = await db
-    .select({ recruitmentId: teamMatches.recruitmentId })
+    .select({
+      recruitmentId: teamMatches.recruitmentId,
+      requesterId: teamMatches.requesterId,
+    })
     .from(teamMatches)
     .where(and(inArray(teamMatches.recruitmentId, ids), eq(teamMatches.status, "pending")));
   const countByRec = new Map<number, number>();
+  const appliedByMe = new Set<number>();
   for (const a of apps) {
-    if (a.recruitmentId != null)
+    if (a.recruitmentId != null) {
       countByRec.set(a.recruitmentId, (countByRec.get(a.recruitmentId) ?? 0) + 1);
+      if (viewerId && a.requesterId === viewerId) appliedByMe.add(a.recruitmentId);
+    }
   }
   return rows.map((r) => ({
     ...r.recruitment,
-    desiredSkills: r.recruitment.desiredSkills
-      ? (JSON.parse(r.recruitment.desiredSkills) as string[])
-      : [],
+    desiredSkills: parseRecruitmentSkills(r.recruitment.desiredSkills),
     author: r.author,
     pendingApplicants: countByRec.get(r.recruitment.id) ?? 0,
+    hasApplied: appliedByMe.has(r.recruitment.id),
   }));
 }
 
@@ -2422,11 +2469,31 @@ export async function closeRecruitment(recruitmentId: number, authorId: number) 
 export async function getMyRecruitments(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const rows = await db
     .select()
     .from(recruitments)
     .where(eq(recruitments.authorId, userId))
     .orderBy(desc(recruitments.createdAt));
+  return rows.map((r) => ({ ...r, desiredSkills: parseRecruitmentSkills(r.desiredSkills) }));
+}
+
+// 모집 공고 경유 지원이 수락돼 팀 정원이 다 차면 공고를 자동 마감(지원자 dead-end 방지).
+export async function maybeCloseRecruitmentIfFull(recruitmentId: number, teamId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const rec = await getRecruitmentById(recruitmentId);
+  if (!rec || rec.status !== "open") return;
+  const members = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(eq(teamMembers.teamId, teamId));
+  const maxSize = TEAM_SIZE_LIMITS[rec.matchType as MatchType];
+  if (members.length >= maxSize) {
+    await db
+      .update(recruitments)
+      .set({ status: "closed", closedAt: new Date() })
+      .where(eq(recruitments.id, recruitmentId));
+  }
 }
 
 // ─── Consents ────────────────────────────────────────────
