@@ -66,7 +66,7 @@ export default function RecruitmentSection({
     },
     onError: (e) => toast.error(e.message),
   });
-  const apply = trpc.recruitment.apply.useMutation({
+  const apply = trpc.recruitment.applyTo.useMutation({
     onSuccess: () => {
       setApplyTo(null);
       setApplyMsg("");

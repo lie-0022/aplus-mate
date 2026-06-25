@@ -1129,7 +1129,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => db.createRecruitment(ctx.user.id, input)),
-    apply: protectedProcedure
+    applyTo: protectedProcedure
       .input(z.object({ recruitmentId: z.number(), message: z.string().max(500).optional() }))
       .mutation(async ({ ctx, input }) =>
         db.applyToRecruitment(ctx.user.id, input.recruitmentId, input.message)
