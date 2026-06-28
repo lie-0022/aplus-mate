@@ -245,7 +245,17 @@ export default function CourseDetail() {
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="font-bold text-lg">{courseData.name}</h1>
+              <h1 className="font-bold text-lg flex items-center gap-1.5 flex-wrap">
+                {courseData.name}
+                {courseData.professorId != null && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] py-0 bg-primary/10 text-primary border-0"
+                  >
+                    교수님 인증 ✓
+                  </Badge>
+                )}
+              </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {courseData.professor} · {courseData.credits}학점
                 {courseData.courseCode && ` · ${courseData.courseCode}`}
