@@ -147,6 +147,31 @@ export default function Professor() {
     { courseId: selectedCourseId! },
     { enabled: isProfessor && selectedCourseId != null }
   );
+  // P1·P2: 조인 코드·마감일·독려
+  const courseInfo = trpc.professor.courseInfo.useQuery(
+    { courseId: selectedCourseId! },
+    { enabled: isProfessor && selectedCourseId != null }
+  );
+  const [deadlineInput, setDeadlineInput] = useState("");
+  const genInvite = trpc.professor.generateInviteCode.useMutation({
+    onSuccess: () => {
+      utils.professor.courseInfo.invalidate();
+      toast.success("조인 코드를 발급했어요.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const setDeadline = trpc.professor.setMatchingDeadline.useMutation({
+    onSuccess: () => {
+      utils.professor.courseInfo.invalidate();
+      utils.professor.dashboard.invalidate();
+      toast.success("팀 구성 마감일을 설정했어요.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const nudge = trpc.professor.nudgeUnassigned.useMutation({
+    onSuccess: (r) => toast.success(`미배정 ${r.notified}명에게 독려 알림을 보냈어요.`),
+    onError: (e) => toast.error(e.message),
+  });
   const students = trpc.professor.students.useQuery(
     { courseId: selectedCourseId! },
     { enabled: isProfessor && selectedCourseId != null }
@@ -408,6 +433,114 @@ export default function Professor() {
 
           {/* 현황 대시보드 */}
           <TabsContent value="dashboard" className="mt-4 space-y-3">
+            {/* P1·P2: 수업 호스팅 — 조인 코드 + 마감일 + 미배정 독려 */}
+            <Card className="rounded-2xl border border-primary/30 bg-primary/5 shadow-none">
+              <CardContent className="p-4 space-y-3">
+                {/* 조인 코드 */}
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">
+                    학생 참여 코드
+                  </div>
+                  {courseInfo.data?.inviteCode ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-2xl font-bold font-mono tracking-widest text-primary">
+                        {courseInfo.data.inviteCode}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(courseInfo.data!.inviteCode!);
+                          toast.success("코드를 복사했어요.");
+                        }}
+                      >
+                        복사
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => genInvite.mutate({ courseId: selectedCourseId! })}
+                        disabled={genInvite.isPending}
+                      >
+                        재발급
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="gradient-primary text-white border-0"
+                      onClick={() => genInvite.mutate({ courseId: selectedCourseId! })}
+                      disabled={genInvite.isPending}
+                    >
+                      코드 발급
+                    </Button>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    이 코드를 학생들에게 공유하면 '수업 코드로 참여'로 바로 들어와요.
+                  </p>
+                </div>
+                {/* 팀 구성 마감일 */}
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">
+                    팀 구성 마감일
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="date"
+                      value={deadlineInput}
+                      onChange={(e) => setDeadlineInput(e.target.value)}
+                      className="w-auto"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!deadlineInput || setDeadline.isPending}
+                      onClick={() =>
+                        setDeadline.mutate({
+                          courseId: selectedCourseId!,
+                          deadline: deadlineInput,
+                        })
+                      }
+                    >
+                      설정
+                    </Button>
+                    {courseInfo.data?.matchingDeadline && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() =>
+                          setDeadline.mutate({ courseId: selectedCourseId!, deadline: null })
+                        }
+                      >
+                        해제
+                      </Button>
+                    )}
+                  </div>
+                  {courseInfo.data?.matchingDeadline && (
+                    <p className="text-[11px] text-primary mt-1">
+                      마감:{" "}
+                      {new Date(courseInfo.data.matchingDeadline).toLocaleDateString("ko-KR")}
+                    </p>
+                  )}
+                </div>
+                {/* 미배정 독려 */}
+                {(dashboard.data?.unassignedStudents?.length ?? 0) > 0 && (
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={nudge.isPending}
+                      onClick={() => nudge.mutate({ courseId: selectedCourseId! })}
+                    >
+                      미배정 {dashboard.data!.unassignedStudents.length}명에게 독려 알림 보내기
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             {dashboard.isLoading && <Skeleton className="h-40 w-full rounded-xl" />}
             {dashboard.data &&
               (() => {

@@ -49,10 +49,16 @@ export const courses = mysqlTable(
     courseCode: varchar("courseCode", { length: 20 }),
     // 담당 교수(users.id, role=professor). null이면 미배정 — 교수가 클레임하거나 운영자가 지정.
     professorId: int("professorId"),
+    // 수업 조인 코드 — 교수가 발급, 학생이 입력하면 자동 등록(P1). 혼동문자 제외 6자.
+    inviteCode: varchar("inviteCode", { length: 8 }),
+    // 팀 구성 마감일 — 교수가 설정, 대시보드 D-day·미배정 독려 기준(P2). null이면 미설정.
+    matchingDeadline: timestamp("matchingDeadline"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("uniq_course").on(table.name, table.professor, table.university),
+    // 조인 코드 유일성(null은 MySQL에서 중복 허용 — 미발급 수업 공존 가능)
+    uniqueIndex("uniq_invite_code").on(table.inviteCode),
   ]
 );
 

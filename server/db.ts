@@ -1269,6 +1269,72 @@ export async function claimCourse(courseId: number, professorId: number) {
   }
 }
 
+// ─── 수업 조인 코드 / 마감일 (교수 주도 도입 P1·P2) ──────────
+const INVITE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 혼동문자 0,O,1,I,L 제외
+function genInviteCode(len = 6): string {
+  let s = "";
+  for (let i = 0; i < len; i++) {
+    s += INVITE_CHARS[Math.floor(Math.random() * INVITE_CHARS.length)];
+  }
+  return s;
+}
+
+// 교수가 수업 조인 코드를 발급/재발급 — 유일성 충돌 시 재시도.
+export async function generateInviteCode(courseId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = genInviteCode(6);
+    const exists = await db
+      .select({ id: courses.id })
+      .from(courses)
+      .where(eq(courses.inviteCode, code))
+      .limit(1);
+    if (exists.length > 0) continue;
+    await db.update(courses).set({ inviteCode: code }).where(eq(courses.id, courseId));
+    return code;
+  }
+  return null;
+}
+
+export async function getCourseByInviteCode(code: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(courses)
+    .where(eq(courses.inviteCode, code.trim().toUpperCase()))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function setMatchingDeadline(courseId: number, deadline: Date | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(courses).set({ matchingDeadline: deadline }).where(eq(courses.id, courseId));
+}
+
+// 미배정 학생 전원에게 독려 알림(교수가 누름) — 공지 팬아웃 패턴 재사용.
+export async function nudgeUnassignedStudents(courseId: number) {
+  const db = await getDb();
+  if (!db) return { notified: 0 };
+  const dash = await getCourseDashboard(courseId);
+  if (!dash) return { notified: 0 };
+  const course = await getCourseById(courseId);
+  let n = 0;
+  for (const s of dash.unassignedStudents) {
+    await createNotification({
+      userId: s.id,
+      type: "matching_nudge",
+      title: "아직 팀이 없어요!",
+      body: `${course?.name ?? "수업"} 팀 구성을 서둘러 주세요.`,
+      linkPath: `/courses/${courseId}`,
+    });
+    n++;
+  }
+  return { notified: n };
+}
+
 export async function getProfessorCourses(professorId: number) {
   const db = await getDb();
   if (!db) return [];

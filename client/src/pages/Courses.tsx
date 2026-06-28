@@ -50,6 +50,7 @@ export default function Courses() {
   const [newCredits, setNewCredits] = useState("3");
   const [newTeamProject, setNewTeamProject] = useState(false);
   const [newCode, setNewCode] = useState("");
+  const [joinCode, setJoinCode] = useState("");
 
   const myCourses = trpc.courses.myCourses.useQuery({ semester: CURRENT_SEMESTER });
 
@@ -74,6 +75,18 @@ export default function Courses() {
       utils.dashboard.getData.invalidate();
       toast.success("수강 해제 완료");
     },
+  });
+
+  // P1: 교수님이 준 수업 코드로 바로 참여
+  const joinMutation = trpc.courses.joinByCode.useMutation({
+    onSuccess: (data) => {
+      utils.courses.myCourses.invalidate();
+      utils.dashboard.getData.invalidate();
+      setJoinCode("");
+      toast.success(`'${data.courseName}'에 참여했어요!`);
+      setLocation(`/courses/${data.courseId}`);
+    },
+    onError: (err) => toast.error(err.message),
   });
 
   const createMutation = trpc.courses.create.useMutation({
@@ -175,7 +188,38 @@ export default function Courses() {
           <TabsTrigger value="search" className="flex-1">수업 검색</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="my" className="mt-4">
+        <TabsContent value="my" className="mt-4 space-y-3">
+          {/* P1: 교수님이 준 수업 코드로 바로 참여 */}
+          <Card className="rounded-2xl border border-primary/30 bg-primary/5 shadow-none">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">수업 코드로 참여</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2.5">
+                교수님이 알려주신 코드를 입력하면 그 수업에 바로 참여돼요.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="예: ABC123"
+                  maxLength={8}
+                  className="uppercase tracking-widest font-mono"
+                />
+                <Button
+                  className="gradient-primary text-white border-0 shrink-0"
+                  disabled={joinMutation.isPending || joinCode.trim().length < 4}
+                  onClick={() =>
+                    joinMutation.mutate({ code: joinCode.trim(), semester: CURRENT_SEMESTER })
+                  }
+                >
+                  참여
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {myCourses.isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (

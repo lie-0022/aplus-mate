@@ -149,6 +149,15 @@ export const appRouter = router({
         await db.enrollCourse(ctx.user.id, input.courseId, input.semester);
         return { success: true };
       }),
+    // 학생이 수업 조인 코드로 바로 등록(P1) — 검색·생성 없이 교수가 준 코드만으로.
+    joinByCode: protectedProcedure
+      .input(z.object({ code: z.string().trim().min(4).max(8), semester: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const course = await db.getCourseByInviteCode(input.code);
+        if (!course) throw new Error("유효하지 않은 코드예요. 교수님께 코드를 다시 확인해주세요.");
+        await db.enrollCourse(ctx.user.id, course.id, input.semester);
+        return { courseId: course.id, courseName: course.name };
+      }),
     unenroll: protectedProcedure
       .input(
         z.object({
@@ -639,6 +648,33 @@ export const appRouter = router({
         await db.claimCourse(input.courseId, ctx.user.id);
         return { success: true };
       }),
+    // P1: 수업 조인 코드 발급/재발급 (학생에게 공유)
+    generateInviteCode: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        const code = await db.generateInviteCode(input.courseId);
+        if (!code) throw new Error("코드 발급에 실패했어요. 다시 시도해주세요.");
+        return { code };
+      }),
+    // P2: 팀 구성 마감일 설정/해제
+    setMatchingDeadline: professorProcedure
+      .input(z.object({ courseId: z.number(), deadline: z.string().nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        await db.setMatchingDeadline(
+          input.courseId,
+          input.deadline ? new Date(input.deadline) : null
+        );
+        return { success: true };
+      }),
+    // P2: 미배정 학생 전원에게 독려 알림
+    nudgeUnassigned: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return db.nudgeUnassignedStudents(input.courseId);
+      }),
     students: professorProcedure
       .input(z.object({ courseId: z.number() }))
       .query(async ({ ctx, input }) => {
@@ -657,6 +693,16 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
         return db.getCourseDashboard(input.courseId);
+      }),
+    // P1·P2: 교수 화면용 수업 메타(조인 코드·마감일) — dashboard 타입과 분리
+    courseInfo: professorProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const course = await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
+        return {
+          inviteCode: course.inviteCode,
+          matchingDeadline: course.matchingDeadline,
+        };
       }),
     // ── 산출물(마일스톤) ──
     createMilestone: professorProcedure
