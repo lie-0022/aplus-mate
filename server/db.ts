@@ -159,8 +159,10 @@ export async function deleteSelf(userId: number) {
   for (const m of memberRows) {
     try {
       await leaveTeam(m.teamId, userId);
-    } catch {
-      /* 이미 정리된 팀 등은 무시 */
+    } catch (e) {
+      // 이미 정리된 팀 등 정상 케이스는 무시하되, 실패는 로그로 남겨 유령 멤버를 추적 가능하게 한다.
+      // (남은 유령은 아래 getTeamDetail의 deletedAt 필터 안전망으로 화면·정원에서 걸러진다.)
+      console.error(`[deleteSelf] leaveTeam(team=${m.teamId}, user=${userId}) 실패:`, e);
     }
   }
   // pending 매칭 정리 + PII 익명화를 한 트랜잭션으로
@@ -192,8 +194,36 @@ export async function deleteSelf(userId: number) {
 export async function createCourse(data: InsertCourse) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(courses).values(data);
-  return { id: result[0].insertId };
+
+  // 같은 수업(이름·교수·학교)이 이미 있으면 친절히 안내한다 — uniq_course 위반이
+  // raw DB 에러로 새거나, 마스킹돼도 "잠시 후 재시도"라는 (영원히 실패하는) 오해를
+  // 주는 걸 막고, 검색해서 참여하도록 유도한다. (enrollCourse와 동일한 방어 패턴.)
+  const dupMsg = "이미 같은 수업(이름·교수·학교)이 등록돼 있어요. 검색해서 그 수업에 참여해주세요.";
+  const existing = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(
+      and(
+        eq(courses.name, data.name),
+        eq(courses.professor, data.professor),
+        eq(courses.university, data.university)
+      )
+    )
+    .limit(1);
+  if (existing.length > 0) {
+    throw new Error(dupMsg);
+  }
+  try {
+    const result = await db.insert(courses).values(data);
+    return { id: result[0].insertId };
+  } catch (error: any) {
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error(dupMsg);
+    }
+    throw error;
+  }
 }
 
 export async function getCourseById(id: number) {
@@ -576,8 +606,10 @@ export async function createMatchRequest(
     }
     return { id: result[0].insertId };
   } catch (error: any) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw new Error("이미 매칭 요청을 보냈습니다.");
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error("이미 매칭 요청을 보냈어요. 받은/보낸 요청함에서 확인해주세요.");
     }
     throw error;
   }
@@ -815,7 +847,12 @@ export async function acceptMatch(matchId: number, userId: number) {
           .insert(teamMembers)
           .values({ teamId: targetTeam.id, userId: joiningUserId, role: joinRole });
       } catch (error: any) {
-        if (error.code !== "ER_DUP_ENTRY") throw error; // 이미 멤버면 무시
+        // 이미 멤버면 무시(멱등). Drizzle 래핑으로 code가 최상위에 없을 수 있어 메시지도 확인.
+        const code = error?.code ?? error?.cause?.code;
+        const msg = String(error?.message ?? error);
+        const isDup =
+          code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry");
+        if (!isDup) throw error;
       }
       return { teamId: targetTeam.id };
     });
@@ -842,8 +879,11 @@ export async function acceptMatch(matchId: number, userId: number) {
       return { teamId };
     });
   } catch (error: any) {
-    // race condition: 동시에 다른 요청이 팀을 만든 경우(matchId unique 충돌) → 기존 팀 반환
-    if (error.code === "ER_DUP_ENTRY") {
+    // race condition: 동시에 다른 요청이 팀을 만든 경우(matchId unique 충돌) → 기존 팀 반환.
+    // Drizzle 래핑으로 code가 최상위에 없을 수 있어 중첩 code·메시지까지 확인(멱등 폴백 보장).
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
       const existingTeam = await db.select().from(teams).where(eq(teams.matchId, matchId)).limit(1);
       if (existingTeam.length > 0) {
         return { teamId: existingTeam[0].id };
@@ -944,7 +984,8 @@ export async function getTeamDetail(teamId: number) {
     })
     .from(teamMembers)
     .innerJoin(users, eq(teamMembers.userId, users.id))
-    .where(eq(teamMembers.teamId, teamId));
+    // 탈퇴(익명화)한 유저는 팀원 표시·정원에서 제외 — 탈퇴 중 부분 실패로 남은 유령 멤버 방어.
+    .where(and(eq(teamMembers.teamId, teamId), isNull(users.deletedAt)));
 
   return {
     ...teamRow[0],
@@ -1135,8 +1176,10 @@ export async function submitEvaluationBatch(data: {
         );
     });
   } catch (error: any) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw new Error("이미 평가를 완료했습니다.");
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error("이미 평가를 제출했어요. 평가는 한 번만 할 수 있어요.");
     }
     throw error;
   }
@@ -1736,8 +1779,10 @@ export async function submitSurveyResponses(data: {
       }))
     );
   } catch (error: any) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw new Error("이미 설문에 응답했습니다.");
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error("이미 이 설문에 응답했어요. 응답은 한 번만 제출할 수 있어요.");
     }
     throw error;
   }
@@ -1860,8 +1905,10 @@ export async function createReport(data: {
       detail: data.detail ?? null,
     });
   } catch (error: any) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw new Error("이미 신고한 대상이에요.");
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error("이미 신고한 대상이에요. 중복 신고는 접수되지 않아요.");
     }
     throw error;
   }
@@ -2585,8 +2632,10 @@ export async function recordConsent(
   try {
     await db.insert(consents).values({ userId, consentType, consentVersion });
   } catch (error: any) {
-    // 이미 동의한 버전이면 멱등 처리(중복 무시)
-    if (error.code === "ER_DUP_ENTRY") return;
+    // 이미 동의한 버전이면 멱등 처리(중복 무시) — Drizzle 래핑 대비 중첩 code·메시지까지 확인.
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) return;
     throw error;
   }
 }

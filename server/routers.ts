@@ -330,19 +330,25 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const match = await db.getMatchById(input.matchId);
         const result = await db.acceptMatch(input.matchId, ctx.user.id);
-        // 요청자에게 수락 알림 — 비대칭 매칭(요청자는 결과를 알 채널이 없던 문제) 해소
+        // 요청자에게 수락 알림 — 비대칭 매칭(요청자는 결과를 알 채널이 없던 문제) 해소.
+        // 팀 생성은 acceptMatch에서 이미 커밋됐으므로, 이 후속 알림/공고마감이 실패해도
+        // '수락' 자체를 500으로 되돌리지 않도록 격리한다(성공한 수락이 실패로 오인되는 것 방지).
         if (match && result?.teamId) {
-          const course = await db.getCourseById(match.courseId);
-          await db.createNotification({
-            userId: match.requesterId,
-            type: "match_accepted",
-            title: "매칭이 수락됐어요!",
-            body: `${course?.name ?? "수업"} 팀이 만들어졌어요.`,
-            linkPath: `/teams/${result.teamId}`,
-          });
-          // 모집 공고 경유 지원이 수락돼 팀 정원이 차면 공고 자동 마감(dead-end 방지)
-          if (match.recruitmentId) {
-            await db.maybeCloseRecruitmentIfFull(match.recruitmentId, result.teamId);
+          try {
+            const course = await db.getCourseById(match.courseId);
+            await db.createNotification({
+              userId: match.requesterId,
+              type: "match_accepted",
+              title: "매칭이 수락됐어요!",
+              body: `${course?.name ?? "수업"} 팀이 만들어졌어요.`,
+              linkPath: `/teams/${result.teamId}`,
+            });
+            // 모집 공고 경유 지원이 수락돼 팀 정원이 차면 공고 자동 마감(dead-end 방지)
+            if (match.recruitmentId) {
+              await db.maybeCloseRecruitmentIfFull(match.recruitmentId, result.teamId);
+            }
+          } catch (e) {
+            console.error("[matching.accept] 후속 알림/공고마감 실패(무시):", e);
           }
         }
         return result;
