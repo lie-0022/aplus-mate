@@ -240,11 +240,22 @@ export async function enrollCourse(userId: number, courseId: number, semester: s
   const db = await getDb();
   if (!db) return;
 
+  // 이미 등록돼 있으면 친절히 안내한다 — 중복 INSERT의 unique 위반이 raw DB 에러
+  // ("Failed query: insert into `user_courses` …")로 그대로 클라에 노출되는 걸 막는다.
+  // (Drizzle이 드라이버 에러를 감싸 error.code가 최상위에 없을 때가 있어, catch 가드만으론
+  //  새기 때문에 INSERT 전에 선제 확인한다.)
+  if (await isUserEnrolled(userId, courseId)) {
+    throw new Error("이미 참여한 수업이에요.");
+  }
   try {
     await db.insert(userCourses).values({ userId, courseId, semester });
   } catch (error: any) {
-    if (error.code === "ER_DUP_ENTRY") {
-      throw new Error("이미 해당 수업에 등록되어 있습니다.");
+    // 동시 요청으로 선제 확인을 지나쳐 unique 위반이 나도 raw 노출은 막는다.
+    // 감싼 에러까지 대비해 중첩 code와 메시지 문자열을 함께 확인한다.
+    const code = error?.code ?? error?.cause?.code;
+    const msg = String(error?.message ?? error);
+    if (code === "ER_DUP_ENTRY" || msg.includes("ER_DUP_ENTRY") || msg.includes("Duplicate entry")) {
+      throw new Error("이미 참여한 수업이에요.");
     }
     throw error;
   }
