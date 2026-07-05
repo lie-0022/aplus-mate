@@ -125,6 +125,20 @@ export function registerGoogleAuthRoutes(app: Express) {
         return;
       }
 
+      // 파일럿: 허용 학교 이메일 도메인 제한(ALLOWED_EMAIL_DOMAINS 설정 시). 미설정이면 무제한.
+      const allowedDomains = ENV.allowedEmailDomains;
+      if (allowedDomains.length > 0) {
+        const domain = (profile.email ?? "").split("@")[1]?.toLowerCase() ?? "";
+        if (!allowedDomains.includes(domain)) {
+          res
+            .status(403)
+            .send(
+              `이 서비스는 현재 지정된 학교(${allowedDomains.join(", ")}) 재학생만 참여할 수 있어요. 학교 이메일 계정으로 로그인해 주세요.`
+            );
+          return;
+        }
+      }
+
       const openId = `google:${profile.sub}`;
       // name이 비면 세션 payload 필수 필드 검증(verifySession)에 걸리므로 폴백을 둔다.
       const displayName = profile.name || profile.email || "사용자";

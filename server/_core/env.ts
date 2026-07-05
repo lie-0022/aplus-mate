@@ -21,4 +21,10 @@ export const ENV = {
   llmApiUrl: process.env.LLM_API_URL ?? process.env.BUILT_IN_FORGE_API_URL ?? "",
   llmApiKey: process.env.LLM_API_KEY ?? process.env.BUILT_IN_FORGE_API_KEY ?? "",
   llmModel: process.env.LLM_MODEL ?? "gemini-2.5-flash",
+  // 파일럿 가입 제한 — 허용 학교 이메일 도메인(쉼표 구분, 예: "bu.ac.kr,skku.edu").
+  // 미설정이면 무제한(아무 구글 계정 가능).
+  allowedEmailDomains: (process.env.ALLOWED_EMAIL_DOMAINS ?? "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean),
 };
