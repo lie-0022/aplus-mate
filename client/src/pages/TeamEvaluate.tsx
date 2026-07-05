@@ -78,6 +78,8 @@ export default function TeamEvaluate() {
     [data, user]
   );
 
+  const recordConsent = trpc.consents.record.useMutation();
+
   const submitMutation = trpc.evaluations.submit.useMutation({
     onSuccess: () => {
       utils.evaluations.hasEvaluated.invalidate();
@@ -116,6 +118,8 @@ export default function TeamEvaluate() {
       }
       evaluations.push(ev);
     }
+    // 동료 평가 개인정보 처리 동의를 백그라운드로 기록(fire-and-forget — 제출 흐름을 막지 않음).
+    recordConsent.mutate({ consentType: "evaluation" });
     submitMutation.mutate({ teamId, evaluations });
   };
 
@@ -203,6 +207,15 @@ export default function TeamEvaluate() {
               운영자에게 이의제기
             </a>
             할 수 있어요.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 익명 처리 안내 배너 (개인정보 처리 고지) */}
+      <Card className="bg-muted border-0 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-sm text-muted-foreground">
+            동료 평가는 익명으로 처리되며, 개별 평가 내용은 상대에게 공개되지 않아요.
           </p>
         </CardContent>
       </Card>

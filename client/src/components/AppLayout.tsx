@@ -14,6 +14,9 @@ import {
   Handshake,
   Presentation,
   ShieldCheck,
+  Mail,
+  Shield,
+  FileText,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -226,6 +229,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     운영자 페이지
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  onClick={() => (window.location.href = "mailto:jayjun.rim@gmail.com")}
+                  className="cursor-pointer"
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  문의·지원
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setLocation("/privacy")}
+                  className="cursor-pointer"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  개인정보처리방침
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setLocation("/terms")}
+                  className="cursor-pointer"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  이용약관
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

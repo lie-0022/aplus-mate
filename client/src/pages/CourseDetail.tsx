@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { parseSkillTags } from "@/lib/utils-parse";
 import RecruitmentSection from "@/components/RecruitmentSection";
+import { ReportDialog } from "@/components/ReportDialog";
 import {
   TEAM_SIZE_LIMITS,
   MENTORING_MAX_MENTEES,
@@ -437,8 +438,14 @@ export default function CourseDetail() {
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                     {item.post.content}
                   </p>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    익명 · {new Date(item.post.createdAt).toLocaleDateString("ko-KR")}
+                  <div className="text-xs text-muted-foreground mt-2 flex items-center justify-between">
+                    <span>
+                      익명 · {new Date(item.post.createdAt).toLocaleDateString("ko-KR")}
+                    </span>
+                    {/* 카드 클릭(상세 이동)과 겹치지 않게 이벤트 전파 차단 */}
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <ReportDialog targetType="post" targetId={item.post.id} />
+                    </span>
                   </div>
                 </CardContent>
               </Card>

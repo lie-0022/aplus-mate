@@ -138,8 +138,16 @@ export default function Dashboard() {
             <OnboardStep
               done={hasConnected}
               label="첫 커넥트 보내기"
-              hint="마음에 드는 팀원에게 커넥트하세요"
-              onClick={() => setLocation("/courses")}
+              hint={
+                hasCourse ? "수업에서 팀원을 찾아 커넥트하세요" : "먼저 수업에 참여하세요"
+              }
+              onClick={() =>
+                setLocation(
+                  hasCourse && data?.courses[0]
+                    ? `/courses/${data.courses[0].course.id}`
+                    : "/courses"
+                )
+              }
             />
           </CardContent>
         </Card>
