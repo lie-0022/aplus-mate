@@ -14,6 +14,7 @@ import {
   Users,
   Flag,
   Sparkles,
+  Trash2,
   Boxes,
   ChevronDown,
   ChevronRight,
@@ -86,6 +87,14 @@ export default function Admin() {
   });
   const clearDemo = trpc.admin.clearDemo.useMutation({
     onSuccess: () => toast.success("데모 데이터를 정리했어요."),
+    onError: (err) => toast.error(err.message),
+  });
+  const wipeTest = trpc.admin.wipeTestData.useMutation({
+    onSuccess: () => {
+      toast.success("테스트 데이터를 모두 정리했어요. 이제 실제 학생을 받을 수 있어요.");
+      // 데이터가 전부 바뀌므로 화면을 새로 불러온다.
+      setTimeout(() => window.location.reload(), 800);
+    },
     onError: (err) => toast.error(err.message),
   });
 
@@ -444,6 +453,37 @@ export default function Admin() {
               초기화
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 파일럿 리셋 — 실제 학생 받기 직전, 운영자만 남기고 전부 초기화 */}
+      <div className="flex items-center gap-2 pt-4 border-t">
+        <Trash2 className="h-5 w-5 text-destructive" />
+        <h2 className="text-lg font-bold">테스트 데이터 전체 초기화</h2>
+      </div>
+      <Card className="rounded-2xl border border-destructive/40 shadow-none">
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            운영자(나) 계정만 남기고 <b>모든 수업·팀·매칭·설문·게시글과 다른 계정</b>을 영구
+            삭제합니다. 실제 학생을 받기 직전, 테스트 데이터를 깨끗이 비울 때만 사용하세요.{" "}
+            <b>되돌릴 수 없습니다.</b>
+          </p>
+          <Button
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "운영자(나) 계정만 남기고 모든 수업·팀·매칭·설문·게시글·다른 계정을 영구 삭제합니다. 되돌릴 수 없어요. 계속할까요?"
+                )
+              )
+                return;
+              if (!window.confirm("정말 전부 삭제할까요? 실제 학생을 받기 직전에만 실행하세요.")) return;
+              wipeTest.mutate();
+            }}
+            disabled={wipeTest.isPending}
+            variant="destructive"
+          >
+            {wipeTest.isPending ? "정리 중..." : "테스트 데이터 전체 초기화"}
+          </Button>
         </CardContent>
       </Card>
     </div>

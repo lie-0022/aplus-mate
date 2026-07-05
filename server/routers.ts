@@ -1129,6 +1129,11 @@ export const appRouter = router({
     clearDemo: adminProcedure.mutation(async () => {
       return db.clearDemoData();
     }),
+    // 파일럿 리셋 — 운영자 본인 계정만 남기고 모든 테스트 데이터 영구 삭제.
+    // 실제 학생을 받기 직전, 프로덕션을 깨끗이 비울 때만 사용(되돌릴 수 없음).
+    wipeTestData: adminProcedure.mutation(async ({ ctx }) => {
+      return db.wipeAllExceptOwner(ctx.user.id);
+    }),
     // QA용: 특정 유저(친구 계정)에게 데모 수업·매칭 요청 배정
     assignQa: adminProcedure
       .input(z.object({ userId: z.number() }))

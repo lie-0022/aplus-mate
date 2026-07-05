@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, desc, count, sql, like, isNull } from "drizzle-orm";
+import { eq, ne, and, or, inArray, desc, count, sql, like, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -2180,6 +2180,40 @@ export async function clearDemoData() {
     }
   });
   return { cleared: true, courseId: courseId ?? null, students: uids.length };
+}
+
+// 파일럿 리셋 — 운영자(keepUserId) 계정만 남기고 모든 운영 데이터를 비운다.
+// 테스트 데이터로 시작한 프로덕션을 '실제 학생 받기' 직전에 깨끗이 초기화하는 용도.
+// 되돌릴 수 없다 — adminProcedure + 클라 이중 확인을 거쳐서만 호출한다.
+// 삭제는 FK 자식→부모(참조하는 쪽 먼저) 순서로 진행한다.
+export async function wipeAllExceptOwner(keepUserId: number) {
+  const db = await getDb();
+  if (!db) return { wiped: false };
+  await db.transaction(async (tx) => {
+    await tx.delete(teamNotes);
+    await tx.delete(teamEvents);
+    await tx.delete(teamSubmissions);
+    await tx.delete(evaluations);
+    await tx.delete(teamMembers);
+    await tx.delete(surveyResponses);
+    await tx.delete(surveyQuestions);
+    await tx.delete(postComments);
+    await tx.delete(notifications);
+    await tx.delete(badges);
+    await tx.delete(consents);
+    await tx.delete(reports);
+    await tx.delete(userCourses);
+    await tx.delete(courseMilestones);
+    await tx.delete(courseAnnouncements);
+    await tx.delete(teams); // teamId 참조들 삭제 후
+    await tx.delete(teamMatches); // teams(matchId) 삭제 후
+    await tx.delete(recruitments); // teamMatches(recruitmentId) 삭제 후
+    await tx.delete(surveys); // surveyQuestions/Responses 삭제 후
+    await tx.delete(posts); // postComments 삭제 후
+    await tx.delete(courses); // 모든 course 참조 삭제 후(professorId→users)
+    await tx.delete(users).where(ne(users.id, keepUserId));
+  });
+  return { wiped: true };
 }
 
 // QA용: 특정 유저(실제 친구 계정 등)를 데모 수업에 등록하고, 데모 학생들이
