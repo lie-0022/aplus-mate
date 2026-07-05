@@ -125,11 +125,16 @@ export function registerGoogleAuthRoutes(app: Express) {
         return;
       }
 
+      const openId = `google:${profile.sub}`;
+
       // 파일럿: 허용 학교 이메일 도메인 제한(ALLOWED_EMAIL_DOMAINS 설정 시). 미설정이면 무제한.
+      // 기존 가입자·운영자(OWNER_EMAIL)는 예외 — '신규 가입'만 도메인으로 거른다(운영자·기존 유저 잠김 방지).
       const allowedDomains = ENV.allowedEmailDomains;
       if (allowedDomains.length > 0) {
+        const existing = await db.getUserByOpenId(openId);
+        const isOwner = !!ENV.ownerEmail && profile.email === ENV.ownerEmail;
         const domain = (profile.email ?? "").split("@")[1]?.toLowerCase() ?? "";
-        if (!allowedDomains.includes(domain)) {
+        if (!existing && !isOwner && !allowedDomains.includes(domain)) {
           res
             .status(403)
             .send(
@@ -138,8 +143,6 @@ export function registerGoogleAuthRoutes(app: Express) {
           return;
         }
       }
-
-      const openId = `google:${profile.sub}`;
       // name이 비면 세션 payload 필수 필드 검증(verifySession)에 걸리므로 폴백을 둔다.
       const displayName = profile.name || profile.email || "사용자";
       await db.upsertUser({
