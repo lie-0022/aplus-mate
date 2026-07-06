@@ -11,7 +11,7 @@
 | 1 | Dashboard | ✅ 구현·배포 | (DESIGN-SYSTEM §7) |
 | 2 | Courses | ✅ 구현·배포 (커밋 `1be5263`) | 아래 "Courses" |
 | 3 | CourseDetail | ✅ 구현·배포 | [`coursedetail.md`](coursedetail.md) |
-| 4 | MatchingRequests | ⬜ 예정 | |
+| 4 | MatchingRequests | ✅ 구현·배포 | [`matchingrequests.md`](matchingrequests.md) |
 | 5 | Teams | ⬜ 예정 | |
 | 6 | TeamDetail | ⬜ 예정 | |
 | 7 | Profile | ⬜ 예정 | |
@@ -31,6 +31,7 @@
 | 화면 | 목업 |
 |---|---|
 | CourseDetail | [`mockups/coursedetail.html`](mockups/coursedetail.html) |
+| MatchingRequests | [`mockups/matchingrequests.html`](mockups/matchingrequests.html) |
 
 ## 워크플로우 (참고)
 

@@ -111,6 +111,7 @@
   --tag-bg: #f1ede6; --tag-fg: #7e7869;            /* 중립 태그 */
   --notice-bg: #fff3e0; --notice-fg: #9a5b12;      /* 공지(따뜻한 알림) */
   --pos-bg: #e6f4ec; --pos-fg: #2e7d51;            /* 긍정(공통 스킬·인증) */
+  --sky-badge-bg: #e7eefd; --sky-badge-fg: #2e7df0; /* 정보(멘토링 역할 등) */
 
   --app-header: #ffffff;                            /* 모바일 헤더바 */
   --shadow-card: 0 6px 22px rgba(150, 120, 90, 0.1);
@@ -168,6 +169,7 @@
   --tag-bg: #2e3766; --tag-fg: #a6add6;
   --notice-bg: rgba(249, 233, 74, 0.1); --notice-fg: #e6d98b;
   --pos-bg: rgba(120, 205, 160, 0.14); --pos-fg: #88d3a8;
+  --sky-badge-bg: rgba(143, 196, 255, 0.14); --sky-badge-fg: #9ccbff;
 
   --app-header: #212a54;
   --shadow-card: none;
@@ -240,6 +242,8 @@
   .badge-mine { background: var(--mine-bg); color: var(--mine-fg); }
   .badge-tag { background: var(--tag-bg); color: var(--tag-fg); }
   .badge-pos { background: var(--pos-bg); color: var(--pos-fg); }
+  .badge-notice { background: var(--notice-bg); color: var(--notice-fg); }
+  .badge-sky { background: var(--sky-badge-bg); color: var(--sky-badge-fg); }
   .notice-soft { background: var(--notice-bg); color: var(--notice-fg); }
 
   /* 카드 소프트 섀도우(라이트) / 다크는 none */
