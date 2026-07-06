@@ -210,7 +210,7 @@ export default function Dashboard() {
               </Button>
             </div>
             {data?.courses.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-border p-8 text-center">
+              <div className="rounded-[18px] bg-card shadow-card p-8 text-center">
                 <GraduationCap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground text-sm mb-4">아직 등록한 수업이 없어요</p>
                 <Button onClick={() => setLocation("/courses")}>
