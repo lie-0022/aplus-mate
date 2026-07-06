@@ -276,7 +276,7 @@ export default function CourseDetail() {
   const hasNews = !!noticeEl || (Array.isArray(surveyEls) && surveyEls.length > 0);
 
   const filterChips = (
-    <div className="flex gap-1.5 overflow-x-auto">
+    <div className="flex gap-1.5 overflow-x-auto min-w-0 flex-1">
       {["all", ...CATEGORIES].map((cat) => (
         <button
           key={cat}
