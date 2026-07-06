@@ -119,7 +119,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur border-b">
         <div className="h-14 px-4 flex items-center justify-between">
           <button
             onClick={() => setLocation("/dashboard")}
@@ -280,7 +280,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Bottom navigation (mobile-first) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t lg:hidden" style={{height: '64px'}}>
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur border-t lg:hidden" style={{height: '64px'}}>
         <div className="flex items-center justify-around h-full px-2">
           {navItems.map((item) => {
             const isActive =
