@@ -104,6 +104,9 @@ export const appRouter = router({
     getData: protectedProcedure.query(async ({ ctx }) => {
       return db.getDashboardData(ctx.user.id);
     }),
+    recommendedPeers: protectedProcedure.query(async ({ ctx }) => {
+      return db.getRecommendedPeers(ctx.user.id);
+    }),
   }),
 
   // ─── Courses ─────────────────────────────────────────

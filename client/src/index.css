@@ -41,83 +41,132 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  /* A+ Mate custom colors */
-  --color-violet: oklch(0.44 0.24 285);
-  --color-violet-light: oklch(0.92 0.05 290);
-  --color-sky-brand: oklch(0.65 0.12 230);
-  --color-sky-light: oklch(0.93 0.04 230);
+  /* A+ Mate 브랜드 — 로고 그라데이션(보라→블루) */
+  --color-brand-violet: var(--violet);
+  --color-brand-blue: var(--sky-brand);
+  --color-violet: var(--violet);
+  --color-violet-light: var(--violet-light);
+  --color-sky-brand: var(--sky-brand);
+  --color-sky-light: var(--sky-light);
 }
 
+/* ============================================================
+   A+ Mate 디자인 시스템 (2026-07 리브랜딩 · C 볼드캠퍼스 파생)
+   라이트 = 소프트 클레이 / 다크 = 딥 인디고. 토큰만 스위치.
+   ============================================================ */
 :root {
-  /* A+ Mate: Purple #5B2FBE as primary */
-  --primary: oklch(0.44 0.24 285);
-  --primary-foreground: oklch(0.98 0.005 285);
-  --sidebar-primary: oklch(0.44 0.24 285);
-  --sidebar-primary-foreground: oklch(0.98 0.005 285);
-  --chart-1: oklch(0.44 0.24 285);
-  --chart-2: oklch(0.65 0.12 230);
-  --chart-3: oklch(0.55 0.18 285);
-  --chart-4: oklch(0.75 0.08 230);
-  --chart-5: oklch(0.35 0.2 285);
   --radius: 1rem;
-  --background: oklch(0.985 0.002 290);
-  --foreground: oklch(0.18 0.02 285);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 285);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 285);
-  --secondary: oklch(0.92 0.05 290);
-  --secondary-foreground: oklch(0.3 0.15 285);
-  --muted: oklch(0.955 0.015 290);
-  --muted-foreground: oklch(0.5 0.03 285);
-  --accent: oklch(0.93 0.04 230);
-  --accent-foreground: oklch(0.25 0.1 230);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.91 0.015 290);
-  --input: oklch(0.91 0.015 290);
-  --ring: oklch(0.44 0.24 285);
-  --sidebar: oklch(0.985 0.002 290);
-  --sidebar-foreground: oklch(0.18 0.02 285);
-  --sidebar-accent: oklch(0.92 0.05 290);
-  --sidebar-accent-foreground: oklch(0.18 0.02 285);
-  --sidebar-border: oklch(0.91 0.015 290);
-  --sidebar-ring: oklch(0.44 0.24 285);
+
+  /* 라이트: 소프트 클레이 */
+  --background: #fff6ee;      /* 웜 아이보리 */
+  --foreground: #3a3566;      /* 딥 인디고 잉크 */
+  --card: #ffffff;
+  --card-foreground: #3a3566;
+  --popover: #ffffff;
+  --popover-foreground: #3a3566;
+  --primary: #5d51c8;         /* 라벤더 (주 액션) */
+  --primary-foreground: #ffffff;
+  --secondary: #efe9fb;       /* 연 라벤더 (보조 버튼) */
+  --secondary-foreground: #5d51c8;
+  --muted: #f1ede6;
+  --muted-foreground: #8e88a8;
+  --accent: #efe9fb;
+  --accent-foreground: #5d51c8;
+  --destructive: #d8524e;
+  --destructive-foreground: #ffffff;
+  --border: #f0e8dd;
+  --input: #ede7dc;
+  --ring: #5d51c8;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #3a3566;
+  --sidebar-primary: #5d51c8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efe9fb;
+  --sidebar-accent-foreground: #5d51c8;
+  --sidebar-border: #f0e8dd;
+  --sidebar-ring: #5d51c8;
+
+  --chart-1: #5d51c8;
+  --chart-2: #2e7df0;
+  --chart-3: #2e8a57;
+  --chart-4: #b4682a;
+  --chart-5: #c4547e;
+
+  /* 브랜드 별칭 */
+  --violet: #7a2fe6;
+  --violet-light: #efe9fb;
+  --sky-brand: #2e7df0;
+  --sky-light: #e7eefd;
+
+  /* 지표 3색 (표현적 화면) */
+  --stat-a-bg: #ffe9d6; --stat-a-fg: #b4682a; --stat-a-label: #c08b5c;
+  --stat-b-bg: #e8e3ff; --stat-b-fg: #5d51c8; --stat-b-label: #8a81d6;
+  --stat-c-bg: #ddf2e4; --stat-c-fg: #2e8a57; --stat-c-label: #63a981;
+
+  /* 시맨틱 뱃지 */
+  --dday-bg: #ffd8a8; --dday-fg: #8a4e14;         /* 임박 강조 */
+  --dday-soft-bg: #ede9df; --dday-soft-fg: #7e7869; /* 여유(중립) */
+  --mine-bg: #ffe1e9; --mine-fg: #c4547e;          /* 내 담당 */
+  --tag-bg: #f1ede6; --tag-fg: #7e7869;            /* 중립 태그 */
+
+  --app-header: #ffffff;                            /* 모바일 헤더바 */
+  --shadow-card: 0 6px 22px rgba(150, 120, 90, 0.1);
 }
 
 .dark {
-  --primary: oklch(0.6 0.2 285);
-  --primary-foreground: oklch(0.98 0.005 285);
-  --sidebar-primary: oklch(0.6 0.2 285);
-  --sidebar-primary-foreground: oklch(0.98 0.005 285);
-  --background: oklch(0.15 0.015 285);
-  --foreground: oklch(0.92 0.01 285);
-  --card: oklch(0.2 0.02 285);
-  --card-foreground: oklch(0.92 0.01 285);
-  --popover: oklch(0.2 0.02 285);
-  --popover-foreground: oklch(0.92 0.01 285);
-  --secondary: oklch(0.25 0.03 285);
-  --secondary-foreground: oklch(0.8 0.02 285);
-  --muted: oklch(0.25 0.02 285);
-  --muted-foreground: oklch(0.65 0.02 285);
-  --accent: oklch(0.25 0.04 230);
-  --accent-foreground: oklch(0.9 0.02 230);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.3 0.02 285);
-  --input: oklch(0.3 0.02 285);
-  --ring: oklch(0.6 0.2 285);
-  --chart-1: oklch(0.6 0.2 285);
-  --chart-2: oklch(0.65 0.12 230);
-  --chart-3: oklch(0.55 0.18 285);
-  --chart-4: oklch(0.75 0.08 230);
-  --chart-5: oklch(0.5 0.15 285);
-  --sidebar: oklch(0.2 0.02 285);
-  --sidebar-foreground: oklch(0.92 0.01 285);
-  --sidebar-accent: oklch(0.25 0.03 285);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.3 0.02 285);
-  --sidebar-ring: oklch(0.6 0.2 285);
+  /* 다크: 딥 인디고 (미드나잇 네온) */
+  --background: #171e3d;
+  --foreground: #edeff9;
+  --card: #212a54;
+  --card-foreground: #edeff9;
+  --popover: #212a54;
+  --popover-foreground: #edeff9;
+  --primary: #7a2fe6;
+  --primary-foreground: #ffffff;
+  --secondary: #2a3366;
+  --secondary-foreground: #cdd3f0;
+  --muted: #2e3766;
+  --muted-foreground: #a6add6;
+  --accent: #2a3366;
+  --accent-foreground: #cdd3f0;
+  --destructive: #e5706b;
+  --destructive-foreground: #ffffff;
+  --border: #313a68;
+  --input: #313a68;
+  --ring: #8fc4ff;
+
+  --sidebar: #1b2249;
+  --sidebar-foreground: #edeff9;
+  --sidebar-primary: #8fc4ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c356a;
+  --sidebar-accent-foreground: #cdd3f0;
+  --sidebar-border: #313a68;
+  --sidebar-ring: #8fc4ff;
+
+  --chart-1: #8fc4ff;
+  --chart-2: #7a2fe6;
+  --chart-3: #2e8a57;
+  --chart-4: #b4682a;
+  --chart-5: #c4547e;
+
+  --violet: #7a2fe6;
+  --violet-light: #2a3366;
+  --sky-brand: #2e7df0;
+  --sky-light: rgba(143, 196, 255, 0.16);
+
+  --stat-a-bg: rgba(255, 255, 255, 0.06); --stat-a-fg: #ffffff; --stat-a-label: #828ab8;
+  --stat-b-bg: rgba(143, 196, 255, 0.1);  --stat-b-fg: #8fc4ff; --stat-b-label: #828ab8;
+  --stat-c-bg: rgba(255, 255, 255, 0.06); --stat-c-fg: #ffffff; --stat-c-label: #828ab8;
+
+  --dday-bg: #f9e94a; --dday-fg: #171e3d;
+  --dday-soft-bg: #2e3766; --dday-soft-fg: #a6add6;
+  --mine-bg: rgba(143, 196, 255, 0.16); --mine-fg: #9ccbff;
+  --tag-bg: #2e3766; --tag-fg: #a6add6;
+
+  --app-header: #212a54;
+  --shadow-card: none;
 }
 
 @layer base {
@@ -151,32 +200,42 @@
     padding-left: 1rem;
     padding-right: 1rem;
   }
-
   .flex {
     min-height: 0;
     min-width: 0;
   }
-
   @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
-    }
+    .container { padding-left: 1.5rem; padding-right: 1.5rem; }
   }
-
   @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem;
-      padding-right: 2rem;
-      max-width: 1280px;
-    }
+    .container { padding-left: 2rem; padding-right: 2rem; max-width: 1280px; }
   }
 
-  /* Gradient utilities for A+ Mate */
+  /* 로고 그라데이션(보라→블루) — 다크 CTA·강조에만 절제해서 */
   .gradient-primary {
-    background: linear-gradient(135deg, oklch(0.44 0.24 285), oklch(0.65 0.12 230));
+    background: linear-gradient(92deg, var(--violet), var(--sky-brand));
   }
   .gradient-primary-soft {
-    background: linear-gradient(135deg, oklch(0.92 0.05 290), oklch(0.93 0.04 230));
+    background: linear-gradient(135deg, #efe9fb, #e7eefd);
   }
+
+  /* 지표 카드 (라이트/다크 토큰 스위치) */
+  .stat-a { background: var(--stat-a-bg); }
+  .stat-b { background: var(--stat-b-bg); }
+  .stat-c { background: var(--stat-c-bg); }
+  .stat-a .stat-n { color: var(--stat-a-fg); }
+  .stat-b .stat-n { color: var(--stat-b-fg); }
+  .stat-c .stat-n { color: var(--stat-c-fg); }
+  .stat-a .stat-l { color: var(--stat-a-label); }
+  .stat-b .stat-l { color: var(--stat-b-label); }
+  .stat-c .stat-l { color: var(--stat-c-label); }
+
+  /* 시맨틱 뱃지 */
+  .badge-dday { background: var(--dday-bg); color: var(--dday-fg); }
+  .badge-dday-soft { background: var(--dday-soft-bg); color: var(--dday-soft-fg); }
+  .badge-mine { background: var(--mine-bg); color: var(--mine-fg); }
+  .badge-tag { background: var(--tag-bg); color: var(--tag-fg); }
+
+  /* 카드 소프트 섀도우(라이트) / 다크는 none */
+  .shadow-card { box-shadow: var(--shadow-card); }
 }

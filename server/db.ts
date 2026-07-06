@@ -2726,3 +2726,109 @@ export async function getDashboardData(userId: number) {
     activeTeams,
   };
 }
+
+// 대시보드 '이런 팀원 어때요?' 추천 —
+// 같은 수업 수강생 중 내 활성 팀원이 아니고 관심 분야(스킬)가 겹치는 학생을,
+// 겹치는 스킬 수 많은 순으로 추천한다. (스킬 컬럼은 json이라 문자열/배열 모두 정규화)
+type RecommendedPeer = {
+  userId: number;
+  name: string;
+  department: string | null;
+  year: number | null;
+  courseId: number;
+  courseName: string;
+  sharedSkills: number;
+};
+
+function normSkillList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map((s) => String(s));
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw);
+      return Array.isArray(p) ? p.map((s) => String(s)) : raw ? [raw] : [];
+    } catch {
+      return raw ? [raw] : [];
+    }
+  }
+  return [];
+}
+
+export async function getRecommendedPeers(userId: number, limit = 4) {
+  const db = await getDb();
+  const empty = { count: 0, sample: null as RecommendedPeer | null, top: [] as RecommendedPeer[] };
+  if (!db) return empty;
+
+  const me = await getUserById(userId);
+  const mySet = new Set(
+    normSkillList(me?.skillTags).map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
+
+  const myCourseRows = await db
+    .select({ courseId: userCourses.courseId })
+    .from(userCourses)
+    .where(eq(userCourses.userId, userId));
+  const courseIds = myCourseRows.map((c) => c.courseId);
+  if (courseIds.length === 0) return empty;
+
+  // 내 활성 팀 동료(이미 같은 팀) 제외
+  const myTeamRows = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+    .where(and(eq(teamMembers.userId, userId), eq(teams.status, "active")));
+  const teamIds = myTeamRows.map((t) => t.teamId);
+  const mateSet = new Set<number>();
+  if (teamIds.length) {
+    const mates = await db
+      .select({ userId: teamMembers.userId })
+      .from(teamMembers)
+      .where(inArray(teamMembers.teamId, teamIds));
+    mates.forEach((m) => mateSet.add(m.userId));
+  }
+
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      department: users.department,
+      year: users.year,
+      skillTags: users.skillTags,
+      courseId: courses.id,
+      courseName: courses.name,
+    })
+    .from(userCourses)
+    .innerJoin(users, eq(userCourses.userId, users.id))
+    .innerJoin(courses, eq(userCourses.courseId, courses.id))
+    .where(
+      and(
+        inArray(userCourses.courseId, courseIds),
+        ne(userCourses.userId, userId),
+        isNull(users.deletedAt),
+        eq(users.profileCompleted, true)
+      )
+    );
+
+  const byUser = new Map<number, RecommendedPeer>();
+  for (const r of rows) {
+    if (mateSet.has(r.id)) continue;
+    const shared = normSkillList(r.skillTags).filter((s) =>
+      mySet.has(s.trim().toLowerCase())
+    ).length;
+    const prev = byUser.get(r.id);
+    if (!prev || shared > prev.sharedSkills) {
+      byUser.set(r.id, {
+        userId: r.id,
+        name: r.name ?? "학생",
+        department: r.department ?? null,
+        year: r.year ?? null,
+        courseId: r.courseId,
+        courseName: r.courseName ?? "수업",
+        sharedSkills: shared,
+      });
+    }
+  }
+  const list = Array.from(byUser.values()).sort(
+    (a, b) => b.sharedSkills - a.sharedSkills || a.name.localeCompare(b.name)
+  );
+  return { count: list.length, sample: list[0] ?? null, top: list.slice(0, limit) };
+}
