@@ -2945,3 +2945,30 @@ export async function setTeamProfessorApproval(
     .set({ professorApprovedAt: approved ? new Date() : null })
     .where(eq(teams.id, teamId));
 }
+
+// 여러 수업의 리뷰 요약을 한 번에 — 검색 결과에 별점·팀플 응답을 붙일 때(N+1 방지).
+export async function getReviewSummariesForCourses(courseIds: number[]) {
+  const db = await getDb();
+  const empty: Record<number, { count: number; avgRating: number; teamYes: number; teamNo: number }> = {};
+  if (!db || courseIds.length === 0) return empty;
+  const rows = await db
+    .select({
+      courseId: courseReviews.courseId,
+      count: count(),
+      avg: sql<number>`COALESCE(AVG(${courseReviews.rating}), 0)`,
+      teamYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 1 THEN 1 ELSE 0 END), 0)`,
+      teamNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 0 THEN 1 ELSE 0 END), 0)`,
+    })
+    .from(courseReviews)
+    .where(inArray(courseReviews.courseId, courseIds))
+    .groupBy(courseReviews.courseId);
+  for (const r of rows) {
+    empty[r.courseId] = {
+      count: Number(r.count),
+      avgRating: Math.round(Number(r.avg) * 10) / 10,
+      teamYes: Number(r.teamYes),
+      teamNo: Number(r.teamNo),
+    };
+  }
+  return empty;
+}

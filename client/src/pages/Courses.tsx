@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, GraduationCap, CheckCircle2 } from "lucide-react";
+import { Search, Plus, GraduationCap, CheckCircle2, Star as StarIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -244,6 +244,24 @@ export default function Courses() {
                       {course.professor} · {course.credits}학점
                       {course.courseCode && ` · ${course.courseCode}`}
                     </div>
+                    {/* 수강 리뷰 요약 — 수업을 고르는 순간에 별점·팀플 유무 즉답 */}
+                    {course.reviewSummary && course.reviewSummary.count > 0 && (
+                      <div className="text-xs mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-0.5 font-bold text-primary">
+                          <StarIcon className="h-3 w-3 fill-current" />
+                          {course.reviewSummary.avgRating}
+                        </span>
+                        <span className="text-muted-foreground">
+                          리뷰 {course.reviewSummary.count}
+                        </span>
+                        {course.reviewSummary.teamYes + course.reviewSummary.teamNo > 0 && (
+                          <span className="text-muted-foreground">
+                            · 팀플 있었대요 {course.reviewSummary.teamYes}/
+                            {course.reviewSummary.teamYes + course.reviewSummary.teamNo}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {enrolledCourseIds.has(course.id) ? (
                     <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full flex items-center shrink-0">

@@ -119,7 +119,10 @@ export const appRouter = router({
         })
       )
       .query(async ({ input }) => {
-        return db.searchCourses(input.query, input.university);
+        // 검색 단계에서 별점·팀플 응답까지 보이게 리뷰 요약을 붙인다(수업 선택 즉답).
+        const list = await db.searchCourses(input.query, input.university);
+        const sums = await db.getReviewSummariesForCourses(list.map((c) => c.id));
+        return list.map((c) => ({ ...c, reviewSummary: sums[c.id] ?? null }));
       }),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
