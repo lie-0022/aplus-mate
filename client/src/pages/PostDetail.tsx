@@ -1,7 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Eye, MessageSquare, Send, Trash2 } from "lucide-react";
@@ -77,12 +76,12 @@ export default function PostDetail() {
       </button>
 
       {/* 본문 */}
-      <Card className="rounded-2xl border border-border/50 shadow-none">
+      <Card className="rounded-2xl border-0 shadow-card">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <Badge variant="outline" className="text-xs">
+            <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">
               {post.category}
-            </Badge>
+            </span>
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Eye className="h-3 w-3" /> {post.viewCount}
             </span>
@@ -107,7 +106,7 @@ export default function PostDetail() {
       </Card>
 
       {/* 댓글 */}
-      <Card className="rounded-2xl border border-border/50 shadow-none">
+      <Card className="rounded-2xl border-0 shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-primary" />
@@ -157,7 +156,7 @@ export default function PostDetail() {
               maxLength={1000}
             />
             <Button
-              className="self-end gradient-primary text-white border-0"
+              className="self-end"
               size="sm"
               onClick={() => {
                 if (!comment.trim()) {

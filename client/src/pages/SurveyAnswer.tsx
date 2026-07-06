@@ -60,7 +60,7 @@ export default function SurveyAnswer() {
         <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
         <h2 className="text-xl font-bold mb-2">이미 응답한 설문이에요</h2>
         <p className="text-sm text-muted-foreground mb-4">참여해주셔서 감사합니다!</p>
-        <Button variant="outline" onClick={backToCourse}>
+        <Button variant="secondary" onClick={backToCourse}>
           수업으로 돌아가기
         </Button>
       </div>
@@ -72,7 +72,7 @@ export default function SurveyAnswer() {
       <div className="text-center py-12">
         <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
         <h2 className="text-xl font-bold mb-2">마감된 설문이에요</h2>
-        <Button variant="outline" onClick={backToCourse}>
+        <Button variant="secondary" onClick={backToCourse}>
           수업으로 돌아가기
         </Button>
       </div>
@@ -119,13 +119,13 @@ export default function SurveyAnswer() {
       </div>
 
       {data.questions.map((q, i) => (
-        <Card key={q.id} className="rounded-2xl border border-border/50 shadow-none">
+        <Card key={q.id} className="rounded-2xl border-0 shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium leading-snug">
               {i + 1}. {q.text}
               {answers[q.id] !== undefined &&
                 !(q.type === "text" && String(answers[q.id]).trim() === "") && (
-                  <Badge variant="secondary" className="ml-2 text-[10px] bg-green-100 text-green-700">
+                  <Badge variant="secondary" className="ml-2 text-[10px] badge-pos border-0">
                     응답함
                   </Badge>
                 )}
@@ -139,10 +139,10 @@ export default function SurveyAnswer() {
                     key={v}
                     type="button"
                     onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
-                    className={`flex-1 py-2 rounded-lg border text-center transition-colors ${
+                    className={`flex-1 py-2 rounded-lg text-center transition-colors ${
                       answers[q.id] === v
-                        ? "gradient-primary text-white border-transparent"
-                        : "hover:bg-muted"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/70"
                     }`}
                   >
                     <div className="text-sm font-bold">{v}</div>
@@ -162,7 +162,7 @@ export default function SurveyAnswer() {
                     className={`w-full text-left text-sm px-3 py-2.5 rounded-lg border transition-colors ${
                       answers[q.id] === oi
                         ? "border-primary bg-primary/5 font-medium"
-                        : "hover:bg-muted"
+                        : "bg-muted text-muted-foreground hover:bg-muted/70"
                     }`}
                   >
                     {opt}
@@ -186,7 +186,7 @@ export default function SurveyAnswer() {
       ))}
 
       <Button
-        className="w-full gradient-primary text-white border-0"
+        className="w-full"
         size="lg"
         onClick={handleSubmit}
         disabled={submit.isPending}

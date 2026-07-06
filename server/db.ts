@@ -24,6 +24,7 @@ import {
   notifications,
   teamNotes,
   recruitments,
+  courseReviews,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -2831,4 +2832,116 @@ export async function getRecommendedPeers(userId: number, limit = 4) {
     (a, b) => b.sharedSkills - a.sharedSkills || a.name.localeCompare(b.name)
   );
   return { count: list.length, sample: list[0] ?? null, top: list.slice(0, limit) };
+}
+
+// ─── Course Reviews (수업 리뷰) ───────────────────────────
+// 수강생(현·과거 학기 무관)만 작성, 수업당 1인 1리뷰(재작성=덮어쓰기).
+// 목록은 익명 노출(작성자 식별정보 없음) + 내 리뷰만 isMine 플래그.
+
+export async function getCourseReviews(courseId: number, viewerId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select()
+    .from(courseReviews)
+    .where(eq(courseReviews.courseId, courseId))
+    .orderBy(desc(courseReviews.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    hadTeamProject: r.hadTeamProject,
+    content: r.content,
+    semester: r.semester,
+    createdAt: r.createdAt,
+    isMine: viewerId != null && r.userId === viewerId,
+  }));
+}
+
+// 요약 — 평균 별점·리뷰 수·팀플 있었다/없었다 응답 수.
+// "이 수업에 팀플이 있는지"를 수강생 경험(크라우드소싱)으로 답한다.
+export async function getCourseReviewSummary(courseId: number) {
+  const db = await getDb();
+  if (!db) return { count: 0, avgRating: 0, teamYes: 0, teamNo: 0 };
+  const rows = await db
+    .select({
+      count: count(),
+      avg: sql<number>`COALESCE(AVG(${courseReviews.rating}), 0)`,
+      teamYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 1 THEN 1 ELSE 0 END), 0)`,
+      teamNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 0 THEN 1 ELSE 0 END), 0)`,
+    })
+    .from(courseReviews)
+    .where(eq(courseReviews.courseId, courseId));
+  const r = rows[0];
+  return {
+    count: Number(r?.count ?? 0),
+    avgRating: Math.round(Number(r?.avg ?? 0) * 10) / 10,
+    teamYes: Number(r?.teamYes ?? 0),
+    teamNo: Number(r?.teamNo ?? 0),
+  };
+}
+
+export async function upsertCourseReview(
+  userId: number,
+  courseId: number,
+  data: { rating: number; hadTeamProject?: boolean | null; content?: string; semester?: string }
+) {
+  const db = await getDb();
+  if (!db) return;
+  // 수강생만 — 등록 이력(학기 무관)이 있어야 작성 가능.
+  if (!(await isUserEnrolled(userId, courseId))) {
+    throw new Error("이 수업을 수강한 사람만 리뷰를 남길 수 있어요.");
+  }
+  const values = {
+    courseId,
+    userId,
+    rating: data.rating,
+    hadTeamProject: data.hadTeamProject ?? null,
+    content: data.content?.trim() || null,
+    semester: data.semester ?? null,
+  };
+  await db
+    .insert(courseReviews)
+    .values(values)
+    .onDuplicateKeyUpdate({
+      set: {
+        rating: values.rating,
+        hadTeamProject: values.hadTeamProject,
+        content: values.content,
+        semester: values.semester,
+      },
+    });
+}
+
+export async function deleteCourseReview(userId: number, reviewId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(courseReviews)
+    .where(and(eq(courseReviews.id, reviewId), eq(courseReviews.userId, userId)));
+}
+
+// ─── Professor Team Approval (교수 팀 승인) ────────────────
+// 교수 인증 수업에서 교수가 팀 구성을 확인·허락 — 학생 화면에 "교수님 승인" 칩.
+export async function setTeamProfessorApproval(
+  professorId: number,
+  teamId: number,
+  approved: boolean
+) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스를 사용할 수 없어요.");
+  // 팀 → 수업 → 담당 교수 검증(내 수업 팀만 승인 가능).
+  const rows = await db
+    .select({ teamId: teams.id, professorId: courses.professorId })
+    .from(teams)
+    .innerJoin(courses, eq(teams.courseId, courses.id))
+    .where(eq(teams.id, teamId))
+    .limit(1);
+  if (rows.length === 0) throw new Error("팀을 찾을 수 없어요.");
+  if (rows[0].professorId !== professorId) {
+    throw new Error("내가 담당하는 수업의 팀만 승인할 수 있어요.");
+  }
+  await db
+    .update(teams)
+    .set({ professorApprovedAt: approved ? new Date() : null })
+    .where(eq(teams.id, teamId));
 }

@@ -42,6 +42,9 @@ import {
   ClipboardList,
   BadgeCheck,
   Link2,
+  Star,
+  GraduationCap,
+  Trash2,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
@@ -76,6 +79,33 @@ export default function CourseDetail() {
   const posts = trpc.posts.list.useQuery({
     courseId,
     category: catFilter === "all" ? undefined : catFilter,
+  });
+  // 수강 리뷰 — 별점·"팀플 있었나요?" 집계가 다음 수강생에게 팀플 유무를 알려준다.
+  const reviewSummary = trpc.reviews.summary.useQuery({ courseId });
+  const reviewList = trpc.reviews.list.useQuery({ courseId });
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [revRating, setRevRating] = useState(0);
+  const [revTeam, setRevTeam] = useState<"yes" | "no" | "na">("na");
+  const [revContent, setRevContent] = useState("");
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const invalidateReviews = () => {
+    utils.reviews.summary.invalidate({ courseId });
+    utils.reviews.list.invalidate({ courseId });
+  };
+  const upsertReview = trpc.reviews.upsert.useMutation({
+    onSuccess: () => {
+      invalidateReviews();
+      setReviewOpen(false);
+      toast.success("리뷰를 남겼어요. 다음 수강생에게 큰 도움이 돼요!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const removeReview = trpc.reviews.remove.useMutation({
+    onSuccess: () => {
+      invalidateReviews();
+      toast.success("리뷰를 삭제했어요.");
+    },
+    onError: (err) => toast.error(err.message),
   });
   // 교수 공지·설문 — 정보 탭 상단에 노출
   const courseAnnouncements = trpc.announcements.list.useQuery({ courseId });
@@ -274,6 +304,129 @@ export default function CourseDetail() {
       </div>
     ));
   const hasNews = !!noticeEl || (Array.isArray(surveyEls) && surveyEls.length > 0);
+
+  // ── 수강 리뷰 ──
+  const myReview = reviewList.data?.find((r) => r.isMine);
+  const openReviewDialog = () => {
+    if (myReview) {
+      setRevRating(myReview.rating);
+      setRevTeam(
+        myReview.hadTeamProject === true ? "yes" : myReview.hadTeamProject === false ? "no" : "na"
+      );
+      setRevContent(myReview.content ?? "");
+    } else {
+      setRevRating(0);
+      setRevTeam("na");
+      setRevContent("");
+    }
+    setReviewOpen(true);
+  };
+  const starRow = (value: number, cls = "h-4 w-4") => (
+    <span className="inline-flex items-center gap-0.5 text-primary">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star key={i} className={cn(cls, i <= Math.round(value) ? "fill-current" : "opacity-25")} />
+      ))}
+    </span>
+  );
+  const sum = reviewSummary.data;
+  const teamAnswers = (sum?.teamYes ?? 0) + (sum?.teamNo ?? 0);
+  const visibleReviews = showAllReviews ? reviewList.data : reviewList.data?.slice(0, 3);
+  const reviewEl = (
+    <div className="rounded-[18px] bg-card shadow-card p-4">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-base font-bold flex items-center gap-2">
+          <Star className="h-4 w-4 text-primary" /> 수강 리뷰
+        </div>
+        {isEnrolled && (
+          <Button size="sm" variant="secondary" onClick={openReviewDialog}>
+            {myReview ? "내 리뷰 수정" : "리뷰 남기기"}
+          </Button>
+        )}
+      </div>
+      {!sum || sum.count === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          아직 리뷰가 없어요.{" "}
+          {isEnrolled
+            ? "첫 후기를 남겨 다음 수강생을 도와주세요!"
+            : "수강생이 남긴 별점·팀플 정보가 여기 모여요."}
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl font-extrabold leading-none">{sum.avgRating}</span>
+            {starRow(sum.avgRating)}
+            <span className="text-xs text-muted-foreground">리뷰 {sum.count}개</span>
+          </div>
+          {teamAnswers > 0 && (
+            <div className="mt-2 rounded-xl bg-muted px-3 py-2 text-[13px]">
+              수강생 {teamAnswers}명 중{" "}
+              <span className="font-bold text-foreground">{sum.teamYes}명</span>이 "이 수업 팀플{" "}
+              <span className="font-bold">있었어요</span>"라고 답했어요
+            </div>
+          )}
+          <div className="mt-3 space-y-2.5">
+            {visibleReviews?.map((r) => (
+              <div key={r.id} className="rounded-xl bg-muted p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {starRow(r.rating, "h-3.5 w-3.5")}
+                    {r.hadTeamProject === true && (
+                      <span className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        팀플 있었음
+                      </span>
+                    )}
+                    {r.hadTeamProject === false && (
+                      <span className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        팀플 없었음
+                      </span>
+                    )}
+                  </div>
+                  {r.isMine && (
+                    <button
+                      onClick={() => removeReview.mutate({ reviewId: r.id })}
+                      disabled={removeReview.isPending}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="내 리뷰 삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {r.content && (
+                  <p className="text-[13px] mt-1.5 whitespace-pre-wrap">{r.content}</p>
+                )}
+                <div className="text-[11px] text-muted-foreground mt-1.5">
+                  익명{r.semester ? ` · ${r.semester} 수강` : ""}
+                  {r.isMine && " · 내 리뷰"}
+                </div>
+              </div>
+            ))}
+            {(reviewList.data?.length ?? 0) > 3 && (
+              <button
+                onClick={() => setShowAllReviews((v) => !v)}
+                className="w-full text-center text-xs font-bold text-primary py-1"
+              >
+                {showAllReviews ? "접기" : `리뷰 ${reviewList.data!.length - 3}개 더 보기`}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // 교수 인증 수업 안내 — 이 서비스로 미리 팀을 짜면 교수님이 보고 승인해준다는 걸 명확히.
+  const professorBannerEl =
+    courseData.professorId != null ? (
+      <div className="rounded-[16px] bg-secondary p-3.5 flex items-start gap-2.5">
+        <GraduationCap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <p className="text-[13px] text-muted-foreground leading-relaxed">
+          <span className="font-bold text-foreground">교수님이 함께 보는 수업이에요.</span> 여기서
+          미리 팀을 만들면 교수님 팀 현황에 그대로 표시되고,{" "}
+          <span className="font-bold text-foreground">교수님 승인</span>을 받을 수 있어요.
+        </p>
+      </div>
+    ) : null;
 
   const filterChips = (
     <div className="flex gap-1.5 overflow-x-auto min-w-0 flex-1">
@@ -538,13 +691,12 @@ export default function CourseDetail() {
           <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
             {/* MAIN */}
             <div className="space-y-4">
-              {/* 공지·설문 — 모바일은 상단, PC는 우측 레일에 */}
-              {hasNews && (
-                <div className="lg:hidden space-y-3">
-                  {noticeEl}
-                  {surveyEls}
-                </div>
-              )}
+              {/* 공지·설문·리뷰 — 모바일은 상단, PC는 우측 레일에 */}
+              <div className="lg:hidden space-y-3">
+                {noticeEl}
+                {surveyEls}
+                {reviewEl}
+              </div>
               <div className="flex items-center justify-between gap-2">
                 {filterChips}
                 <div className="lg:hidden shrink-0">
@@ -563,6 +715,7 @@ export default function CourseDetail() {
               )}
               {noticeEl}
               {surveyEls}
+              {reviewEl}
               <Button variant="secondary" className="w-full" onClick={() => setShowPostForm(true)}>
                 <Plus className="mr-1 h-4 w-4" /> 글쓰기
               </Button>
@@ -595,6 +748,8 @@ export default function CourseDetail() {
             <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
               {/* MAIN */}
               <div className="space-y-3">
+                {/* 교수 인증 안내 — 모바일은 상단, PC는 우측 레일에 */}
+                <div className="lg:hidden">{professorBannerEl}</div>
                 <RecruitmentSection courseId={courseId} isEnrolled={isEnrolled} />
                 <div className="flex items-center gap-2 py-1">
                   <div className="h-px flex-1 bg-border" />
@@ -608,6 +763,7 @@ export default function CourseDetail() {
 
               {/* RIGHT RAIL (PC 전용) */}
               <div className="hidden lg:block space-y-3">
+                {professorBannerEl}
                 {connectTypeEl}
                 <div className="rounded-[18px] bg-card shadow-card p-4 text-[13px] text-muted-foreground leading-relaxed">
                   마음에 드는 팀원에게 <span className="font-semibold text-foreground">커넥트</span>를
@@ -660,6 +816,96 @@ export default function CourseDetail() {
               {createPost.isPending ? "작성 중..." : "게시글 작성"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 수강 리뷰 작성/수정 — 별점 + 팀플 유무 + 한줄평 */}
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{myReview ? "내 리뷰 수정" : "수강 리뷰 남기기"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>이 수업, 어땠나요? *</Label>
+              <div className="flex gap-1.5">
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setRevRating(v)}
+                    className="p-1"
+                    aria-label={`${v}점`}
+                  >
+                    <Star
+                      className={cn(
+                        "h-7 w-7 text-primary transition-transform",
+                        v <= revRating ? "fill-current scale-105" : "opacity-25"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>이 수업에 팀플이 있었나요?</Label>
+              <div className="flex gap-1 rounded-xl bg-muted p-1">
+                {(
+                  [
+                    { key: "yes", label: "있었어요" },
+                    { key: "no", label: "없었어요" },
+                    { key: "na", label: "기억 안 나요" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setRevTeam(opt.key)}
+                    className={cn(
+                      "flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors",
+                      revTeam === opt.key
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                다음 수강생이 "이 수업 팀플 있나요?"를 미리 알 수 있게 도와줘요.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>한줄평 (선택)</Label>
+              <Textarea
+                value={revContent}
+                onChange={(e) => setRevContent(e.target.value)}
+                placeholder="팀플 난이도, 과제량, 꿀팁 등을 남겨주세요"
+                rows={3}
+                maxLength={500}
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={upsertReview.isPending}
+              onClick={() => {
+                if (revRating < 1) {
+                  toast.error("별점을 선택해주세요.");
+                  return;
+                }
+                upsertReview.mutate({
+                  courseId,
+                  rating: revRating,
+                  hadTeamProject: revTeam === "yes" ? true : revTeam === "no" ? false : null,
+                  content: revContent.trim() || undefined,
+                  semester: CURRENT_SEMESTER,
+                });
+              }}
+            >
+              {upsertReview.isPending ? "저장 중..." : myReview ? "리뷰 수정" : "리뷰 남기기"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

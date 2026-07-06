@@ -203,7 +203,7 @@ export default function ProfileSetup() {
             </div>
             <Button
               type="submit"
-              className="w-full gradient-primary text-white border-0"
+              className="w-full"
               disabled={updateProfile.isPending}
             >
               {updateProfile.isPending ? "저장 중..." : "프로필 설정 완료"}

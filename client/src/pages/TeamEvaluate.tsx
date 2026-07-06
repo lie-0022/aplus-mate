@@ -141,7 +141,7 @@ export default function TeamEvaluate() {
         <p className="text-muted-foreground text-sm mb-4">
           스터디·멘토멘티 활동에는 동료 평가가 없어요.
         </p>
-        <Button variant="outline" onClick={() => setLocation(`/teams/${teamId}`)}>
+        <Button variant="secondary" onClick={() => setLocation(`/teams/${teamId}`)}>
           팀 상세로 돌아가기
         </Button>
       </div>
@@ -156,7 +156,7 @@ export default function TeamEvaluate() {
         <p className="text-muted-foreground text-sm mb-4">
           모든 팀원이 평가를 완료하면 배지가 부여됩니다
         </p>
-        <Button variant="outline" onClick={() => setLocation(`/teams/${teamId}`)}>
+        <Button variant="secondary" onClick={() => setLocation(`/teams/${teamId}`)}>
           팀 상세로 돌아가기
         </Button>
       </div>
@@ -180,7 +180,7 @@ export default function TeamEvaluate() {
       </div>
 
       {/* 평가 안내 (C3: 블라인드 고지 + 배지 프레이밍 + 보복성 저평가 신고·이의제기) */}
-      <Card className="border-amber-200 bg-amber-50/60">
+      <Card className="border-0 notice-soft">
         <CardContent className="p-4 text-xs text-muted-foreground space-y-1.5">
           <p>
             · 평가는{" "}
@@ -223,7 +223,7 @@ export default function TeamEvaluate() {
       {otherMembers.map((member) => {
         const ev = evalData[member.user.id] || {};
         return (
-          <Card key={member.user.id} className="rounded-2xl border border-border/50 shadow-none">
+          <Card key={member.user.id} className="rounded-2xl border-0 shadow-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
@@ -299,7 +299,7 @@ export default function TeamEvaluate() {
       })}
 
       <Button
-        className="w-full gradient-primary text-white border-0"
+        className="w-full"
         size="lg"
         onClick={handleSubmit}
         disabled={submitMutation.isPending}

@@ -14,10 +14,12 @@
 | 4 | MatchingRequests | ✅ 구현·배포 | [`matchingrequests.md`](matchingrequests.md) |
 | 5 | Teams | ✅ 구현·배포 | [`teams.md`](teams.md) |
 | 6 | TeamDetail | ✅ 구현·배포 | [`teamdetail.md`](teamdetail.md) |
-| 7 | Profile | ⬜ 예정 | |
-| 8+ | ProfileSetup·Survey·Evaluate·PostDetail·PublicProfile | ⬜ 예정 | |
-| — | Professor·Admin (차분 밀도) | ⬜ 예정 | |
-| — | Privacy·Terms·Home | ⬜ 목업 생략(단순 텍스트) | |
+| 7 | Profile | ✅ 구현·배포 | [`profile.md`](profile.md) |
+| 8+ | ProfileSetup·Survey·Evaluate·PostDetail·PublicProfile | ✅ 스윕 완료(목업 생략) | [`profile.md`](profile.md) §스윕 |
+| — | Professor·Admin (차분 밀도) | ✅ 스윕 완료(목업 생략) | [`profile.md`](profile.md) §스윕 |
+| — | Privacy·Terms | ✅ 스킵(단순 텍스트, 토큰으로 자동 리스킨) | |
+| — | Home(랜딩) | ✅ 유지(표현적 화면 — 그라데이션 허용) | |
+| — | NotFound | ✅ 토큰화·한국어 재작성 | |
 
 ## 목업 보는 법
 
@@ -34,6 +36,7 @@
 | MatchingRequests | [`mockups/matchingrequests.html`](mockups/matchingrequests.html) |
 | Teams | [`mockups/teams.html`](mockups/teams.html) |
 | TeamDetail | [`mockups/teamdetail.html`](mockups/teamdetail.html) |
+| Profile | [`mockups/profile.html`](mockups/profile.html) |
 
 ## 워크플로우 (참고)
 

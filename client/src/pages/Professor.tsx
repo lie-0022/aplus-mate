@@ -60,7 +60,7 @@ function StatCard({
 }) {
   return (
     <div
-      className={`rounded-xl border p-3 ${highlight ? "border-amber-300 bg-amber-50" : "bg-card"}`}
+      className={`rounded-xl border p-3 ${highlight ? "border-0 notice-soft" : "bg-card"}`}
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
@@ -180,6 +180,14 @@ export default function Professor() {
     { courseId: selectedCourseId! },
     { enabled: isProfessor && selectedCourseId != null }
   );
+  // 팀 승인/취소 — 학생 화면 "교수님 승인" 칩과 연동.
+  const approveTeam = trpc.professor.approveTeam.useMutation({
+    onSuccess: () => {
+      utils.professor.teams.invalidate();
+      toast.success("반영했어요.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const announcements = trpc.announcements.list.useQuery(
     { courseId: selectedCourseId! },
     { enabled: isProfessor && selectedCourseId != null }
@@ -330,7 +338,7 @@ export default function Professor() {
       </div>
 
       {/* 담당 수업 선택 / 클레임 */}
-      <Card className="rounded-2xl border border-border/50 shadow-none">
+      <Card className="rounded-2xl border-0 shadow-card">
         <CardContent className="p-4 space-y-3">
           {myCourses.isLoading ? (
             <Skeleton className="h-9 w-full" />
@@ -469,7 +477,7 @@ export default function Professor() {
                   ) : (
                     <Button
                       size="sm"
-                      className="gradient-primary text-white border-0"
+                      className=""
                       onClick={() => genInvite.mutate({ courseId: selectedCourseId! })}
                       disabled={genInvite.isPending}
                     >
@@ -575,7 +583,7 @@ export default function Professor() {
                       />
                     </div>
 
-                    <Card className="rounded-2xl border border-border/50 shadow-none">
+                    <Card className="rounded-2xl border-0 shadow-card">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
                           <Users className="h-4 w-4 text-primary" /> 팀 미배정 학생 (
@@ -607,7 +615,7 @@ export default function Professor() {
                     </Card>
 
                     {d.surveys.length > 0 && (
-                      <Card className="rounded-2xl border border-border/50 shadow-none">
+                      <Card className="rounded-2xl border-0 shadow-card">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-primary" /> 설문 응답률
@@ -672,7 +680,7 @@ export default function Professor() {
               });
               if (rows.length === 0) return null;
               return (
-                <Card className="border-amber-200 bg-amber-50/50 shadow-sm">
+                <Card className="border-0 notice-soft shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <CalendarClock className="h-4 w-4 text-amber-600" /> 마감 주의 산출물
@@ -701,14 +709,14 @@ export default function Professor() {
               <Users className="h-3.5 w-3.5" /> 수강생 {students.data?.length ?? 0}명
             </p>
             {students.data?.length === 0 && (
-              <Card className="border-dashed">
+              <Card className="border-0 shadow-card">
                 <CardContent className="p-6 text-center text-sm text-muted-foreground">
                   아직 등록한 수강생이 없어요
                 </CardContent>
               </Card>
             )}
             {students.data?.map((s) => (
-              <Card key={s.userCourse.id} className="rounded-2xl border border-border/50 shadow-none">
+              <Card key={s.userCourse.id} className="rounded-2xl border-0 shadow-card">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -733,14 +741,14 @@ export default function Professor() {
           {/* 팀 현황 */}
           <TabsContent value="teams" className="mt-4 space-y-2">
             {teams.data?.length === 0 && (
-              <Card className="border-dashed">
+              <Card className="border-0 shadow-card">
                 <CardContent className="p-6 text-center text-sm text-muted-foreground">
                   아직 구성된 팀이 없어요
                 </CardContent>
               </Card>
             )}
             {teams.data?.map((t) => (
-              <Card key={t.team.id} className="rounded-2xl border border-border/50 shadow-none">
+              <Card key={t.team.id} className="rounded-2xl border-0 shadow-card">
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Badge variant="outline" className="text-xs">
@@ -750,8 +758,8 @@ export default function Professor() {
                       variant="secondary"
                       className={
                         t.team.status === "active"
-                          ? "text-xs bg-blue-100 text-blue-700"
-                          : "text-xs bg-green-100 text-green-700"
+                          ? "text-xs badge-sky border-0"
+                          : "text-xs badge-pos border-0"
                       }
                     >
                       {t.team.status === "active" ? "진행 중" : "완료"}
@@ -764,6 +772,11 @@ export default function Professor() {
                           : t.team.evaluationStatus === "in_progress"
                             ? "진행 중"
                             : "대기"}
+                      </Badge>
+                    )}
+                    {t.team.professorApprovedAt && (
+                      <Badge variant="secondary" className="text-xs badge-pos border-0">
+                        승인함
                       </Badge>
                     )}
                     <span className="text-xs text-muted-foreground ml-auto">
@@ -782,6 +795,34 @@ export default function Professor() {
                       </span>
                     ))}
                   </div>
+                  {/* 팀 승인 — 학생이 미리 짠 팀을 확인·허락. 학생 화면에 "교수님 승인" 칩으로 표시된다. */}
+                  <div className="flex justify-end pt-0.5">
+                    {t.team.professorApprovedAt ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground"
+                        disabled={approveTeam.isPending}
+                        onClick={() =>
+                          approveTeam.mutate({ teamId: t.team.id, approved: false })
+                        }
+                      >
+                        승인 취소
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-xs"
+                        disabled={approveTeam.isPending}
+                        onClick={() =>
+                          approveTeam.mutate({ teamId: t.team.id, approved: true })
+                        }
+                      >
+                        이 팀 승인
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -789,7 +830,7 @@ export default function Professor() {
 
           {/* 공지 */}
           <TabsContent value="announce" className="mt-4 space-y-3">
-            <Card className="rounded-2xl border border-border/50 shadow-none">
+            <Card className="rounded-2xl border-0 shadow-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Megaphone className="h-4 w-4 text-primary" /> 공지 작성
@@ -810,7 +851,7 @@ export default function Professor() {
                   maxLength={5000}
                 />
                 <Button
-                  className="w-full gradient-primary text-white border-0"
+                  className="w-full"
                   onClick={() => {
                     if (!annTitle.trim() || !annContent.trim()) {
                       toast.error("제목과 내용을 입력해주세요.");
@@ -830,7 +871,7 @@ export default function Professor() {
             </Card>
 
             {announcements.data?.map((a) => (
-              <Card key={a.id} className="rounded-2xl border border-border/50 shadow-none">
+              <Card key={a.id} className="rounded-2xl border-0 shadow-card">
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm">{a.title}</div>
@@ -861,7 +902,7 @@ export default function Professor() {
           {/* 설문 */}
           <TabsContent value="survey" className="mt-4 space-y-3">
             {/* 빌더 */}
-            <Card className="rounded-2xl border border-border/50 shadow-none">
+            <Card className="rounded-2xl border-0 shadow-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ClipboardList className="h-4 w-4 text-primary" /> 새 설문 만들기
@@ -1018,7 +1059,7 @@ export default function Professor() {
                     <Plus className="h-4 w-4 mr-1" /> 문항 추가
                   </Button>
                   <Button
-                    className="flex-1 gradient-primary text-white border-0"
+                    className="flex-1"
                     onClick={handleCreateSurvey}
                     disabled={createSurvey.isPending}
                   >
@@ -1030,7 +1071,7 @@ export default function Professor() {
 
             {/* 설문 목록 + 결과 */}
             {surveysList.data?.map(({ survey }) => (
-              <Card key={survey.id} className="rounded-2xl border border-border/50 shadow-none">
+              <Card key={survey.id} className="rounded-2xl border-0 shadow-card">
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm flex-1">{survey.title}</span>
@@ -1038,7 +1079,7 @@ export default function Professor() {
                       variant="secondary"
                       className={
                         survey.status === "open"
-                          ? "text-xs bg-blue-100 text-blue-700"
+                          ? "text-xs badge-sky border-0"
                           : "text-xs"
                       }
                     >
@@ -1196,7 +1237,7 @@ export default function Professor() {
           {/* 산출물 제출 현황 */}
           <TabsContent value="deliverables" className="mt-4 space-y-3">
             {/* 제출 항목 만들기 */}
-            <Card className="rounded-2xl border border-border/50 shadow-none">
+            <Card className="rounded-2xl border-0 shadow-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FolderOpen className="h-4 w-4 text-primary" /> 제출 항목 만들기
@@ -1226,7 +1267,7 @@ export default function Professor() {
                   />
                 </div>
                 <Button
-                  className="w-full gradient-primary text-white border-0"
+                  className="w-full"
                   disabled={createMilestone.isPending}
                   onClick={() => {
                     if (!msTitle.trim()) {
@@ -1247,7 +1288,7 @@ export default function Professor() {
             </Card>
 
             {milestones.data?.length === 0 && (
-              <Card className="border-dashed">
+              <Card className="border-0 shadow-card">
                 <CardContent className="p-6 text-center text-sm text-muted-foreground">
                   아직 제출 항목이 없어요. 위에서 만들어 학생들에게 결과물을 받아보세요.
                 </CardContent>
@@ -1258,7 +1299,7 @@ export default function Professor() {
               const subs = submissions.data?.filter((s) => s.milestoneId === m.id) ?? [];
               const teamList = teams.data ?? [];
               return (
-                <Card key={m.id} className="rounded-2xl border border-border/50 shadow-none">
+                <Card key={m.id} className="rounded-2xl border-0 shadow-card">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -1333,7 +1374,7 @@ export default function Professor() {
                                   }
                                   className={`text-xs px-2 py-0.5 rounded-full border ${
                                     sub.reviewedAt
-                                      ? "bg-green-100 text-green-700 border-green-200"
+                                      ? "badge-pos border-0"
                                       : "text-muted-foreground"
                                   }`}
                                 >

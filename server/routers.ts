@@ -199,6 +199,45 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Course Reviews (수업 리뷰 — 별점·팀플 유무·한줄평) ──
+  reviews: router({
+    list: protectedProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getCourseReviews(input.courseId, ctx.user.id);
+      }),
+    summary: protectedProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getCourseReviewSummary(input.courseId);
+      }),
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          rating: z.number().int().min(1).max(5),
+          hadTeamProject: z.boolean().nullable().optional(),
+          content: z.string().trim().max(500).optional(),
+          semester: z.string().max(20).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await db.upsertCourseReview(ctx.user.id, input.courseId, {
+          rating: input.rating,
+          hadTeamProject: input.hadTeamProject,
+          content: input.content,
+          semester: input.semester,
+        });
+        return { success: true };
+      }),
+    remove: protectedProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.deleteCourseReview(ctx.user.id, input.reviewId);
+        return { success: true };
+      }),
+  }),
+
   // ─── Posts ───────────────────────────────────────────
   posts: router({
     list: protectedProcedure
@@ -695,6 +734,13 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         await assertOwnsCourse(ctx.user.id, ctx.user.role, input.courseId);
         return db.getCourseTeamsForProfessor(input.courseId);
+      }),
+    // 팀 승인/승인 취소 — 학생이 짠 팀을 교수가 확인·허락(학생 화면에 "교수님 승인" 칩).
+    approveTeam: professorProcedure
+      .input(z.object({ teamId: z.number(), approved: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.setTeamProfessorApproval(ctx.user.id, input.teamId, input.approved);
+        return { success: true };
       }),
     // 수업 현황 한눈에 — 참여·팀 구성·미배정 학생·설문 응답률
     dashboard: professorProcedure

@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   MessageCircle,
   CheckCircle2,
+  BadgeCheck,
   Star,
   ExternalLink,
   Sparkles,
@@ -222,6 +223,12 @@ export default function TeamDetail() {
       {isActive ? "진행 중" : "완료"}
     </span>
   );
+  // 교수 승인 — 교수 인증 수업에서 교수가 이 팀을 확인·허락했다는 표시.
+  const approvedPill = data.team.professorApprovedAt ? (
+    <span className="badge-pos text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+      <BadgeCheck className="h-3 w-3" /> 교수님 승인
+    </span>
+  ) : null;
 
   // ── 히어로 (차분 카드) ──
   const heroEl = (
@@ -231,6 +238,7 @@ export default function TeamDetail() {
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">{typeLabel}</span>
             {statusPill}
+            {approvedPill}
           </div>
           <h1 className="font-bold text-xl truncate">{data.course.name}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{data.course.professor}</p>
@@ -798,6 +806,7 @@ export default function TeamDetail() {
       <div className="flex items-center gap-1.5 mb-2">
         <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">{typeLabel}</span>
         {statusPill}
+        {approvedPill}
       </div>
       <div className="font-bold text-[15px] truncate">{data.course.name}</div>
       <div className="text-xs text-muted-foreground mt-0.5">

@@ -195,6 +195,9 @@ export const teams = mysqlTable(
     evaluationStatus: mysqlEnum("evaluationStatus", ["pending", "in_progress", "done"])
       .default("pending")
       .notNull(),
+    // 교수 승인 — 교수 인증 수업에서 교수가 이 팀 구성을 확인·허락한 시각(null=미승인).
+    // 학생 화면(내 팀·팀 상세)에 "교수님 승인" 칩으로 노출된다.
+    professorApprovedAt: timestamp("professorApprovedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
@@ -447,3 +450,24 @@ export const teamNotes = mysqlTable("team_notes", {
 });
 
 export type TeamNote = typeof teamNotes.$inferSelect;
+
+// ─── Course Reviews (수업 리뷰 — 별점·팀플 유무 확인·한줄평) ───
+// 수강생(현·과거)만 작성, 수업당 1인 1리뷰(재작성=업서트). 목록은 익명 노출.
+// hadTeamProject 집계가 "이 수업 팀플 있나요?"를 수강생 경험으로 답해준다.
+export const courseReviews = mysqlTable(
+  "course_reviews",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    courseId: int("courseId").notNull(),
+    userId: int("userId").notNull(),
+    rating: int("rating").notNull(), // 1~5
+    // true=팀플 있었음 / false=없었음 / null=응답 안 함
+    hadTeamProject: boolean("hadTeamProject"),
+    content: varchar("content", { length: 500 }),
+    semester: varchar("semester", { length: 20 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("uniq_review_user_course").on(table.courseId, table.userId)]
+);
+
+export type CourseReview = typeof courseReviews.$inferSelect;

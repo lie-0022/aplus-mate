@@ -115,7 +115,7 @@ export default function Admin() {
           <ShieldCheck className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-bold">운영자 — 대기 매칭</h1>
           {pending.data && pending.data.length > 0 && (
-            <Badge variant="default" className="gradient-primary text-white border-0">
+            <Badge variant="default" className="border-0">
               {pending.data.length}
             </Badge>
           )}
@@ -137,7 +137,7 @@ export default function Admin() {
           ))}
         </div>
       ) : pending.data?.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="border-0 shadow-card">
           <CardContent className="p-10 text-center">
             <Inbox className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">대기 중인 매칭이 없어요</p>
@@ -145,7 +145,7 @@ export default function Admin() {
         </Card>
       ) : (
         pending.data?.map((item) => (
-          <Card key={`match-${item.match.id}`} className="rounded-2xl border border-border/50 shadow-none">
+          <Card key={`match-${item.match.id}`} className="rounded-2xl border-0 shadow-card">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <Badge variant="secondary" className="text-xs">
@@ -155,7 +155,7 @@ export default function Admin() {
                   {MATCH_TYPE_LABELS[(item.match.matchType ?? "project") as MatchType]}
                 </Badge>
                 {item.match.matchType === "mentoring" && (
-                  <Badge variant="secondary" className="text-xs bg-sky-100 text-sky-700">
+                  <Badge variant="secondary" className="text-xs badge-sky border-0">
                     요청자가 {item.match.requesterRole === "mentor" ? "멘토" : "멘티"}
                   </Badge>
                 )}
@@ -229,7 +229,7 @@ export default function Admin() {
                   setExpandedTeam(null);
                 }}
                 className={
-                  onlyStuck ? "gradient-primary text-white border-0 w-fit" : "w-fit text-amber-700"
+                  onlyStuck ? "w-fit" : "w-fit"
                 }
               >
                 <AlertTriangle className="h-4 w-4 mr-1" />
@@ -237,7 +237,7 @@ export default function Admin() {
               </Button>
             )}
             {teamList.length === 0 && (
-              <Card className="border-dashed">
+              <Card className="border-0 shadow-card">
                 <CardContent className="p-4 text-center text-sm text-muted-foreground">
                   아직 구성된 팀이 없어요.
                 </CardContent>
@@ -248,7 +248,7 @@ export default function Admin() {
               const stuck = isStuck(t);
               const open = expandedTeam === t.id;
               return (
-                <Card key={`team-${t.id}`} className="rounded-2xl border border-border/50 shadow-none">
+                <Card key={`team-${t.id}`} className="rounded-2xl border-0 shadow-card">
                   <div
                     role="button"
                     tabIndex={0}
@@ -279,7 +279,7 @@ export default function Admin() {
                           variant="secondary"
                           className={
                             t.status === "active"
-                              ? "text-xs bg-emerald-100 text-emerald-700"
+                              ? "text-xs badge-pos border-0"
                               : "text-xs"
                           }
                         >
@@ -288,7 +288,7 @@ export default function Admin() {
                         {stuck && (
                           <Badge
                             variant="secondary"
-                            className="text-xs bg-amber-100 text-amber-700"
+                            className="text-xs badge-notice border-0"
                           >
                             정체
                           </Badge>
@@ -339,14 +339,14 @@ export default function Admin() {
         <h2 className="text-lg font-bold">신고 ({reports.data?.length ?? 0})</h2>
       </div>
       {reports.data && reports.data.length === 0 && (
-        <Card className="border-dashed">
+        <Card className="border-0 shadow-card">
           <CardContent className="p-4 text-center text-sm text-muted-foreground">
             처리할 신고가 없어요.
           </CardContent>
         </Card>
       )}
       {reports.data?.map((r) => (
-        <Card key={`report-${r.id}`} className="rounded-2xl border border-border/50 shadow-none">
+        <Card key={`report-${r.id}`} className="rounded-2xl border-0 shadow-card">
           <CardContent className="p-3 flex items-start justify-between gap-2">
             <div className="text-sm min-w-0">
               <div className="font-medium">
@@ -378,7 +378,7 @@ export default function Admin() {
         <h2 className="text-lg font-bold">유저 역할 관리</h2>
       </div>
       {usersList.data?.map((u) => (
-        <Card key={`user-${u.id}`} className="rounded-2xl border border-border/50 shadow-none">
+        <Card key={`user-${u.id}`} className="rounded-2xl border-0 shadow-card">
           <CardContent className="p-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="font-medium text-sm flex items-center gap-1.5">
@@ -387,9 +387,9 @@ export default function Admin() {
                   variant="secondary"
                   className={
                     u.role === "admin"
-                      ? "text-[10px] bg-red-100 text-red-700"
+                      ? "text-[10px] badge-danger border-0"
                       : u.role === "professor"
-                        ? "text-[10px] bg-sky-100 text-sky-700"
+                        ? "text-[10px] badge-sky border-0"
                         : "text-[10px]"
                   }
                 >
@@ -430,7 +430,7 @@ export default function Admin() {
         <Sparkles className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-bold">데모 데이터 (시연용)</h2>
       </div>
-      <Card className="rounded-2xl border border-border/50 shadow-none">
+      <Card className="rounded-2xl border-0 shadow-card">
         <CardContent className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
             교수님 시연용 예시 데이터를 한 번에 만듭니다 — '소프트웨어 캡스톤 디자인' 수업,
@@ -441,7 +441,7 @@ export default function Admin() {
             <Button
               onClick={() => seedDemo.mutate()}
               disabled={seedDemo.isPending}
-              className="gradient-primary text-white border-0"
+              className=""
             >
               {seedDemo.isPending ? "생성 중..." : "데모 데이터 생성"}
             </Button>

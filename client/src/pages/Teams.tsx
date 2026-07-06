@@ -73,6 +73,11 @@ export default function Teams() {
             {item.team.teamType === "project" && item.team.evaluationStatus === "done" && (
               <span className="badge-pos text-xs font-bold px-2.5 py-0.5 rounded-full">평가 완료</span>
             )}
+            {item.team.professorApprovedAt && (
+              <span className="badge-pos text-xs font-bold px-2.5 py-0.5 rounded-full">
+                교수님 승인
+              </span>
+            )}
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>
