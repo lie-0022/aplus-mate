@@ -12,7 +12,7 @@
 | 2 | Courses | ✅ 구현·배포 (커밋 `1be5263`) | 아래 "Courses" |
 | 3 | CourseDetail | ✅ 구현·배포 | [`coursedetail.md`](coursedetail.md) |
 | 4 | MatchingRequests | ✅ 구현·배포 | [`matchingrequests.md`](matchingrequests.md) |
-| 5 | Teams | ⬜ 예정 | |
+| 5 | Teams | ✅ 구현·배포 | [`teams.md`](teams.md) |
 | 6 | TeamDetail | ⬜ 예정 | |
 | 7 | Profile | ⬜ 예정 | |
 | 8+ | ProfileSetup·Survey·Evaluate·PostDetail·PublicProfile | ⬜ 예정 | |
@@ -32,6 +32,7 @@
 |---|---|
 | CourseDetail | [`mockups/coursedetail.html`](mockups/coursedetail.html) |
 | MatchingRequests | [`mockups/matchingrequests.html`](mockups/matchingrequests.html) |
+| Teams | [`mockups/teams.html`](mockups/teams.html) |
 
 ## 워크플로우 (참고)
 

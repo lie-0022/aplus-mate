@@ -1,10 +1,7 @@
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, ArrowRight, UserCircle } from "lucide-react";
+import { Users, UserCircle, ChevronRight } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
@@ -25,10 +22,10 @@ export default function Teams() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 mx-auto w-full max-w-[980px]">
         <Skeleton className="h-8 w-32" />
         {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
+          <Skeleton key={i} className="h-28 rounded-[18px]" />
         ))}
       </div>
     );
@@ -37,69 +34,87 @@ export default function Teams() {
   const renderTeamList = (teamList: typeof activeTeams) => {
     if (teamList.length === 0) {
       return (
-        <Card className="border-dashed">
-          <CardContent className="p-8 text-center">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {tab === "active" ? "진행 중인 팀이 없어요" : "완료된 팀이 없어요"}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-[18px] bg-card shadow-card p-8 text-center">
+          <Users className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+          <p className="text-foreground text-sm font-semibold mb-1">
+            {tab === "active" ? "진행 중인 팀이 없어요" : "완료된 팀이 없어요"}
+          </p>
+          <p className="text-muted-foreground text-[13px]">
+            {tab === "active"
+              ? "수업 상세의 팀원 찾기에서 팀을 만들어보세요"
+              : "활동이 끝난 팀이 여기 모여요"}
+          </p>
+        </div>
       );
     }
 
     return teamList.map((item) => (
-      <Card
+      <div
         key={item.team.id}
-        className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
+        className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
         onClick={() => setLocation(`/teams/${item.team.id}`)}
       >
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <div className="font-medium text-sm">{item.course.name}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {item.course.professor}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">
-                {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
-              </Badge>
-              {/* 평가 상태는 팀플 전용 — 스터디·멘토멘티는 평가 단계가 없다 */}
-              {item.team.teamType === "project" &&
-                item.team.evaluationStatus === "in_progress" && (
-                  <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
-                    평가 진행 중
-                  </Badge>
-                )}
-              {item.team.teamType === "project" && item.team.evaluationStatus === "done" && (
-                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                  평가 완료
-                </Badge>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="min-w-0">
+            <div className="font-bold text-sm">{item.course.name}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{item.course.professor}</div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">
+              {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
+            </span>
+            {/* 평가 상태는 팀플 전용 — 스터디·멘토멘티는 평가 단계가 없다 */}
+            {item.team.teamType === "project" &&
+              item.team.evaluationStatus === "in_progress" && (
+                <span className="badge-notice text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  평가 진행 중
+                </span>
               )}
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            {item.team.teamType === "project" && item.team.evaluationStatus === "done" && (
+              <span className="badge-pos text-xs font-bold px-2.5 py-0.5 rounded-full">평가 완료</span>
+            )}
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {item.members.map((m) => (
+            <div
+              key={m.teamMember.id}
+              className="flex items-center gap-1.5 bg-muted rounded-full px-2.5 py-1"
+            >
+              <UserCircle className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-medium">{m.user.name}</span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {item.members.map((m) => (
-              <div
-                key={m.teamMember.id}
-                className="flex items-center gap-1.5 bg-muted rounded-full px-2.5 py-1"
-              >
-                <UserCircle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium">{m.user.name}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </div>
     ));
   };
 
+  // PC 우측 레일 — 팀 현황 + 안내 (진행·완료 탭 공통)
+  const railEl = (
+    <div className="hidden lg:block space-y-3">
+      <div className="rounded-[18px] bg-card shadow-card p-4">
+        <div className="text-xs font-bold text-muted-foreground mb-2">팀 현황</div>
+        <div className="flex items-center justify-between text-sm font-semibold py-1">
+          <span>진행 중</span>
+          <span className="text-primary font-extrabold">{activeTeams.length}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm font-semibold py-1">
+          <span>완료</span>
+          <span className="text-primary font-extrabold">{completedTeams.length}</span>
+        </div>
+      </div>
+      <div className="rounded-[18px] bg-card shadow-card p-4 text-[13px] text-muted-foreground leading-relaxed">
+        팀을 누르면 멤버·오픈채팅·일정과 <span className="font-semibold text-foreground">(팀플은) 상호 평가</span>
+        를 볼 수 있어요. 새 팀은 수업 상세의 팀원 찾기에서 만들어져요.
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">내 팀</h1>
+    <div className="space-y-4 mx-auto w-full max-w-[980px]">
+      <h1 className="text-xl font-extrabold">내 팀</h1>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full">
@@ -111,11 +126,17 @@ export default function Teams() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active" className="mt-4 space-y-3">
-          {renderTeamList(activeTeams)}
+        <TabsContent value="active" className="mt-4">
+          <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
+            <div className="space-y-3">{renderTeamList(activeTeams)}</div>
+            {railEl}
+          </div>
         </TabsContent>
-        <TabsContent value="completed" className="mt-4 space-y-3">
-          {renderTeamList(completedTeams)}
+        <TabsContent value="completed" className="mt-4">
+          <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
+            <div className="space-y-3">{renderTeamList(completedTeams)}</div>
+            {railEl}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
