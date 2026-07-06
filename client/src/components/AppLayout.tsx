@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BookOpen,
-  GraduationCap,
   Home,
   LogOut,
   Users,
@@ -91,15 +90,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
         <div className="flex flex-col items-center gap-6 max-w-sm w-full text-center">
-          <div className="gradient-primary w-16 h-16 rounded-2xl flex items-center justify-center">
-            <GraduationCap className="h-8 w-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold mb-2">A+ Mate</h1>
-            <p className="text-muted-foreground text-sm">
-              대학생 팀플 팀원 매칭 플랫폼
-            </p>
-          </div>
+          <img src="/logo-light.png" alt="A+ Mate" className="h-10 w-auto" />
+          <p className="text-muted-foreground text-sm -mt-2">
+            대학생 팀플 팀원 매칭 플랫폼
+          </p>
           <Button
             onClick={() => (window.location.href = getLoginUrl())}
             size="lg"
@@ -123,10 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setLocation("/dashboard")}
             className="flex items-center gap-2"
           >
-            <div className="gradient-primary w-7 h-7 rounded-lg flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold text-lg">A+ Mate</span>
+            <img src="/logo-light.png" alt="A+ Mate" className="h-6 w-auto" />
           </button>
 
           <div className="flex items-center gap-2">

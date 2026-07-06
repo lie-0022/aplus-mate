@@ -75,7 +75,7 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 mx-auto w-full max-w-[980px]">
         <Skeleton className="h-44 rounded-[20px]" />
         <Skeleton className="h-40 rounded-[18px]" />
       </div>
@@ -95,8 +95,8 @@ export default function Dashboard() {
   ] as const;
 
   return (
-    <div className="space-y-5 lg:mx-auto lg:max-w-[560px]">
-      {/* Hero — 종이 위 플래너 헤더 + 지표 3종 */}
+    <div className="space-y-5 mx-auto w-full max-w-[980px]">
+      {/* Hero — 플래너 헤더 + 지표 3종 (전체 폭) */}
       <div className="rounded-[20px] bg-card shadow-card p-5">
         <p className="text-[13px] font-bold text-muted-foreground">
           {new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(
@@ -119,7 +119,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 온보딩 체크리스트 — 완료 시 자동 숨김 */}
+      {/* 온보딩 체크리스트 — 완료 시 자동 숨김 (전체 폭) */}
       {!onboardingDone && (
         <div className="rounded-[18px] bg-secondary p-4 space-y-2.5">
           <div className="flex items-center gap-2 mb-1">
@@ -148,137 +148,146 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 이런 팀원 어때요? — 같은 수업 · 관심분야 겹치는 학생 추천 */}
-      {rec.data && rec.data.count > 0 && peer && (
-        <button
-          onClick={() => setLocation(`/courses/${peer.courseId}`)}
-          className="w-full text-left rounded-[18px] bg-secondary p-4"
-        >
-          <div className="flex items-center gap-2 text-primary font-bold text-sm">
-            <Lightbulb className="h-4 w-4" />
-            이런 팀원 어때요?
-          </div>
-          <div className="text-[13px] text-muted-foreground mt-1.5 leading-relaxed">
-            <span className="font-semibold text-foreground">{peer.courseName}</span>에서{" "}
-            {peer.sharedSkills > 0 ? "나와 관심 분야가 겹치는 " : ""}
-            학생 {rec.data.count}명이 팀원을 찾고 있어요
-          </div>
-        </button>
-      )}
+      {/* 본문 — 모바일 단일 컬럼 / PC 2컬럼 */}
+      <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr] lg:gap-6 lg:items-start">
+        {/* LEFT: 다가오는 일정 + 내 수업 */}
+        <div className="space-y-5">
+          {upcoming.data && upcoming.data.length > 0 && (
+            <div>
+              <h2 className="font-extrabold text-[17px] mb-3 flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-primary" />
+                다가오는 일정
+              </h2>
+              <div className="space-y-2">
+                {upcoming.data.map((item) => {
+                  const d = dday(item.event.dueAt);
+                  return (
+                    <div
+                      key={item.event.id}
+                      className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
+                      onClick={() => setLocation(`/teams/${item.team.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-bold truncate flex items-center gap-1.5">
+                            <span className="truncate">{item.event.title}</span>
+                            {item.event.assigneeId === user?.id && (
+                              <span className="badge-mine text-xs font-extrabold py-0.5 px-2 rounded-full shrink-0">
+                                내 담당
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[13px] text-muted-foreground mt-1">
+                            {item.course.name} ·{" "}
+                            {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
+                          </div>
+                        </div>
+                        <span
+                          className={`text-sm font-extrabold px-3 py-1 rounded-full shrink-0 ${
+                            d.tone === "normal" ? "badge-dday-soft" : "badge-dday"
+                          }`}
+                        >
+                          {d.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-      {/* 다가오는 일정 */}
-      {upcoming.data && upcoming.data.length > 0 && (
-        <div>
-          <h2 className="font-extrabold text-[17px] mb-3 flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            다가오는 일정
-          </h2>
-          <div className="space-y-2">
-            {upcoming.data.map((item) => {
-              const d = dday(item.event.dueAt);
-              return (
-                <div
-                  key={item.event.id}
-                  className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
-                  onClick={() => setLocation(`/teams/${item.team.id}`)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-[15px] font-bold truncate flex items-center gap-1.5">
-                        <span className="truncate">{item.event.title}</span>
-                        {item.event.assigneeId === user?.id && (
-                          <span className="badge-mine text-xs font-extrabold py-0.5 px-2 rounded-full shrink-0">
-                            내 담당
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-extrabold text-[17px]">내 수업</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation("/courses")}
+                className="text-primary font-bold"
+              >
+                전체보기 <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+            {data?.courses.length === 0 ? (
+              <div className="rounded-[18px] border border-dashed border-border p-8 text-center">
+                <GraduationCap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm mb-4">아직 등록한 수업이 없어요</p>
+                <Button onClick={() => setLocation("/courses")}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  수업 추가하기
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {data?.courses.slice(0, 5).map((item) => (
+                  <div
+                    key={item.userCourse.id}
+                    className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
+                    onClick={() => setLocation(`/courses/${item.course.id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <div className="font-bold text-[15px] truncate">{item.course.name}</div>
+                        <div className="text-[13px] text-muted-foreground mt-0.5">
+                          {item.course.professor} · {item.userCourse.semester}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.course.hasTeamProject && (
+                          <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">
+                            팀플
                           </span>
                         )}
-                      </div>
-                      <div className="text-[13px] text-muted-foreground mt-1">
-                        {item.course.name} ·{" "}
-                        {MATCH_TYPE_LABELS[(item.team.teamType ?? "project") as MatchType]}
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
-                    <span
-                      className={`text-sm font-extrabold px-3 py-1 rounded-full shrink-0 ${
-                        d.tone === "normal" ? "badge-dday-soft" : "badge-dday"
-                      }`}
-                    >
-                      {d.label}
-                    </span>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* 내 수업 */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-extrabold text-[17px]">내 수업</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLocation("/courses")}
-            className="text-primary font-bold"
-          >
-            전체보기 <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
-        {data?.courses.length === 0 ? (
-          <div className="rounded-[18px] border border-dashed border-border p-8 text-center">
-            <GraduationCap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm mb-4">아직 등록한 수업이 없어요</p>
-            <Button onClick={() => setLocation("/courses")}>
-              <Plus className="mr-2 h-4 w-4" />
-              수업 추가하기
+        {/* RIGHT: 빠른 실행 + 추천 */}
+        <div className="space-y-4">
+          <h2 className="font-extrabold text-[17px] hidden lg:block">빠른 실행</h2>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <Button
+              className="h-auto py-4 flex flex-col gap-2 lg:flex-row lg:justify-start lg:px-4"
+              onClick={() => setLocation("/matching/requests")}
+            >
+              <Handshake className="h-5 w-5" />
+              <span className="text-sm">매칭 요청</span>
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-auto py-4 flex flex-col gap-2 lg:flex-row lg:justify-start lg:px-4"
+              onClick={() => setLocation("/teams")}
+            >
+              <Users className="h-5 w-5" />
+              <span className="text-sm">내 팀</span>
             </Button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {data?.courses.slice(0, 5).map((item) => (
-              <div
-                key={item.userCourse.id}
-                className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
-                onClick={() => setLocation(`/courses/${item.course.id}`)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="font-bold text-[15px] truncate">{item.course.name}</div>
-                    <div className="text-[13px] text-muted-foreground mt-0.5">
-                      {item.course.professor} · {item.userCourse.semester}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {item.course.hasTeamProject && (
-                      <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">팀플</span>
-                    )}
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* 빠른 실행 */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          className="h-auto py-4 flex flex-col gap-2"
-          onClick={() => setLocation("/matching/requests")}
-        >
-          <Handshake className="h-5 w-5" />
-          <span className="text-sm">매칭 요청</span>
-        </Button>
-        <Button
-          variant="secondary"
-          className="h-auto py-4 flex flex-col gap-2"
-          onClick={() => setLocation("/teams")}
-        >
-          <Users className="h-5 w-5" />
-          <span className="text-sm">내 팀</span>
-        </Button>
+          {/* 이런 팀원 어때요? — 같은 수업 · 관심분야 겹치는 학생 추천 */}
+          {rec.data && rec.data.count > 0 && peer && (
+            <button
+              onClick={() => setLocation(`/courses/${peer.courseId}`)}
+              className="w-full text-left rounded-[18px] bg-secondary p-4"
+            >
+              <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                <Lightbulb className="h-4 w-4" />
+                이런 팀원 어때요?
+              </div>
+              <div className="text-[13px] text-muted-foreground mt-1.5 leading-relaxed">
+                <span className="font-semibold text-foreground">{peer.courseName}</span>에서{" "}
+                {peer.sharedSkills > 0 ? "나와 관심 분야가 겹치는 " : ""}
+                학생 {rec.data.count}명이 팀원을 찾고 있어요
+              </div>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
