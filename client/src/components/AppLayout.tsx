@@ -16,8 +16,11 @@ import {
   Mail,
   Shield,
   FileText,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import {
   DropdownMenu,
@@ -53,6 +56,7 @@ function AppLayoutSkeleton() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [location, setLocation] = useLocation();
 
   // Pending match requests count
@@ -90,7 +94,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
         <div className="flex flex-col items-center gap-6 max-w-sm w-full text-center">
-          <img src="/logo-light.png" alt="A+ Mate" className="h-10 w-auto" />
+          <img
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+            alt="A+ Mate"
+            className="h-10 w-auto"
+          />
           <p className="text-muted-foreground text-sm -mt-2">
             대학생 팀플 팀원 매칭 플랫폼
           </p>
@@ -117,7 +125,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setLocation("/dashboard")}
             className="flex items-center gap-2"
           >
-            <img src="/logo-light.png" alt="A+ Mate" className="h-6 w-auto" />
+            <img
+              src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+              alt="A+ Mate"
+              className="h-6 w-auto"
+            />
           </button>
 
           <div className="flex items-center gap-2">
@@ -240,6 +252,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 >
                   <FileText className="mr-2 h-4 w-4" />
                   이용약관
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                  {theme === "dark" ? (
+                    <Sun className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Moon className="mr-2 h-4 w-4" />
+                  )}
+                  {theme === "dark" ? "라이트 모드" : "다크 모드"}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}
