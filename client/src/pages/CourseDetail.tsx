@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { parseSkillTags } from "@/lib/utils-parse";
+import { cn } from "@/lib/utils";
 import RecruitmentSection from "@/components/RecruitmentSection";
 import { ReportDialog } from "@/components/ReportDialog";
 import {
@@ -11,9 +12,7 @@ import {
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -40,19 +38,14 @@ import {
   Plus,
   Eye,
   Handshake,
-  Shield,
-  Lightbulb,
-  Clock,
+  Megaphone,
+  ClipboardList,
+  BadgeCheck,
+  Link2,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
-
-const BADGE_ICONS: Record<string, typeof Shield> = {
-  promise: Shield,
-  idea: Lightbulb,
-  deadline: Clock,
-};
 
 const CATEGORIES = ["족보", "과제팁", "후기", "스터디"] as const;
 // Courses.tsx와 동일 값 유지 (등록 학기). 추후 client/src/const.ts로 중앙화 가능.
@@ -213,10 +206,10 @@ export default function CourseDetail() {
 
   if (course.isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 mx-auto w-full max-w-[980px]">
         <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-24 rounded-[18px]" />
+        <Skeleton className="h-48 rounded-[18px]" />
       </div>
     );
   }
@@ -233,8 +226,273 @@ export default function CourseDetail() {
     );
   }
 
+  // ─── 재사용 요소 ─────────────────────────────────────────
+  const noticeEl =
+    courseAnnouncements.data && courseAnnouncements.data.length > 0 ? (
+      <div className="notice-soft rounded-[16px] p-3.5 space-y-2.5">
+        {courseAnnouncements.data.slice(0, 3).map((a) => (
+          <div key={a.id}>
+            <div className="text-sm font-bold flex items-center gap-1.5">
+              <Megaphone className="h-4 w-4 shrink-0" /> {a.title}
+            </div>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-1">{a.content}</p>
+            <div className="text-[11px] text-muted-foreground mt-1.5">
+              교수님 공지 ·{" "}
+              {new Date(a.createdAt).toLocaleDateString("ko-KR", {
+                month: "numeric",
+                day: "numeric",
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : null;
+
+  const surveyEls = courseSurveys.data
+    ?.filter((s) => s.survey.status === "open")
+    .map(({ survey, responded }) => (
+      <div
+        key={survey.id}
+        className="rounded-[16px] bg-secondary p-3 flex items-center justify-between gap-2"
+      >
+        <div className="min-w-0 flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-bold truncate">{survey.title}</div>
+            <div className="text-[11px] text-muted-foreground">교수님 설문 · 익명 집계</div>
+          </div>
+        </div>
+        {responded ? (
+          <span className="badge-pos text-xs font-bold px-2.5 py-1 rounded-full shrink-0">
+            참여 완료
+          </span>
+        ) : (
+          <Button size="sm" className="shrink-0" onClick={() => setLocation(`/surveys/${survey.id}`)}>
+            참여하기
+          </Button>
+        )}
+      </div>
+    ));
+  const hasNews = !!noticeEl || (Array.isArray(surveyEls) && surveyEls.length > 0);
+
+  const filterChips = (
+    <div className="flex gap-1.5 overflow-x-auto">
+      {["all", ...CATEGORIES].map((cat) => (
+        <button
+          key={cat}
+          onClick={() => setCatFilter(cat)}
+          className={cn(
+            "shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors",
+            catFilter === cat ? "bg-primary text-primary-foreground" : "badge-tag"
+          )}
+        >
+          {cat === "all" ? "전체" : cat}
+        </button>
+      ))}
+    </div>
+  );
+
+  const postsBlock = posts.isLoading ? (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {[1, 2, 3].map((i) => (
+        <Skeleton key={i} className="h-24 rounded-[18px]" />
+      ))}
+    </div>
+  ) : posts.data?.length === 0 ? (
+    <div className="rounded-[18px] bg-card shadow-card p-8 text-center">
+      <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+      <p className="text-foreground text-sm font-semibold mb-1">아직 게시글이 없어요</p>
+      <p className="text-muted-foreground text-[13px] mb-4">첫 글을 남겨 정보를 나눠보세요</p>
+      <Button variant="secondary" size="sm" onClick={() => setShowPostForm(true)}>
+        <Plus className="mr-1 h-4 w-4" /> 글쓰기
+      </Button>
+    </div>
+  ) : (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {posts.data?.map((item) => (
+        <div
+          key={item.post.id}
+          className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
+          onClick={() => setLocation(`/posts/${item.post.id}`)}
+        >
+          <div className="flex items-start justify-between mb-1">
+            <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">
+              {item.post.category}
+            </span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Eye className="h-3 w-3" /> {item.post.viewCount}
+            </span>
+          </div>
+          <h3 className="font-bold text-sm mt-2">{item.post.title}</h3>
+          <p className="text-[13px] text-muted-foreground mt-1 line-clamp-2">{item.post.content}</p>
+          <div className="text-xs text-muted-foreground mt-2 flex items-center justify-between">
+            <span>익명 · {new Date(item.post.createdAt).toLocaleDateString("ko-KR")}</span>
+            {/* 카드 클릭(상세 이동)과 겹치지 않게 이벤트 전파 차단 */}
+            <span onClick={(e) => e.stopPropagation()}>
+              <ReportDialog targetType="post" targetId={item.post.id} />
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const segBtn = "flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors";
+  const connectTypeEl = (
+    <div className="space-y-1.5">
+      <div className="flex gap-1 rounded-xl bg-muted p-1">
+        {MATCH_TYPES.map((t) => (
+          <button
+            key={t}
+            onClick={() => setMatchType(t)}
+            className={cn(segBtn, matchType === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}
+          >
+            {MATCH_TYPE_LABELS[t]}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground px-0.5 leading-relaxed">
+        {matchType === "project" &&
+          `같은 수업에서 팀플 팀원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.project}명)`}
+        {matchType === "study" &&
+          `수업 내용을 함께 공부할 스터디원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.study}명)`}
+        {matchType === "mentoring" &&
+          `멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명으로 연결돼요.`}
+      </p>
+      {/* 역할 토글은 그룹이 없을 때만 — 이미 그룹이 있으면 커넥트=멘티 초대로 고정 */}
+      {matchType === "mentoring" && !inTeam && (
+        <div className="flex gap-1.5 pt-0.5">
+          <button
+            onClick={() => setMyRole("mentee")}
+            className={cn(
+              "flex-1 rounded-lg py-1.5 text-xs font-bold",
+              myRole === "mentee" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}
+          >
+            멘토 찾기 (나는 멘티)
+          </button>
+          <button
+            onClick={() => setMyRole("mentor")}
+            className={cn(
+              "flex-1 rounded-lg py-1.5 text-xs font-bold",
+              myRole === "mentor" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}
+          >
+            멘티 찾기 (나는 멘토)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // 내 스킬과 겹치는 후보를 위로 — 등록순 대신 적합도 정렬(엣지 3)
+  const mySkills = new Set(parseSkillTags(user?.skillTags));
+  const candidates = (students.data ?? [])
+    .filter((s) => s.user.id !== user?.id)
+    .map((s) => {
+      const tags = parseSkillTags(s.user.skillTags).sort(
+        (a, b) => (mySkills.has(b) ? 1 : 0) - (mySkills.has(a) ? 1 : 0)
+      );
+      const common = tags.filter((t) => mySkills.has(t)).length;
+      return { student: s, tags, common };
+    })
+    .sort((a, b) => b.common - a.common);
+
+  const studentListInner = students.isLoading ? (
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <Skeleton key={i} className="h-24 rounded-[18px]" />
+      ))}
+    </div>
+  ) : students.isError ? (
+    <div className="rounded-[18px] bg-card shadow-card p-8 text-center space-y-3">
+      <p className="text-sm text-muted-foreground">팀원 목록을 불러오지 못했어요.</p>
+      <Button variant="secondary" size="sm" onClick={() => students.refetch()}>
+        다시 시도
+      </Button>
+    </div>
+  ) : candidates.length === 0 ? (
+    <div className="rounded-[18px] bg-card shadow-card p-8 text-center space-y-3">
+      <Users className="h-10 w-10 text-muted-foreground/50 mx-auto" />
+      <p className="text-sm text-muted-foreground">
+        아직 이 수업에 등록한 다른 학생이 없어요.
+        <br />
+        같은 수업 친구에게 이 페이지를 공유해보세요.
+      </p>
+      <Button variant="secondary" size="sm" onClick={handleCopyInvite}>
+        초대 링크 복사
+      </Button>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {inTeam && (
+        <div className="rounded-[16px] bg-secondary p-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            이 수업에 이미{" "}
+            <span className="font-bold text-foreground">
+              {myTeamSize}명 {MATCH_TYPE_LABELS[matchType]}
+            </span>{" "}
+            그룹이 있어요. 커넥트하면 상대가 수락 시{" "}
+            <span className="font-bold text-foreground">내 그룹에 합류</span>해요{" "}
+            {matchType === "mentoring"
+              ? `(멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명)`
+              : `(최대 ${maxSize}명)`}
+            .{teamFull && " 정원이 가득 찼어요."}
+          </p>
+        </div>
+      )}
+      <div className="grid gap-3">
+        {candidates.map(({ student, tags, common }) => (
+          <div key={student.user.id} className="rounded-[18px] bg-card shadow-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div
+                onClick={() => setLocation(`/users/${student.user.id}`)}
+                className="cursor-pointer min-w-0"
+              >
+                <div className="font-bold text-sm flex items-center gap-1.5 flex-wrap">
+                  {student.user.department} · {student.user.year}학년
+                  {common > 0 && (
+                    <span className="badge-pos text-[11px] font-bold px-2 py-0.5 rounded-full">
+                      공통 스킬 {common}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {tags.slice(0, 4).map((tag) => (
+                    <span
+                      key={tag}
+                      className={cn(
+                        "text-xs font-semibold px-2.5 py-0.5 rounded-full",
+                        mySkills.has(tag) ? "bg-secondary text-secondary-foreground" : "badge-tag"
+                      )}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => handleConnect(student.user.id)}
+                disabled={matchRequest.isPending || saveKakao.isPending || teamFull}
+                className="shrink-0"
+              >
+                <Handshake className="mr-1 h-4 w-4" />
+                {inTeam
+                  ? matchType === "mentoring"
+                    ? "멘티 초대"
+                    : `${MATCH_TYPE_LABELS[matchType]}에 초대`
+                  : "커넥트"}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mx-auto w-full max-w-[980px]">
       <button
         onClick={() => setLocation("/courses")}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -242,34 +500,28 @@ export default function CourseDetail() {
         <ArrowLeft className="h-4 w-4" /> 수업 목록
       </button>
 
-      <Card className="rounded-2xl border border-border/50 shadow-none">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="font-bold text-lg flex items-center gap-1.5 flex-wrap">
-                {courseData.name}
-                {courseData.professorId != null && (
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] py-0 bg-primary/10 text-primary border-0"
-                  >
-                    교수님 인증 ✓
-                  </Badge>
-                )}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {courseData.professor} · {courseData.credits}학점
-                {courseData.courseCode && ` · ${courseData.courseCode}`}
-              </p>
-            </div>
-            {courseData.hasTeamProject && (
-              <Badge variant="default" className="gradient-primary text-white border-0">
-                팀플
-              </Badge>
-            )}
+      {/* 수업 헤더 */}
+      <div className="rounded-[18px] bg-card shadow-card p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="font-bold text-lg flex items-center gap-1.5 flex-wrap">
+              {courseData.name}
+              {courseData.professorId != null && (
+                <span className="badge-pos inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                  <BadgeCheck className="h-3 w-3" /> 교수님 인증
+                </span>
+              )}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {courseData.professor} · {courseData.credits}학점
+              {courseData.courseCode && ` · ${courseData.courseCode}`}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          {courseData.hasTeamProject && (
+            <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full shrink-0">팀플</span>
+          )}
+        </div>
+      </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full">
@@ -281,364 +533,135 @@ export default function CourseDetail() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Info Tab - Posts */}
-        <TabsContent value="info" className="mt-4 space-y-4">
-          {/* 교수 공지 — 최신순 */}
-          {courseAnnouncements.data && courseAnnouncements.data.length > 0 && (
-            <Card className="border-amber-200 bg-amber-50/60 shadow-none">
-              <CardContent className="p-3 space-y-2.5">
-                {courseAnnouncements.data.slice(0, 3).map((a) => (
-                  <div key={a.id}>
-                    <div className="text-sm font-medium flex items-center gap-1.5">
-                      📢 {a.title}
-                    </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-0.5">
-                      {a.content}
-                    </p>
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      교수님 공지 ·{" "}
-                      {new Date(a.createdAt).toLocaleDateString("ko-KR", {
-                        month: "numeric",
-                        day: "numeric",
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 진행 중인 교수 설문 */}
-          {courseSurveys.data
-            ?.filter((s) => s.survey.status === "open")
-            .map(({ survey, responded }) => (
-              <Card key={survey.id} className="border-primary/30 bg-primary/5 shadow-none">
-                <CardContent className="p-3 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">📋 {survey.title}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      교수님 설문 · 익명 집계
-                    </div>
-                  </div>
-                  {responded ? (
-                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 shrink-0">
-                      참여 완료
-                    </Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="gradient-primary text-white border-0 shrink-0"
-                      onClick={() => setLocation(`/surveys/${survey.id}`)}
-                    >
-                      참여하기
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-
-          <div className="flex items-center justify-between">
-            <div className="flex gap-1.5 overflow-x-auto">
-              <Button
-                variant={catFilter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setCatFilter("all")}
-                className={catFilter === "all" ? "gradient-primary text-white border-0" : ""}
-              >
-                전체
-              </Button>
-              {CATEGORIES.map((cat) => (
-                <Button
-                  key={cat}
-                  variant={catFilter === cat ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCatFilter(cat)}
-                  className={catFilter === cat ? "gradient-primary text-white border-0" : ""}
-                >
-                  {cat}
-                </Button>
-              ))}
-            </div>
-            <Dialog open={showPostForm} onOpenChange={setShowPostForm}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <Plus className="mr-1 h-4 w-4" /> 글쓰기
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>게시글 작성</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handlePostSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>카테고리 *</Label>
-                    <Select value={postCategory} onValueChange={setPostCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="카테고리 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>제목 *</Label>
-                    <Input value={postTitle} onChange={(e) => setPostTitle(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>내용 *</Label>
-                    <Textarea
-                      value={postContent}
-                      onChange={(e) => setPostContent(e.target.value)}
-                      rows={5}
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full gradient-primary text-white border-0"
-                    disabled={createPost.isPending}
-                  >
-                    {createPost.isPending ? "작성 중..." : "게시글 작성"}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {posts.isLoading ? (
-            [1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)
-          ) : posts.data?.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">아직 게시글이 없어요</p>
-              </CardContent>
-            </Card>
-          ) : (
-            posts.data?.map((item) => (
-              <Card
-                key={item.post.id}
-                className="rounded-2xl border border-border/50 shadow-none cursor-pointer hover:border-primary/40 transition-colors"
-                onClick={() => setLocation(`/posts/${item.post.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-1">
-                    <Badge variant="outline" className="text-xs">
-                      {item.post.category}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Eye className="h-3 w-3" /> {item.post.viewCount}
-                    </span>
-                  </div>
-                  <h3 className="font-medium text-sm mt-2">{item.post.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {item.post.content}
-                  </p>
-                  <div className="text-xs text-muted-foreground mt-2 flex items-center justify-between">
-                    <span>
-                      익명 · {new Date(item.post.createdAt).toLocaleDateString("ko-KR")}
-                    </span>
-                    {/* 카드 클릭(상세 이동)과 겹치지 않게 이벤트 전파 차단 */}
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <ReportDialog targetType="post" targetId={item.post.id} />
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        {/* Team Tab - Students */}
-        <TabsContent value="team" className="mt-4 space-y-3">
-          {/* 모집 공고 — 구조화된 모집 + 원클릭 지원 (게시판식 "같이하실분?" 대체) */}
-          {!myCourses.isLoading && isEnrolled && (
-            <>
-              <RecruitmentSection courseId={courseId} isEnrolled={isEnrolled} />
-              <div className="flex items-center gap-2 py-1">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-xs text-muted-foreground shrink-0">또는 직접 찾기</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-            </>
-          )}
-          {/* 커넥트 종류 선택 — 팀플 / 스터디 / 멘토멘티 */}
-          {!myCourses.isLoading && isEnrolled && (
-            <div className="space-y-1.5">
-              <div className="flex gap-1.5">
-                {MATCH_TYPES.map((t) => (
-                  <Button
-                    key={t}
-                    size="sm"
-                    variant={matchType === t ? "default" : "outline"}
-                    className={matchType === t ? "gradient-primary text-white border-0" : ""}
-                    onClick={() => setMatchType(t)}
-                  >
-                    {MATCH_TYPE_LABELS[t]}
-                  </Button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {matchType === "project" &&
-                  `같은 수업에서 팀플 팀원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.project}명)`}
-                {matchType === "study" &&
-                  `수업 내용을 함께 공부할 스터디원을 찾아요. (최대 ${TEAM_SIZE_LIMITS.study}명)`}
-                {matchType === "mentoring" &&
-                  `멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명으로 연결돼요.`}
-              </p>
-              {/* 역할 토글은 그룹이 없을 때만 — 이미 그룹이 있으면 커넥트=멘티 초대로 고정 */}
-              {matchType === "mentoring" && !inTeam && (
-                <div className="flex gap-1.5 pt-0.5">
-                  <Button
-                    size="sm"
-                    variant={myRole === "mentee" ? "default" : "outline"}
-                    className={myRole === "mentee" ? "gradient-primary text-white border-0" : ""}
-                    onClick={() => setMyRole("mentee")}
-                  >
-                    멘토 찾기 (나는 멘티)
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={myRole === "mentor" ? "default" : "outline"}
-                    className={myRole === "mentor" ? "gradient-primary text-white border-0" : ""}
-                    onClick={() => setMyRole("mentor")}
-                  >
-                    멘티 찾기 (나는 멘토)
-                  </Button>
+        {/* ── 정보 탭 ── */}
+        <TabsContent value="info" className="mt-4">
+          <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
+            {/* MAIN */}
+            <div className="space-y-4">
+              {/* 공지·설문 — 모바일은 상단, PC는 우측 레일에 */}
+              {hasNews && (
+                <div className="lg:hidden space-y-3">
+                  {noticeEl}
+                  {surveyEls}
                 </div>
               )}
+              <div className="flex items-center justify-between gap-2">
+                {filterChips}
+                <div className="lg:hidden shrink-0">
+                  <Button size="sm" variant="secondary" onClick={() => setShowPostForm(true)}>
+                    <Plus className="mr-1 h-4 w-4" /> 글쓰기
+                  </Button>
+                </div>
+              </div>
+              {postsBlock}
             </div>
-          )}
-          {myCourses.isLoading ? (
-            [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : !isEnrolled ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center space-y-3">
-                <Users className="h-10 w-10 text-muted-foreground mx-auto" />
-                <p className="text-sm text-muted-foreground">
-                  이 수업에 등록하면 같은 수업 학생을 보고 팀원 커넥트를 보낼 수 있어요.
-                </p>
-                <Button
-                  onClick={() => enroll.mutate({ courseId, semester: CURRENT_SEMESTER })}
-                  disabled={enroll.isPending}
-                  className="gradient-primary text-white border-0"
-                >
-                  {enroll.isPending ? "등록 중..." : "이 수업 등록하기"}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : students.isLoading ? (
-            [1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-          ) : students.isError ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">팀원 목록을 불러오지 못했어요.</p>
-                <Button variant="outline" size="sm" onClick={() => students.refetch()}>
-                  다시 시도
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (students.data ?? []).filter((s) => s.user.id !== user?.id).length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center space-y-3">
-                <Users className="h-10 w-10 text-muted-foreground mx-auto" />
-                <p className="text-sm text-muted-foreground">
-                  아직 이 수업에 등록한 다른 학생이 없어요.
-                  <br />
-                  같은 수업 친구에게 이 페이지를 공유해보세요.
-                </p>
-                <Button variant="outline" size="sm" onClick={handleCopyInvite}>
-                  초대 링크 복사
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {inTeam && (
-                <Card className="border-primary/30 bg-primary/5 shadow-none">
-                  <CardContent className="p-3">
-                    <p className="text-xs text-muted-foreground">
-                      이 수업에 이미{" "}
-                      <span className="font-medium text-foreground">
-                        {myTeamSize}명 {MATCH_TYPE_LABELS[matchType]}
-                      </span>{" "}
-                      그룹이 있어요. 커넥트하면 상대가 수락 시{" "}
-                      <span className="font-medium text-foreground">내 그룹에 합류</span>해요{" "}
-                      {matchType === "mentoring"
-                        ? `(멘토 1명 + 멘티 최대 ${MENTORING_MAX_MENTEES}명)`
-                        : `(최대 ${maxSize}명)`}
-                      .{teamFull && " 정원이 가득 찼어요."}
-                    </p>
-                  </CardContent>
-                </Card>
+
+            {/* RIGHT RAIL (PC 전용) */}
+            <div className="hidden lg:block space-y-3">
+              {hasNews && (
+                <div className="text-xs font-bold text-muted-foreground px-0.5">수업 소식</div>
               )}
-              {(() => {
-                // 내 스킬과 겹치는 후보를 위로 — 등록순 대신 적합도 정렬(엣지 3)
-                const mySkills = new Set(parseSkillTags(user?.skillTags));
-                const candidates = (students.data ?? [])
-                  .filter((s) => s.user.id !== user?.id)
-                  .map((s) => {
-                    const tags = parseSkillTags(s.user.skillTags).sort(
-                      (a, b) => (mySkills.has(b) ? 1 : 0) - (mySkills.has(a) ? 1 : 0)
-                    );
-                    const common = tags.filter((t) => mySkills.has(t)).length;
-                    return { student: s, tags, common };
-                  })
-                  .sort((a, b) => b.common - a.common);
-                return candidates.map(({ student, tags, common }) => (
-                  <Card key={student.user.id} className="rounded-2xl border border-border/50 shadow-none">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div
-                          onClick={() => setLocation(`/users/${student.user.id}`)}
-                          className="cursor-pointer min-w-0"
-                        >
-                          <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
-                            {student.user.department} · {student.user.year}학년
-                            {common > 0 && (
-                              <Badge className="text-[10px] py-0 bg-primary/15 text-primary border-0">
-                                공통 스킬 {common}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {tags.slice(0, 4).map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant={mySkills.has(tag) ? "default" : "secondary"}
-                                className="text-xs"
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleConnect(student.user.id)}
-                          disabled={matchRequest.isPending || saveKakao.isPending || teamFull}
-                          className="gradient-primary text-white border-0"
-                        >
-                          <Handshake className="mr-1 h-4 w-4" />
-                          {inTeam
-                            ? matchType === "mentoring"
-                              ? "멘티 초대"
-                              : `${MATCH_TYPE_LABELS[matchType]}에 초대`
-                            : "커넥트"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ));
-              })()}
-            </>
+              {noticeEl}
+              {surveyEls}
+              <Button variant="secondary" className="w-full" onClick={() => setShowPostForm(true)}>
+                <Plus className="mr-1 h-4 w-4" /> 글쓰기
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ── 팀원 찾기 탭 ── */}
+        <TabsContent value="team" className="mt-4">
+          {myCourses.isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-[18px]" />
+              ))}
+            </div>
+          ) : !isEnrolled ? (
+            <div className="rounded-[18px] bg-card shadow-card p-8 text-center space-y-3">
+              <Users className="h-10 w-10 text-muted-foreground/50 mx-auto" />
+              <p className="text-sm text-muted-foreground">
+                이 수업에 등록하면 같은 수업 학생을 보고 팀원 커넥트를 보낼 수 있어요.
+              </p>
+              <Button
+                onClick={() => enroll.mutate({ courseId, semester: CURRENT_SEMESTER })}
+                disabled={enroll.isPending}
+              >
+                {enroll.isPending ? "등록 중..." : "이 수업 등록하기"}
+              </Button>
+            </div>
+          ) : (
+            <div className="lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-6 lg:items-start">
+              {/* MAIN */}
+              <div className="space-y-3">
+                <RecruitmentSection courseId={courseId} isEnrolled={isEnrolled} />
+                <div className="flex items-center gap-2 py-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground shrink-0">또는 직접 찾기</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                {/* 커넥트 종류 — 모바일은 여기, PC는 우측 레일에 */}
+                <div className="lg:hidden">{connectTypeEl}</div>
+                {studentListInner}
+              </div>
+
+              {/* RIGHT RAIL (PC 전용) */}
+              <div className="hidden lg:block space-y-3">
+                {connectTypeEl}
+                <div className="rounded-[18px] bg-card shadow-card p-4 text-[13px] text-muted-foreground leading-relaxed">
+                  마음에 드는 팀원에게 <span className="font-semibold text-foreground">커넥트</span>를
+                  보내면 상대 수락 시 오픈채팅으로 바로 연결돼요.
+                </div>
+                <Button variant="secondary" className="w-full" onClick={handleCopyInvite}>
+                  <Link2 className="mr-1 h-4 w-4" /> 초대 링크 복사
+                </Button>
+              </div>
+            </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 게시글 작성 (제어형 — 여러 트리거에서 열림) */}
+      <Dialog open={showPostForm} onOpenChange={setShowPostForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>게시글 작성</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePostSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>카테고리 *</Label>
+              <Select value={postCategory} onValueChange={setPostCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="카테고리 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>제목 *</Label>
+              <Input value={postTitle} onChange={(e) => setPostTitle(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>내용 *</Label>
+              <Textarea
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                rows={5}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={createPost.isPending}>
+              {createPost.isPending ? "작성 중..." : "게시글 작성"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* 요청자 연락처(오픈채팅) 수집 — kakao 없을 때 커넥트 직전에 입력받음 */}
       <Dialog open={connectKakaoOpen} onOpenChange={setConnectKakaoOpen}>
@@ -656,7 +679,7 @@ export default function CourseDetail() {
               placeholder="https://open.kakao.com/o/..."
             />
             <Button
-              className="w-full gradient-primary text-white border-0"
+              className="w-full"
               onClick={() => {
                 if (!kakaoInput.trim()) {
                   toast.error("오픈채팅 링크를 입력해주세요.");

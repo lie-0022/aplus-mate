@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -95,94 +93,93 @@ export default function RecruitmentSection({
             <span className="text-muted-foreground">({items.length})</span>
           )}
         </h3>
-        <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+        <Button size="sm" variant="secondary" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> 모집 올리기
         </Button>
       </div>
 
       {list.isLoading ? null : items.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-5 text-center text-sm text-muted-foreground">
-            아직 모집 공고가 없어요. "모집 올리기"로 팀원을 구조적으로 모아보세요.
-          </CardContent>
-        </Card>
+        <div className="rounded-[18px] bg-card shadow-card p-5 text-center text-sm text-muted-foreground">
+          아직 모집 공고가 없어요. "모집 올리기"로 팀원을 구조적으로 모아보세요.
+        </div>
       ) : (
         items.map((r) => {
           const mine = r.authorId === user?.id;
           return (
-            <Card key={r.id} className="rounded-2xl border border-border/50 shadow-none">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge variant="outline" className="text-xs">
-                        {MATCH_TYPE_LABELS[r.matchType as MatchType]}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs">
-                        {r.neededCount}명 모집
-                      </Badge>
-                      {mine && (
-                        <Badge className="text-[10px] py-0 bg-primary/15 text-primary border-0">
-                          내 공고
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="font-medium text-sm mt-1.5">{r.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.author.department ?? "학과 미입력"}
-                      {r.author.year ? ` · ${r.author.year}학년` : ""}
-                    </p>
+            <div key={r.id} className="rounded-[18px] bg-card shadow-card p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {MATCH_TYPE_LABELS[r.matchType as MatchType]}
+                    </span>
+                    <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {r.neededCount}명 모집
+                    </span>
+                    {mine && (
+                      <span className="badge-pos text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        내 공고
+                      </span>
+                    )}
                   </div>
-                  {mine ? (
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge variant="secondary" className="text-xs">
-                        지원 {r.pendingApplicants}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-muted-foreground"
-                        onClick={() => close.mutate({ recruitmentId: r.id })}
-                        disabled={close.isPending}
-                      >
-                        마감
-                      </Button>
-                    </div>
-                  ) : r.hasApplied ? (
-                    <Button size="sm" variant="outline" className="shrink-0" disabled>
-                      지원함
-                    </Button>
-                  ) : (
+                  <p className="font-bold text-sm mt-1.5">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.author.department ?? "학과 미입력"}
+                    {r.author.year ? ` · ${r.author.year}학년` : ""}
+                  </p>
+                </div>
+                {mine ? (
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      지원 {r.pendingApplicants}
+                    </span>
                     <Button
                       size="sm"
-                      className="gradient-primary text-white border-0 shrink-0"
-                      onClick={() => setApplyTo({ id: r.id, title: r.title })}
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground"
+                      onClick={() => close.mutate({ recruitmentId: r.id })}
+                      disabled={close.isPending}
                     >
-                      <Send className="h-3.5 w-3.5 mr-1" /> 지원
+                      마감
                     </Button>
-                  )}
-                </div>
-                {r.description && (
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {r.description}
-                  </p>
-                )}
-                {r.desiredSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {r.desiredSkills.map((s, i) => (
-                      <Badge key={`${s}-${i}`} variant="secondary" className="text-[10px]">
-                        {s}
-                      </Badge>
-                    ))}
                   </div>
+                ) : r.hasApplied ? (
+                  <Button size="sm" variant="secondary" className="shrink-0" disabled>
+                    지원함
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setApplyTo({ id: r.id, title: r.title })}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" /> 지원
+                  </Button>
                 )}
-                {mine && r.pendingApplicants > 0 && (
-                  <p className="text-[11px] text-primary">
-                    지원자는 '매칭 → 받은 요청'에서 메시지와 함께 확인·수락할 수 있어요.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+              {r.description && (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  {r.description}
+                </p>
+              )}
+              {r.desiredSkills.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {r.desiredSkills.map((s, i) => (
+                    <span
+                      key={`${s}-${i}`}
+                      className="badge-tag text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {mine && r.pendingApplicants > 0 && (
+                <p className="text-[11px] text-primary">
+                  지원자는 '매칭 → 받은 요청'에서 메시지와 함께 확인·수락할 수 있어요.
+                </p>
+              )}
+            </div>
           );
         })
       )}
@@ -247,7 +244,7 @@ export default function RecruitmentSection({
               />
             </div>
             <Button
-              className="w-full gradient-primary text-white border-0"
+              className="w-full"
               disabled={create.isPending}
               onClick={() => {
                 if (!cTitle.trim()) {
@@ -289,7 +286,7 @@ export default function RecruitmentSection({
               maxLength={500}
             />
             <Button
-              className="w-full gradient-primary text-white border-0"
+              className="w-full"
               disabled={apply.isPending}
               onClick={() => {
                 if (applyTo)

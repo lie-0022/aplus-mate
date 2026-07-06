@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | Dashboard | ✅ 구현·배포 | (DESIGN-SYSTEM §7) |
 | 2 | Courses | ✅ 구현·배포 (커밋 `1be5263`) | 아래 "Courses" |
-| 3 | **CourseDetail** | 🔄 목업 QA 완료 · 컨펌 대기 | [`coursedetail.md`](coursedetail.md) |
+| 3 | CourseDetail | ✅ 구현·배포 | [`coursedetail.md`](coursedetail.md) |
 | 4 | MatchingRequests | ⬜ 예정 | |
 | 5 | Teams | ⬜ 예정 | |
 | 6 | TeamDetail | ⬜ 예정 | |

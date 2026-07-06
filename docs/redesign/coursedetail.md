@@ -2,7 +2,7 @@
 
 - 목업: [`mockups/coursedetail.html`](mockups/coursedetail.html) (라이트/다크 × 정보/팀원 탭 × 모바일/PC × 데이터/빈)
 - 대상 코드: `client/src/pages/CourseDetail.tsx`
-- 상태: **목업 QA 완료 · 사용자 최종 컨펌 대기** (컨펌 후 실제 코드 반영)
+- 상태: **✅ 구현·배포 완료** (2026-07-06). 반영: `client/src/pages/CourseDetail.tsx`(전면 재작성), `client/src/components/RecruitmentSection.tsx`(디자인 시스템 정렬), `client/src/index.css`(notice·pos 토큰 + `.badge-pos`·`.notice-soft` 유틸).
 - 화면 구성: 수업 헤더 + 탭 [정보 / 팀원 찾기]
   - 정보 탭: 교수 공지 · 진행중 설문 · 카테고리 필터 · 게시글
   - 팀원 찾기 탭: 모집공고 · 커넥트 종류(팀플/스터디/멘토·멘티) · 학생 카드
