@@ -13,7 +13,7 @@
 | 3 | CourseDetail | ✅ 구현·배포 | [`coursedetail.md`](coursedetail.md) |
 | 4 | MatchingRequests | ✅ 구현·배포 | [`matchingrequests.md`](matchingrequests.md) |
 | 5 | Teams | ✅ 구현·배포 | [`teams.md`](teams.md) |
-| 6 | TeamDetail | ⬜ 예정 | |
+| 6 | TeamDetail | ✅ 구현·배포 | [`teamdetail.md`](teamdetail.md) |
 | 7 | Profile | ⬜ 예정 | |
 | 8+ | ProfileSetup·Survey·Evaluate·PostDetail·PublicProfile | ⬜ 예정 | |
 | — | Professor·Admin (차분 밀도) | ⬜ 예정 | |
@@ -33,6 +33,7 @@
 | CourseDetail | [`mockups/coursedetail.html`](mockups/coursedetail.html) |
 | MatchingRequests | [`mockups/matchingrequests.html`](mockups/matchingrequests.html) |
 | Teams | [`mockups/teams.html`](mockups/teams.html) |
+| TeamDetail | [`mockups/teamdetail.html`](mockups/teamdetail.html) |
 
 ## 워크플로우 (참고)
 

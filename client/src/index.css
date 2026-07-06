@@ -112,6 +112,7 @@
   --notice-bg: #fff3e0; --notice-fg: #9a5b12;      /* 공지(따뜻한 알림) */
   --pos-bg: #e6f4ec; --pos-fg: #2e7d51;            /* 긍정(공통 스킬·인증) */
   --sky-badge-bg: #e7eefd; --sky-badge-fg: #2e7df0; /* 정보(멘토링 역할 등) */
+  --danger-bg: #fdecec; --danger-fg: #c0392b;      /* 위험(마감 지남 등) */
 
   --app-header: #ffffff;                            /* 모바일 헤더바 */
   --shadow-card: 0 6px 22px rgba(150, 120, 90, 0.1);
@@ -170,6 +171,7 @@
   --notice-bg: rgba(249, 233, 74, 0.1); --notice-fg: #e6d98b;
   --pos-bg: rgba(120, 205, 160, 0.14); --pos-fg: #88d3a8;
   --sky-badge-bg: rgba(143, 196, 255, 0.14); --sky-badge-fg: #9ccbff;
+  --danger-bg: rgba(229, 112, 107, 0.15); --danger-fg: #f0908b;
 
   --app-header: #212a54;
   --shadow-card: none;
@@ -244,6 +246,7 @@
   .badge-pos { background: var(--pos-bg); color: var(--pos-fg); }
   .badge-notice { background: var(--notice-bg); color: var(--notice-fg); }
   .badge-sky { background: var(--sky-badge-bg); color: var(--sky-badge-fg); }
+  .badge-danger { background: var(--danger-bg); color: var(--danger-fg); }
   .notice-soft { background: var(--notice-bg); color: var(--notice-fg); }
 
   /* 카드 소프트 섀도우(라이트) / 다크는 none */
