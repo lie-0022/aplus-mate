@@ -20,7 +20,7 @@
 
 1. render.com → GitHub 로그인 → **New → Blueprint** → `lie-0022/aplus-mate` 선택
    → 레포의 `render.yaml`을 읽어 무료 웹서비스 자동 구성. (또는 New → Web Service 수동:
-   Build `corepack enable && pnpm install --frozen-lockfile && pnpm build`, Start `pnpm start`,
+   Build `pnpm install && pnpm build`, Start `pnpm start`,
    Instance **Free**, Region **Singapore**.)
 2. 서비스 이름 `aplus-mate` → 주소 `https://aplus-mate.onrender.com` 확정.
 3. **Environment**에 `sync:false` 값 입력(§DB·§Google OAuth에서 얻음):

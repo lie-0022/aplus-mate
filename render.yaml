@@ -8,7 +8,7 @@ services:
     region: singapore # Render 무료 리전 중 한국에서 가장 가까움
     plan: free
     branch: main
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: pnpm install && pnpm build
     startCommand: pnpm start
     healthCheckPath: /
     autoDeploy: true
