@@ -14,26 +14,21 @@
 | AI 보고서 | **Gemini API 키**(aistudio.google.com/app/apikey) | `LLM_API_KEY` |
 | 서버 호스팅 | 아래 A/B 중 택1 | — |
 
-## A. GitHub Student Pack → DigitalOcean $200 (추천, 학생)
-1. **Student Pack 확인**: https://education.github.com/pack 로그인 → "You have access"면 OK.
-   없으면 대학 이메일/재학증명으로 신청(https://education.github.com/discount_requests/application).
-2. Pack 안 **DigitalOcean $200 크레딧(1년)** redeem.
-3. **DO App Platform**로 배포:
-   - Create → Apps → GitHub `lie-0022/aplus-mate` 연결, 브랜치 `main`.
-   - Build Command `pnpm build`, Run Command `pnpm start`, HTTP Port `8080`(또는 자동).
-   - Plan: Basic ($5/월 → $200으로 ~40개월). DB는 아래 TiDB 무료로 붙임(DO Managed DB는
-     크레딧 소모 크니 지양).
-   - Environment Variables에 `.env.example` 항목 입력.
-   - Deploy. 부팅 시 마이그레이션(0018 포함) 자동 적용.
-> Droplet($6/월 VM에 Node+MySQL 셀프호스팅)로 가면 $200이 ~33개월. MySQL이 로컬이라
-> 외부 DB 불필요하지만 세팅이 더 많음(§C 참고).
+## ★ 채택: Render 무료 (+ 무료 핑거로 안 재우기)
+> DigitalOcean $200 학생 크레딧은 **2026-07-31 일괄 만료**라(오늘 기준 몇 주) 채택 안 함.
+> Render 무료는 **카드 불필요·만료 없음**. 유일한 단점(15분 유휴 시 잠듦)은 핑거로 우회.
 
-## B. Render 무료 (학생 아니어도)
-1. render.com → New Web Service → GitHub `lie-0022/aplus-mate`.
-2. Build `pnpm build`, Start `pnpm start`, Runtime Node.
-3. Environment에 `.env.example` 항목 입력. Instance Type **Free**.
-   - ⚠️ 무료는 **15분 유휴 시 잠들었다가 첫 요청 ~50초** 콜드스타트. 파일럿엔 OK.
-4. DB는 TiDB 무료(§DB) — Render 무료 Postgres는 90일 만료·MySQL 아님이라 쓰지 말 것.
+1. render.com → GitHub 로그인 → **New → Blueprint** → `lie-0022/aplus-mate` 선택
+   → 레포의 `render.yaml`을 읽어 무료 웹서비스 자동 구성. (또는 New → Web Service 수동:
+   Build `corepack enable && pnpm install --frozen-lockfile && pnpm build`, Start `pnpm start`,
+   Instance **Free**, Region **Singapore**.)
+2. 서비스 이름 `aplus-mate` → 주소 `https://aplus-mate.onrender.com` 확정.
+3. **Environment**에 `sync:false` 값 입력(§DB·§Google OAuth에서 얻음):
+   `DATABASE_URL`, `APP_URL=https://aplus-mate.onrender.com`, `OWNER_EMAIL`,
+   `GOOGLE_CLIENT_ID/SECRET`, (선택)`LLM_API_KEY`. `JWT_SECRET`은 Blueprint가 자동 생성.
+4. Deploy → 부팅 로그에서 마이그레이션(0018) 적용 확인.
+5. **안 재우기(무료)**: uptimerobot.com(무료) 또는 cron-job.org에서 5~10분마다
+   `https://aplus-mate.onrender.com/` GET. 월 750시간 무료 한도(≈상시) 안에서 상시 가동.
 
 ## DB 세팅 (TiDB Cloud Serverless, 무료·안 잠듦)
 1. tidbcloud.com 가입 → Serverless 클러스터 생성(무료).

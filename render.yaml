@@ -1,0 +1,35 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# 대시보드 New → Blueprint 로 이 레포를 가리키면 이 설정으로 무료 웹서비스가 생성됨.
+# sync:false 인 값(DB·OAuth·키)은 대시보드 Environment 탭에서 직접 입력한다.
+services:
+  - type: web
+    name: aplus-mate
+    runtime: node
+    region: singapore # Render 무료 리전 중 한국에서 가장 가까움
+    plan: free
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LLM_API_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: JWT_SECRET
+        generateValue: true # Render가 랜덤 생성
+      - key: DATABASE_URL # TiDB 무료 MySQL 연결 문자열
+        sync: false
+      - key: APP_URL # https://aplus-mate.onrender.com
+        sync: false
+      - key: OWNER_EMAIL # 운영자(admin) 지정용 내 구글 이메일
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: LLM_API_KEY # Gemini 키(선택 — AI 보고서용)
+        sync: false
