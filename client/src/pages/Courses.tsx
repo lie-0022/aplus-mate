@@ -260,6 +260,18 @@ export default function Courses() {
                             {course.reviewSummary.teamYes + course.reviewSummary.teamNo}
                           </span>
                         )}
+                        {course.reviewSummary.avgTeamSize != null && (
+                          <span className="text-muted-foreground">
+                            · 보통 {course.reviewSummary.avgTeamSize}명
+                          </span>
+                        )}
+                        {course.reviewSummary.teamYes > 0 &&
+                          course.reviewSummary.preformYes >
+                            course.reviewSummary.preformNo && (
+                            <span className="badge-pos text-[11px] font-bold px-1.5 py-0.5 rounded-full">
+                              미리팀 OK
+                            </span>
+                          )}
                       </div>
                     )}
                   </div>

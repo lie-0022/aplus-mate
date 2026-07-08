@@ -220,6 +220,9 @@ export const appRouter = router({
           courseId: z.number(),
           rating: z.number().int().min(1).max(5),
           hadTeamProject: z.boolean().nullable().optional(),
+          teamSize: z.number().int().min(1).max(20).nullable().optional(),
+          projectTypes: z.array(z.string().max(20)).max(6).nullable().optional(),
+          preformAllowed: z.boolean().nullable().optional(),
           content: z.string().trim().max(500).optional(),
           semester: z.string().max(20).optional(),
         })
@@ -228,6 +231,9 @@ export const appRouter = router({
         await db.upsertCourseReview(ctx.user.id, input.courseId, {
           rating: input.rating,
           hadTeamProject: input.hadTeamProject,
+          teamSize: input.teamSize,
+          projectTypes: input.projectTypes,
+          preformAllowed: input.preformAllowed,
           content: input.content,
           semester: input.semester,
         });

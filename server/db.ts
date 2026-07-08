@@ -2850,6 +2850,9 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
     id: r.id,
     rating: r.rating,
     hadTeamProject: r.hadTeamProject,
+    teamSize: r.teamSize,
+    projectTypes: r.projectTypes ?? [],
+    preformAllowed: r.preformAllowed,
     content: r.content,
     semester: r.semester,
     createdAt: r.createdAt,
@@ -2857,33 +2860,70 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
   }));
 }
 
-// 요약 — 평균 별점·리뷰 수·팀플 있었다/없었다 응답 수.
-// "이 수업에 팀플이 있는지"를 수강생 경험(크라우드소싱)으로 답한다.
-export async function getCourseReviewSummary(courseId: number) {
+export type CourseReviewSummary = {
+  count: number;
+  avgRating: number;
+  teamYes: number;
+  teamNo: number;
+  avgTeamSize: number | null;
+  preformYes: number;
+  preformNo: number;
+  projectTypes: { type: string; count: number }[];
+};
+
+// 요약 — 수강생 경험을 크라우드소싱해 "이 수업 팀플이 어떤지"를 다음 수강생에게 알린다.
+// 팀플 유무·보통 팀 규모·팀플 유형·미리 짠 팀 교수 허용까지 집계(작은 N이라 JS 집계).
+export async function getCourseReviewSummary(courseId: number): Promise<CourseReviewSummary> {
+  const empty: CourseReviewSummary = {
+    count: 0, avgRating: 0, teamYes: 0, teamNo: 0, avgTeamSize: null, preformYes: 0, preformNo: 0, projectTypes: [],
+  };
   const db = await getDb();
-  if (!db) return { count: 0, avgRating: 0, teamYes: 0, teamNo: 0 };
+  if (!db) return empty;
   const rows = await db
     .select({
-      count: count(),
-      avg: sql<number>`COALESCE(AVG(${courseReviews.rating}), 0)`,
-      teamYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 1 THEN 1 ELSE 0 END), 0)`,
-      teamNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 0 THEN 1 ELSE 0 END), 0)`,
+      rating: courseReviews.rating,
+      hadTeamProject: courseReviews.hadTeamProject,
+      teamSize: courseReviews.teamSize,
+      projectTypes: courseReviews.projectTypes,
+      preformAllowed: courseReviews.preformAllowed,
     })
     .from(courseReviews)
     .where(eq(courseReviews.courseId, courseId));
-  const r = rows[0];
+  if (rows.length === 0) return empty;
+  const count = rows.length;
+  const avgRating = Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
+  const sizes = rows.map((r) => r.teamSize).filter((n): n is number => typeof n === "number");
+  const avgTeamSize = sizes.length
+    ? Math.round((sizes.reduce((s, n) => s + n, 0) / sizes.length) * 10) / 10
+    : null;
+  const typeCount: Record<string, number> = {};
+  for (const r of rows) for (const t of r.projectTypes ?? []) typeCount[t] = (typeCount[t] ?? 0) + 1;
   return {
-    count: Number(r?.count ?? 0),
-    avgRating: Math.round(Number(r?.avg ?? 0) * 10) / 10,
-    teamYes: Number(r?.teamYes ?? 0),
-    teamNo: Number(r?.teamNo ?? 0),
+    count,
+    avgRating,
+    teamYes: rows.filter((r) => r.hadTeamProject === true).length,
+    teamNo: rows.filter((r) => r.hadTeamProject === false).length,
+    avgTeamSize,
+    preformYes: rows.filter((r) => r.preformAllowed === true).length,
+    preformNo: rows.filter((r) => r.preformAllowed === false).length,
+    projectTypes: Object.entries(typeCount)
+      .map(([type, c]) => ({ type, count: c }))
+      .sort((a, b) => b.count - a.count),
   };
 }
 
 export async function upsertCourseReview(
   userId: number,
   courseId: number,
-  data: { rating: number; hadTeamProject?: boolean | null; content?: string; semester?: string }
+  data: {
+    rating: number;
+    hadTeamProject?: boolean | null;
+    teamSize?: number | null;
+    projectTypes?: string[] | null;
+    preformAllowed?: boolean | null;
+    content?: string;
+    semester?: string;
+  }
 ) {
   const db = await getDb();
   if (!db) return;
@@ -2896,6 +2936,9 @@ export async function upsertCourseReview(
     userId,
     rating: data.rating,
     hadTeamProject: data.hadTeamProject ?? null,
+    teamSize: data.teamSize ?? null,
+    projectTypes: data.projectTypes && data.projectTypes.length > 0 ? data.projectTypes : null,
+    preformAllowed: data.preformAllowed ?? null,
     content: data.content?.trim() || null,
     semester: data.semester ?? null,
   };
@@ -2906,6 +2949,9 @@ export async function upsertCourseReview(
       set: {
         rating: values.rating,
         hadTeamProject: values.hadTeamProject,
+        teamSize: values.teamSize,
+        projectTypes: values.projectTypes,
+        preformAllowed: values.preformAllowed,
         content: values.content,
         semester: values.semester,
       },
@@ -2947,10 +2993,19 @@ export async function setTeamProfessorApproval(
 }
 
 // 여러 수업의 리뷰 요약을 한 번에 — 검색 결과에 별점·팀플 응답을 붙일 때(N+1 방지).
+export type CourseReviewMini = {
+  count: number;
+  avgRating: number;
+  teamYes: number;
+  teamNo: number;
+  avgTeamSize: number | null;
+  preformYes: number;
+  preformNo: number;
+};
 export async function getReviewSummariesForCourses(courseIds: number[]) {
   const db = await getDb();
-  const empty: Record<number, { count: number; avgRating: number; teamYes: number; teamNo: number }> = {};
-  if (!db || courseIds.length === 0) return empty;
+  const out: Record<number, CourseReviewMini> = {};
+  if (!db || courseIds.length === 0) return out;
   const rows = await db
     .select({
       courseId: courseReviews.courseId,
@@ -2958,17 +3013,23 @@ export async function getReviewSummariesForCourses(courseIds: number[]) {
       avg: sql<number>`COALESCE(AVG(${courseReviews.rating}), 0)`,
       teamYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 1 THEN 1 ELSE 0 END), 0)`,
       teamNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 0 THEN 1 ELSE 0 END), 0)`,
+      avgSize: sql<number | null>`AVG(${courseReviews.teamSize})`,
+      preformYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.preformAllowed} = 1 THEN 1 ELSE 0 END), 0)`,
+      preformNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.preformAllowed} = 0 THEN 1 ELSE 0 END), 0)`,
     })
     .from(courseReviews)
     .where(inArray(courseReviews.courseId, courseIds))
     .groupBy(courseReviews.courseId);
   for (const r of rows) {
-    empty[r.courseId] = {
+    out[r.courseId] = {
       count: Number(r.count),
       avgRating: Math.round(Number(r.avg) * 10) / 10,
       teamYes: Number(r.teamYes),
       teamNo: Number(r.teamNo),
+      avgTeamSize: r.avgSize == null ? null : Math.round(Number(r.avgSize) * 10) / 10,
+      preformYes: Number(r.preformYes),
+      preformNo: Number(r.preformNo),
     };
   }
-  return empty;
+  return out;
 }

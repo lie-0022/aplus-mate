@@ -51,6 +51,8 @@ import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 
 const CATEGORIES = ["족보", "과제팁", "후기", "스터디"] as const;
+// 수강 리뷰 — 팀플 유형 태그(다음 수강생이 "어떤 식의 팀플인지" 파악)
+const PROJECT_TYPE_OPTIONS = ["발표", "개발·제작", "보고서·논문", "설계·기획", "실험·실습", "기타"] as const;
 // Courses.tsx와 동일 값 유지 (등록 학기). 추후 client/src/const.ts로 중앙화 가능.
 const CURRENT_SEMESTER = "2026-1";
 
@@ -86,6 +88,9 @@ export default function CourseDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [revRating, setRevRating] = useState(0);
   const [revTeam, setRevTeam] = useState<"yes" | "no" | "na">("na");
+  const [revTeamSize, setRevTeamSize] = useState<string>("");
+  const [revTypes, setRevTypes] = useState<string[]>([]);
+  const [revPreform, setRevPreform] = useState<"yes" | "no" | "na">("na");
   const [revContent, setRevContent] = useState("");
   const [showAllReviews, setShowAllReviews] = useState(false);
   const invalidateReviews = () => {
@@ -313,14 +318,24 @@ export default function CourseDetail() {
       setRevTeam(
         myReview.hadTeamProject === true ? "yes" : myReview.hadTeamProject === false ? "no" : "na"
       );
+      setRevTeamSize(myReview.teamSize != null ? String(myReview.teamSize) : "");
+      setRevTypes(myReview.projectTypes ?? []);
+      setRevPreform(
+        myReview.preformAllowed === true ? "yes" : myReview.preformAllowed === false ? "no" : "na"
+      );
       setRevContent(myReview.content ?? "");
     } else {
       setRevRating(0);
       setRevTeam("na");
+      setRevTeamSize("");
+      setRevTypes([]);
+      setRevPreform("na");
       setRevContent("");
     }
     setReviewOpen(true);
   };
+  const toggleRevType = (t: string) =>
+    setRevTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   const starRow = (value: number, cls = "h-4 w-4") => (
     <span className="inline-flex items-center gap-0.5 text-primary">
       {[1, 2, 3, 4, 5].map((i) => (
@@ -330,7 +345,15 @@ export default function CourseDetail() {
   );
   const sum = reviewSummary.data;
   const teamAnswers = (sum?.teamYes ?? 0) + (sum?.teamNo ?? 0);
+  const preformAnswers = (sum?.preformYes ?? 0) + (sum?.preformNo ?? 0);
+  // 종합 판정 — A+ Mate로 미리 팀 짜갈 만한 수업인지 신호.
+  const worthPreform =
+    (sum?.teamYes ?? 0) > 0 && (sum?.preformYes ?? 0) > (sum?.preformNo ?? 0);
+  const preformHard =
+    (sum?.teamYes ?? 0) > 0 && (sum?.preformNo ?? 0) > (sum?.preformYes ?? 0);
   const visibleReviews = showAllReviews ? reviewList.data : reviewList.data?.slice(0, 3);
+  const preformLabel = (v: boolean | null) =>
+    v === true ? "미리팀 허용" : v === false ? "미리팀 불가" : null;
   const reviewEl = (
     <div className="rounded-[18px] bg-card shadow-card p-4">
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -357,11 +380,63 @@ export default function CourseDetail() {
             {starRow(sum.avgRating)}
             <span className="text-xs text-muted-foreground">리뷰 {sum.count}개</span>
           </div>
-          {teamAnswers > 0 && (
-            <div className="mt-2 rounded-xl bg-muted px-3 py-2 text-[13px]">
-              수강생 {teamAnswers}명 중{" "}
-              <span className="font-bold text-foreground">{sum.teamYes}명</span>이 "이 수업 팀플{" "}
-              <span className="font-bold">있었어요</span>"라고 답했어요
+          {/* 이 수업 팀플 한눈에 — 수강생 데이터 집계 */}
+          {(teamAnswers > 0 ||
+            sum.avgTeamSize != null ||
+            sum.projectTypes.length > 0 ||
+            preformAnswers > 0) && (
+            <div className="mt-2.5 rounded-xl bg-muted p-3 space-y-1.5 text-[13px]">
+              {teamAnswers > 0 && (
+                <div>
+                  <span className="font-bold text-foreground">팀플</span> · 수강생 {teamAnswers}명 중{" "}
+                  <span className="font-bold text-primary">{sum.teamYes}명</span>이 있었다고 답했어요
+                </div>
+              )}
+              {sum.avgTeamSize != null && (
+                <div>
+                  <span className="font-bold text-foreground">보통 팀 규모</span> · 약{" "}
+                  <span className="font-bold">{sum.avgTeamSize}명</span>
+                </div>
+              )}
+              {sum.projectTypes.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-foreground">팀플 유형</span>
+                  {sum.projectTypes.slice(0, 3).map((t) => (
+                    <span
+                      key={t.type}
+                      className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full"
+                    >
+                      {t.type} {t.count}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {preformAnswers > 0 && (
+                <div>
+                  <span className="font-bold text-foreground">미리 짠 팀</span> · 교수님 허용{" "}
+                  <span className="font-bold" style={{ color: "var(--pos-fg)" }}>
+                    {sum.preformYes}
+                  </span>{" "}
+                  · 불가{" "}
+                  <span className="font-bold" style={{ color: "var(--danger-fg)" }}>
+                    {sum.preformNo}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          {/* 종합 판정 — A+ Mate로 팀 짜갈 만한 수업인지 */}
+          {worthPreform && (
+            <div
+              className="mt-2 rounded-xl p-3 text-[13px] font-semibold flex items-center gap-2"
+              style={{ background: "var(--pos-bg)", color: "var(--pos-fg)" }}
+            >
+              ✨ 미리 팀 짜서 가기 좋은 수업이에요 — A+ Mate에서 팀원을 구해보세요!
+            </div>
+          )}
+          {!worthPreform && preformHard && (
+            <div className="notice-soft mt-2 rounded-xl p-3 text-[13px] leading-relaxed">
+              교수님이 팀을 직접 정하는 편일 수 있어요(미리 짠 팀 불가 응답이 더 많음). 커넥트 전에 참고하세요.
             </div>
           )}
           <div className="mt-3 space-y-2.5">
@@ -378,6 +453,29 @@ export default function CourseDetail() {
                     {r.hadTeamProject === false && (
                       <span className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full">
                         팀플 없었음
+                      </span>
+                    )}
+                    {r.teamSize != null && (
+                      <span className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        {r.teamSize}명 팀
+                      </span>
+                    )}
+                    {(r.projectTypes ?? []).map((t) => (
+                      <span
+                        key={t}
+                        className="badge-tag text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {r.preformAllowed === true && (
+                      <span className="badge-pos text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        {preformLabel(true)}
+                      </span>
+                    )}
+                    {r.preformAllowed === false && (
+                      <span className="badge-danger text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        {preformLabel(false)}
                       </span>
                     )}
                   </div>
@@ -876,6 +974,83 @@ export default function CourseDetail() {
                 다음 수강생이 "이 수업 팀플 있나요?"를 미리 알 수 있게 도와줘요.
               </p>
             </div>
+
+            {/* 팀플 있었을 때만 — 규모·유형·미리팀 허용 상세 */}
+            {revTeam === "yes" && (
+              <div className="space-y-4 rounded-xl border border-border bg-muted/40 p-3">
+                <div className="space-y-2">
+                  <Label>몇 명이서 팀을 했나요?</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      inputMode="numeric"
+                      value={revTeamSize}
+                      onChange={(e) => setRevTeamSize(e.target.value)}
+                      placeholder="예: 4"
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">명</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>어떤 팀플이었나요? (여러 개 선택 가능)</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PROJECT_TYPE_OPTIONS.map((opt) => {
+                      const on = revTypes.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleRevType(opt)}
+                          className={cn(
+                            "rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
+                            on
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-card text-muted-foreground border border-border"
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>미리 짜온 팀, 교수님이 허용했나요?</Label>
+                  <div className="flex gap-1 rounded-xl bg-muted p-1">
+                    {(
+                      [
+                        { key: "yes", label: "허용했어요" },
+                        { key: "no", label: "안 됐어요" },
+                        { key: "na", label: "잘 몰라요" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setRevPreform(opt.key)}
+                        className={cn(
+                          "flex-1 rounded-lg py-1.5 text-xs font-bold transition-colors",
+                          revPreform === opt.key
+                            ? "bg-card text-foreground shadow-sm"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    A+ Mate로 팀을 미리 꾸려 가도 되는 수업인지 다음 사람이 판단할 수 있어요.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>한줄평 (선택)</Label>
               <Textarea
@@ -894,10 +1069,22 @@ export default function CourseDetail() {
                   toast.error("별점을 선택해주세요.");
                   return;
                 }
+                const hadTeam =
+                  revTeam === "yes" ? true : revTeam === "no" ? false : null;
+                const size = parseInt(revTeamSize, 10);
                 upsertReview.mutate({
                   courseId,
                   rating: revRating,
-                  hadTeamProject: revTeam === "yes" ? true : revTeam === "no" ? false : null,
+                  hadTeamProject: hadTeam,
+                  teamSize: hadTeam && !Number.isNaN(size) ? size : null,
+                  projectTypes: hadTeam ? revTypes : null,
+                  preformAllowed: hadTeam
+                    ? revPreform === "yes"
+                      ? true
+                      : revPreform === "no"
+                        ? false
+                        : null
+                    : null,
                   content: revContent.trim() || undefined,
                   semester: CURRENT_SEMESTER,
                 });

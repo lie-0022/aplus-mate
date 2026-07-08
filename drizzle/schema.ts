@@ -463,6 +463,13 @@ export const courseReviews = mysqlTable(
     rating: int("rating").notNull(), // 1~5
     // true=팀플 있었음 / false=없었음 / null=응답 안 함
     hadTeamProject: boolean("hadTeamProject"),
+    // 이번 학기 본인 팀 인원(팀플 있었을 때). null=응답 안 함.
+    teamSize: int("teamSize"),
+    // 팀플 유형 태그(발표/개발·제작/보고서·논문/설계·기획/실험·실습/기타). json 배열.
+    projectTypes: json("projectTypes").$type<string[]>(),
+    // 미리 짠 팀을 교수님이 허용하는지 — true=허용 / false=불가 / null=모름.
+    // (학생이 A+ Mate로 조를 미리 짜갈지 판단하는 핵심 데이터)
+    preformAllowed: boolean("preformAllowed"),
     content: varchar("content", { length: 500 }),
     semester: varchar("semester", { length: 20 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
