@@ -51,3 +51,15 @@
 안 잠들고 진짜 평생 무료(ARM Ampere). Ubuntu VM에 Node 20 + MySQL 8 설치, `pnpm build`,
 `pm2`/systemd로 `node dist/index.js` 상시 실행, nginx 리버스프록시 + certbot(HTTPS).
 DB가 로컬이라 외부 의존 없음. 세팅 스크립트가 필요하면 요청.
+
+---
+## ✅ 실제 배포 완료 기록 (2026-07-07, Render + TiDB + Google)
+- **URL**: https://aplus-mate.onrender.com (Render 무료, Singapore, 서비스 srv-d96gbm7avr4c739ee98g)
+- **DB**: TiDB Serverless 무료(Singapore), DB `aplus_mate`, 24테이블·19마이그레이션 적용.
+  - TiDB는 JSON 컬럼 DEFAULT 미지원 → 0001의 `skillTags json DEFAULT ('[]')` 제거(커밋 111602e).
+  - DATABASE_URL: `mysql://…@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/aplus_mate?ssl={"minVersion":"TLSv1.2"}`
+- **로그인**: 기존 Google 클라이언트(프로젝트 a-plus-mate-499211) 재사용 + Render 콜백 URI 추가.
+  검증: `/api/auth/google` → 302 accounts.google.com, redirect_uri·client_id 일치.
+- **빌드 이슈**: `corepack enable`이 Render 읽기전용 /usr/bin에서 EROFS 실패 → 빌드 명령 `pnpm install && pnpm build`.
+- **재배포**: 코드 push 후 Render 대시보드 **Manual Deploy**(또는 Blueprint Manual sync). auto-deploy 없음(public repo 방식).
+- **남은 권장**: ① UptimeRobot로 안 재우기 ② 동의화면 게시(코호트 전체 로그인) ③ LLM_API_KEY(Gemini) 넣으면 AI 보고서 켜짐.
