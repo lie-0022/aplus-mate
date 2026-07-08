@@ -21,6 +21,8 @@ import PublicProfile from "./pages/PublicProfile";
 import TeamEvaluate from "./pages/TeamEvaluate";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import Settings from "./pages/Settings";
+import Guide from "./pages/Guide";
 import AppLayout from "./components/AppLayout";
 import { useAuth } from "./_core/hooks/useAuth";
 import { useEffect } from "react";
@@ -121,6 +123,12 @@ function Router() {
       </Route>
       <Route path="/surveys/:id">
         <ProtectedPage component={SurveyAnswer} />
+      </Route>
+      <Route path="/settings">
+        <ProtectedPage component={Settings} />
+      </Route>
+      <Route path="/guide">
+        <ProtectedPage component={Guide} />
       </Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

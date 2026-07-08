@@ -13,11 +13,7 @@ import {
   Handshake,
   Presentation,
   ShieldCheck,
-  Mail,
-  Shield,
-  FileText,
-  Moon,
-  Sun,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -56,7 +52,7 @@ function AppLayoutSkeleton() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [location, setLocation] = useLocation();
 
   // Pending match requests count
@@ -233,33 +229,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
-                  onClick={() => (window.location.href = "mailto:jayjun.rim@gmail.com")}
+                  onClick={() => setLocation("/settings")}
                   className="cursor-pointer"
                 >
-                  <Mail className="mr-2 h-4 w-4" />
-                  문의·지원
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setLocation("/privacy")}
-                  className="cursor-pointer"
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  개인정보처리방침
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setLocation("/terms")}
-                  className="cursor-pointer"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  이용약관
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
-                  {theme === "dark" ? (
-                    <Sun className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Moon className="mr-2 h-4 w-4" />
-                  )}
-                  {theme === "dark" ? "라이트 모드" : "다크 모드"}
+                  <SettingsIcon className="mr-2 h-4 w-4" />
+                  설정
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}

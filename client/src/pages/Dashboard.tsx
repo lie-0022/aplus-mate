@@ -15,6 +15,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { RecruitingBadge } from "@/components/RecruitingBadge";
 import { MATCH_TYPE_LABELS, type MatchType } from "@shared/const";
 
 // D-day 계산 — TeamDetail과 동일 규칙(날짜 기준).
@@ -232,6 +233,11 @@ export default function Dashboard() {
                         <div className="text-[13px] text-muted-foreground mt-0.5">
                           {item.course.professor} · {item.userCourse.semester}
                         </div>
+                        {item.openRecruitCount > 0 && (
+                          <div className="mt-1.5">
+                            <RecruitingBadge count={item.openRecruitCount} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {item.course.hasTeamProject && (

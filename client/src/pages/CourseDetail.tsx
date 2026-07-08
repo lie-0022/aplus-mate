@@ -781,6 +781,11 @@ export default function CourseDetail() {
           </TabsTrigger>
           <TabsTrigger value="team" className="flex-1">
             <Users className="mr-1 h-4 w-4" /> 팀원 찾기
+            {(courseData?.openRecruitCount ?? 0) > 0 && (
+              <span className="ml-1.5 badge-sky text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {courseData?.openRecruitCount}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 

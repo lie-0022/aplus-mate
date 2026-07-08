@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Plus, GraduationCap, CheckCircle2, Star as StarIcon } from "lucide-react";
+import { RecruitingBadge } from "@/components/RecruitingBadge";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -160,6 +161,11 @@ export default function Courses() {
             {item.course.professor} · {item.course.credits}학점
             {item.course.courseCode && ` · ${item.course.courseCode}`}
           </div>
+          {item.openRecruitCount > 0 && (
+            <div className="mt-1.5">
+              <RecruitingBadge count={item.openRecruitCount} />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {item.course.hasTeamProject && (
@@ -272,6 +278,11 @@ export default function Courses() {
                               미리팀 OK
                             </span>
                           )}
+                      </div>
+                    )}
+                    {course.openRecruitCount > 0 && (
+                      <div className="mt-1.5">
+                        <RecruitingBadge count={course.openRecruitCount} />
                       </div>
                     )}
                   </div>

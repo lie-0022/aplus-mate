@@ -2702,7 +2702,14 @@ export async function getDashboardData(userId: number) {
   const db = await getDb();
   if (!db) return { courses: [], pendingMatches: 0, activeTeams: 0 };
 
-  const userCoursesData = await getUserCourses(userId);
+  const userCoursesRaw = await getUserCourses(userId);
+  const recruitCounts = await getOpenRecruitmentCountsForCourses(
+    userCoursesRaw.map((c) => c.course.id)
+  );
+  const userCoursesData = userCoursesRaw.map((c) => ({
+    ...c,
+    openRecruitCount: recruitCounts[c.course.id] ?? 0,
+  }));
   const pendingMatches = await getPendingMatchCount(userId);
 
   // Count active teams
@@ -3031,5 +3038,19 @@ export async function getReviewSummariesForCourses(courseIds: number[]) {
       preformNo: Number(r.preformNo),
     };
   }
+  return out;
+}
+
+// "이 수업에서 팀 구하고 있어요" 신호 — 수업별 열린 모집공고 수(벌크, N+1 방지).
+export async function getOpenRecruitmentCountsForCourses(courseIds: number[]) {
+  const db = await getDb();
+  const out: Record<number, number> = {};
+  if (!db || courseIds.length === 0) return out;
+  const rows = await db
+    .select({ courseId: recruitments.courseId, c: count() })
+    .from(recruitments)
+    .where(and(inArray(recruitments.courseId, courseIds), eq(recruitments.status, "open")))
+    .groupBy(recruitments.courseId);
+  for (const r of rows) out[r.courseId] = Number(r.c);
   return out;
 }

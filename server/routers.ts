@@ -119,15 +119,26 @@ export const appRouter = router({
         })
       )
       .query(async ({ input }) => {
-        // 검색 단계에서 별점·팀플 응답까지 보이게 리뷰 요약을 붙인다(수업 선택 즉답).
+        // 검색 단계에서 별점·팀플 응답 + 지금 팀 구하는 신호까지 보이게(수업 선택 즉답).
         const list = await db.searchCourses(input.query, input.university);
-        const sums = await db.getReviewSummariesForCourses(list.map((c) => c.id));
-        return list.map((c) => ({ ...c, reviewSummary: sums[c.id] ?? null }));
+        const ids = list.map((c) => c.id);
+        const [sums, recruits] = await Promise.all([
+          db.getReviewSummariesForCourses(ids),
+          db.getOpenRecruitmentCountsForCourses(ids),
+        ]);
+        return list.map((c) => ({
+          ...c,
+          reviewSummary: sums[c.id] ?? null,
+          openRecruitCount: recruits[c.id] ?? 0,
+        }));
       }),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        return db.getCourseById(input.id);
+        const course = await db.getCourseById(input.id);
+        if (!course) return course;
+        const recruits = await db.getOpenRecruitmentCountsForCourses([input.id]);
+        return { ...course, openRecruitCount: recruits[input.id] ?? 0 };
       }),
     create: protectedProcedure
       .input(
@@ -183,7 +194,11 @@ export const appRouter = router({
     myCourses: protectedProcedure
       .input(z.object({ semester: z.string().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getUserCourses(ctx.user.id, input?.semester);
+        const list = await db.getUserCourses(ctx.user.id, input?.semester);
+        const recruits = await db.getOpenRecruitmentCountsForCourses(
+          list.map((c) => c.course.id)
+        );
+        return list.map((c) => ({ ...c, openRecruitCount: recruits[c.course.id] ?? 0 }));
       }),
     students: protectedProcedure
       .input(
