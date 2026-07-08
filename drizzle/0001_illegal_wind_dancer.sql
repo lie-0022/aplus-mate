@@ -89,6 +89,6 @@ CREATE TABLE `user_courses` (
 ALTER TABLE `users` ADD `university` varchar(100);--> statement-breakpoint
 ALTER TABLE `users` ADD `department` varchar(100);--> statement-breakpoint
 ALTER TABLE `users` ADD `year` int;--> statement-breakpoint
-ALTER TABLE `users` ADD `skillTags` json DEFAULT ('[]');--> statement-breakpoint
+ALTER TABLE `users` ADD `skillTags` json;--> statement-breakpoint
 ALTER TABLE `users` ADD `kakaoOpenChatUrl` varchar(500);--> statement-breakpoint
 ALTER TABLE `users` ADD `profileCompleted` boolean DEFAULT false NOT NULL;
