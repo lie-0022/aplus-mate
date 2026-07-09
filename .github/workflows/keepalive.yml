@@ -1,0 +1,25 @@
+name: Keep Render awake
+
+# Render 무료 인스턴스는 15분 유휴 시 잠든다(첫 요청 ~50초 콜드스타트).
+# GitHub Actions 크론이 주기적으로 앱을 찔러 깨워둔다. 공개 레포라 Actions 무료.
+# GitHub 예약 실행은 지연될 수 있어 10분 간격으로 여유를 둔다(15분 유휴 한계 아래).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+# 병렬로 여러 핑이 겹치지 않게 최신 것만 유지
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping app to prevent sleep
+        run: |
+          echo "Pinging https://aplus-mate.onrender.com/ ..."
+          # 콜드스타트로 최대 ~90초 걸릴 수 있어 넉넉히 대기. 실패해도 워크플로우는 성공 처리.
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 https://aplus-mate.onrender.com/ || echo "000")
+          echo "HTTP status: $code"
