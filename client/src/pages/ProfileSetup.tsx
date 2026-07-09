@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { consumeReturnTo } from "@/lib/returnTo";
-import { COHORT_UNIVERSITIES, DEFAULT_UNIVERSITY } from "@/lib/universities";
+import { COHORT_UNIVERSITIES, DEFAULT_UNIVERSITY, COHORT_DEPARTMENTS } from "@/lib/universities";
 import {
   Select,
   SelectContent,
@@ -115,12 +115,18 @@ export default function ProfileSetup() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">학과 *</Label>
-              <Input
-                id="department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="컴퓨터공학과"
-              />
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="학과 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COHORT_DEPARTMENTS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="year">학년 *</Label>

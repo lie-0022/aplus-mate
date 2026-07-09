@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowLeft } from "lucide-react";
 
-// ⚠️ 초안 — 정식 서비스 전 법률 검토/확정 필요. 운영자 정보·보유기간 등은 실제 값으로 교체.
 export default function Privacy() {
   const [, setLocation] = useLocation();
   return (
@@ -15,15 +14,13 @@ export default function Privacy() {
         </button>
 
         <h1 className="text-2xl font-bold mb-1">개인정보처리방침</h1>
-        <p className="text-xs text-muted-foreground mb-6">
-          버전 2026.1 · <span className="text-amber-600">초안(베타) — 정식 검토 예정</span>
-        </p>
+        <p className="text-xs text-muted-foreground mb-6">버전 2026.1</p>
 
         <div className="space-y-6 text-sm leading-relaxed text-foreground/90">
           <section>
             <p className="text-muted-foreground">
               A+ Mate(이하 “서비스”)는 「개인정보 보호법」 등 관련 법령을 준수하며, 아래와 같이 개인정보를
-              수집·이용·보관합니다. 본 방침은 정식 서비스 전 검토를 거쳐 확정될 예정인 초안입니다.
+              수집·이용·보관합니다.
             </p>
           </section>
           <section>

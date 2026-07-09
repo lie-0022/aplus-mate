@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { COHORT_UNIVERSITIES } from "@/lib/universities";
+import { COHORT_UNIVERSITIES, COHORT_DEPARTMENTS } from "@/lib/universities";
 import { parseSkillTags } from "@/lib/utils-parse";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { Button } from "@/components/ui/button";
@@ -154,7 +154,18 @@ export default function Profile() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">학과</Label>
-              <Input value={department} onChange={(e) => setDepartment(e.target.value)} />
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger>
+                  <SelectValue placeholder="학과 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COHORT_DEPARTMENTS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-1">

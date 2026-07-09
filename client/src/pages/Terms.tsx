@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowLeft } from "lucide-react";
 
-// ⚠️ 초안 — 정식 서비스 전 법률 검토/확정 필요.
 export default function Terms() {
   const [, setLocation] = useLocation();
   return (
@@ -15,14 +14,13 @@ export default function Terms() {
         </button>
 
         <h1 className="text-2xl font-bold mb-1">이용약관</h1>
-        <p className="text-xs text-muted-foreground mb-6">
-          버전 2026.1 · <span className="text-amber-600">초안(베타) — 정식 검토 예정</span>
-        </p>
+        <p className="text-xs text-muted-foreground mb-6">버전 2026.1</p>
 
         <div className="space-y-6 text-sm leading-relaxed text-foreground/90">
           <section>
             <p className="text-muted-foreground">
-              본 약관은 정식 서비스 전 검토를 거쳐 확정될 예정인 초안이며, 법률 자문을 대체하지 않습니다.
+              본 약관은 A+ Mate 서비스 이용에 적용되며, 서비스를 이용함으로써 이용자는 본 약관에 동의한
+              것으로 봅니다.
             </p>
           </section>
           <section>
