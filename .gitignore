@@ -42,3 +42,7 @@ scripts/stitch/out/
 next-env.d.ts
 
 .dev_noappid.*
+
+# Python
+__pycache__/
+*.pyc
