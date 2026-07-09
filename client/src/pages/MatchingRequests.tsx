@@ -67,9 +67,10 @@ export default function MatchingRequests() {
     onError: (err) => toast.error(err.message),
   });
 
-  // 연락처 있으면 바로 수락, 없으면 모달로 받고 저장 후 수락.
-  const handleAccept = (matchId: number) => {
-    if (user?.kakaoOpenChatUrl) {
+  // 모집공고 경유 매칭은 팀이 공고의 오픈채팅방을 물려받으므로 프로필 카카오를 묻지 않는다.
+  // 직접 커넥트(공고 없음)만 연락처 없을 때 모달로 받고 저장 후 수락.
+  const handleAccept = (matchId: number, fromRecruitment: boolean) => {
+    if (fromRecruitment || user?.kakaoOpenChatUrl) {
       acceptMutation.mutate({ matchId });
     } else {
       setPendingMatchId(matchId);
@@ -211,7 +212,7 @@ export default function MatchingRequests() {
                       <Button
                         className="flex-1"
                         size="sm"
-                        onClick={() => handleAccept(item.match.id)}
+                        onClick={() => handleAccept(item.match.id, !!item.match.recruitmentId)}
                         disabled={acceptMutation.isPending || saveKakao.isPending}
                       >
                         <Check className="mr-1 h-4 w-4" /> 수락
