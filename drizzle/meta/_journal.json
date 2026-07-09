@@ -141,6 +141,13 @@
       "when": 1783513582321,
       "tag": "0019_busy_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1783560156500,
+      "tag": "0020_hard_bucky",
+      "breakpoints": true
     }
   ]
 }

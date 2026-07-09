@@ -781,6 +781,17 @@ export async function acceptMatch(matchId: number, userId: number) {
   const match = matchRows[0];
   if (match.status !== "pending") throw new Error("이미 처리된 요청입니다.");
 
+  // 모집공고 경유 매칭이면, 공고의 오픈채팅방 링크를 새로 만들 팀에 복사한다(팀 방).
+  let teamKakaoUrl: string | null = null;
+  if (match.recruitmentId != null) {
+    const recRow = await db
+      .select({ url: recruitments.kakaoOpenChatUrl })
+      .from(recruitments)
+      .where(eq(recruitments.id, match.recruitmentId))
+      .limit(1);
+    teamKakaoUrl = recRow[0]?.url ?? null;
+  }
+
   // 이 매칭으로 이미 팀이 생성됐으면 멱등 반환
   const teamByMatch = await db.select().from(teams).where(eq(teams.matchId, matchId)).limit(1);
   if (teamByMatch.length > 0) {
@@ -871,6 +882,7 @@ export async function acceptMatch(matchId: number, userId: number) {
         teamType: matchType,
         status: "active",
         evaluationStatus: "pending",
+        kakaoOpenChatUrl: teamKakaoUrl,
       });
       const teamId = teamResult[0].insertId;
       await tx.insert(teamMembers).values([
@@ -2472,6 +2484,7 @@ export async function createRecruitment(
     desiredSkills?: string[];
     neededCount?: number;
     teamId?: number;
+    kakaoOpenChatUrl: string;
   }
 ) {
   const db = await getDb();
@@ -2509,6 +2522,7 @@ export async function createRecruitment(
     description: data.description ?? null,
     desiredSkills: data.desiredSkills?.length ? JSON.stringify(data.desiredSkills) : null,
     neededCount: data.neededCount ?? 1,
+    kakaoOpenChatUrl: data.kakaoOpenChatUrl,
     status: "open",
   });
   return { id: r[0].insertId };

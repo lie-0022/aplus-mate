@@ -262,9 +262,35 @@ export default function TeamDetail() {
     </div>
   );
 
+  // ── 팀 오픈채팅방 (모집 공고에 설정된 팀 방 — 수락된 팀원 공용) ──
+  const roomEl = data.team.kakaoOpenChatUrl ? (
+    <a
+      href={data.team.kakaoOpenChatUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-between gap-3 rounded-2xl bg-card shadow-card p-4 transition-transform active:scale-[0.99]"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <MessageCircle className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[15px] font-bold">팀 오픈채팅방</div>
+          <div className="text-[13px] text-muted-foreground truncate">
+            여기서 팀원들과 바로 이야기하세요
+          </div>
+        </div>
+      </div>
+      <span className="shrink-0 rounded-full gradient-primary text-white text-xs font-bold px-3.5 py-2">
+        입장
+      </span>
+    </a>
+  ) : null;
+
   // ── 팀원 ──
   const membersEl = (
     <section className="space-y-3">
+      {roomEl}
       <div className="flex items-baseline gap-2 px-1">
         <h2 className="text-lg font-bold">팀원</h2>
         <span className="text-sm text-muted-foreground">{data.members.length}명</span>

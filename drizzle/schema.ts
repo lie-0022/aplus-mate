@@ -172,6 +172,9 @@ export const recruitments = mysqlTable("recruitments", {
   desiredSkills: text("desiredSkills"),
   // 추가로 필요한 인원(안내용). 정원 검증은 acceptMatch가 담당.
   neededCount: int("neededCount").default(1).notNull(),
+  // 이 모집이 만들 팀의 카카오 오픈채팅방 링크 — 공고 올릴 때 필수. 수락된 팀원이 이 방으로 모인다.
+  // (프로필 단일 링크 대신 공고/팀마다 방을 갖게 하는 설계.)
+  kakaoOpenChatUrl: varchar("kakaoOpenChatUrl", { length: 300 }),
   status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   closedAt: timestamp("closedAt"),
@@ -198,6 +201,8 @@ export const teams = mysqlTable(
     // 교수 승인 — 교수 인증 수업에서 교수가 이 팀 구성을 확인·허락한 시각(null=미승인).
     // 학생 화면(내 팀·팀 상세)에 "교수님 승인" 칩으로 노출된다.
     professorApprovedAt: timestamp("professorApprovedAt"),
+    // 팀 카카오 오픈채팅방 링크 — 모집 공고의 kakaoOpenChatUrl을 팀 생성 시 복사. 팀 상세에서 노출.
+    kakaoOpenChatUrl: varchar("kakaoOpenChatUrl", { length: 300 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [

@@ -47,6 +47,7 @@ export default function RecruitmentSection({
   const [cSkills, setCSkills] = useState("");
   const [cCount, setCCount] = useState("1");
   const [cRole, setCRole] = useState<MentoringRole>("mentee");
+  const [cKakao, setCKakao] = useState("");
 
   const [applyTo, setApplyTo] = useState<{ id: number; title: string } | null>(null);
   const [applyMsg, setApplyMsg] = useState("");
@@ -60,6 +61,7 @@ export default function RecruitmentSection({
       setCSkills("");
       setCCount("1");
       setCType("project");
+      setCKakao("");
       toast.success("모집 공고를 올렸어요!");
     },
     onError: (e) => toast.error(e.message),
@@ -243,12 +245,28 @@ export default function RecruitmentSection({
                 className="w-20"
               />
             </div>
+            <div className="space-y-1">
+              <Input
+                placeholder="카카오 오픈채팅방 링크 (필수) — https://open.kakao.com/..."
+                value={cKakao}
+                onChange={(e) => setCKakao(e.target.value)}
+                maxLength={300}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                이 팀이 모일 오픈채팅방 링크예요. 수락된 팀원에게 공개돼 바로 이 방으로 모여요.
+                (카톡에서 오픈채팅방 만들고 링크 복사)
+              </p>
+            </div>
             <Button
               className="w-full"
               disabled={create.isPending}
               onClick={() => {
                 if (!cTitle.trim()) {
                   toast.error("한 줄 소개를 입력해주세요.");
+                  return;
+                }
+                if (!/^https:\/\/open\.kakao\.com\//.test(cKakao.trim())) {
+                  toast.error("카카오 오픈채팅방 링크(https://open.kakao.com/...)를 입력해주세요.");
                   return;
                 }
                 create.mutate({
@@ -261,6 +279,7 @@ export default function RecruitmentSection({
                     new Set(cSkills.split(",").map((s) => s.trim()).filter(Boolean))
                   ),
                   neededCount: Math.max(1, Math.min(10, parseInt(cCount) || 1)),
+                  kakaoOpenChatUrl: cKakao.trim(),
                 });
               }}
             >

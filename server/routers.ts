@@ -1256,6 +1256,12 @@ export const appRouter = router({
           desiredSkills: z.array(z.string().trim().min(1).max(50)).max(30).optional(),
           neededCount: z.number().int().min(1).max(10).default(1),
           teamId: z.number().optional(),
+          // 팀 오픈채팅방 링크 — 필수. 수락된 팀원이 이 방으로 모인다(공고/팀마다 방).
+          kakaoOpenChatUrl: z
+            .string()
+            .trim()
+            .regex(/^https:\/\/open\.kakao\.com\//, "카카오 오픈채팅방 링크(https://open.kakao.com/...)를 입력해주세요.")
+            .max(300),
         })
       )
       .mutation(async ({ ctx, input }) => db.createRecruitment(ctx.user.id, input)),
