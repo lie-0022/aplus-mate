@@ -179,16 +179,6 @@ export default function Admin() {
                     <div className="text-xs text-muted-foreground">
                       {u?.department} · {u?.year}학년
                     </div>
-                    {u?.kakaoOpenChatUrl && (
-                      <a
-                        href={u.kakaoOpenChatUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline inline-flex items-center gap-0.5 mt-1"
-                      >
-                        오픈채팅 <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
                   </div>
                 ))}
               </div>
@@ -516,16 +506,6 @@ function AdminTeamDetail({ teamId }: { teamId: number }) {
                 {m.year ? ` · ${m.year}학년` : ""}
                 {m.role === "mentor" ? " · 멘토" : m.role === "mentee" ? " · 멘티" : ""}
               </span>
-              {m.kakaoOpenChatUrl && (
-                <a
-                  href={m.kakaoOpenChatUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-0.5 ml-auto"
-                >
-                  오픈채팅 <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
             </div>
           ))}
         </div>

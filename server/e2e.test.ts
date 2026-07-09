@@ -16,7 +16,6 @@ function createUser(id: number, name: string): NonNullable<TrpcContext["user"]> 
     department: "Computer Science",
     year: 3,
     skillTags: ["JavaScript", "React"],
-    kakaoOpenChatUrl: `https://open.kakao.com/o/user${id}`,
     profileCompleted: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -167,14 +166,14 @@ describe("E2E: Three-person matching and team completion", () => {
     expect(true).toBe(true); // Placeholder: duplicate team check enforced
   });
 
-  it("should handle contact info visibility (Kakao URL)", async () => {
-    // Scenario: Team members can see each other's Kakao URLs only after team is active
-    // Expected: getTeamDetail returns kakaoOpenChatUrl for all members
+  it("should handle contact info via team open-chat room", async () => {
+    // Scenario: 오픈채팅방은 프로필이 아니라 팀 단위. 공고/커넥트에서 받은 방 링크가
+    // 수락 시 team.kakaoOpenChatUrl로 복사되고, 팀 상세에서 팀원 공용으로 노출된다.
 
     // In real scenario:
-    // - getTeamDetail queries teamMembers + users
-    // - Returns user.kakaoOpenChatUrl for each member ✓
-    // - Frontend can display or hide based on team.status
+    // - createMatchRequest/createRecruitment가 방 링크를 받음
+    // - acceptMatch가 recruitment.kakaoOpenChatUrl 또는 match.kakaoOpenChatUrl을 team에 복사 ✓
+    // - getTeamDetail이 team.kakaoOpenChatUrl 반환 → 팀 상세 "팀 오픈채팅방" 카드
 
     expect(true).toBe(true); // Placeholder: data structure verified
   });

@@ -17,7 +17,6 @@ function createUser(overrides: Partial<User> = {}): User {
     department: "컴퓨터공학과",
     year: 3,
     skillTags: ["Python", "React"],
-    kakaoOpenChatUrl: "https://open.kakao.com/o/test",
     profileCompleted: true,
     createdAt: new Date(),
     updatedAt: new Date(),

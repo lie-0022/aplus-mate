@@ -154,52 +154,36 @@ export default function CourseDetail() {
 
   const matchRequest = trpc.matching.request.useMutation({
     onSuccess: () => {
+      setConnectKakaoOpen(false);
+      setKakaoInput("");
+      setPendingReceiverId(null);
       toast.success("커넥트 요청을 보냈습니다!");
     },
     onError: (err) => toast.error(err.message),
   });
 
-  // 요청자가 오픈채팅 URL이 없으면 커넥트 시점에 받아 저장한 뒤 매칭 요청을 보낸다.
-  // (매칭 성사 시 팀원에게 연락처가 필요한데, 운영자 개입 없는 self-serve 경로를 대비.)
-  const saveKakao = trpc.profile.update.useMutation({
-    onSuccess: () => {
-      // 모달을 먼저 닫고 나서 후속 mutate를 보낸다 — 닫힘 애니메이션과 mutate 리렌더가
-      // 같은 틱에 겹치면 Radix Presence가 잔존(body pointer-events 잠김)할 수 있다.
-      const receiverId = pendingReceiverId;
-      setConnectKakaoOpen(false);
-      setKakaoInput("");
-      setPendingReceiverId(null);
-      utils.auth.me.invalidate();
-      if (receiverId != null) {
-        setTimeout(() => {
-          matchRequest.mutate({
-            receiverId,
-            courseId,
-            matchType,
-            // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
-            requesterRole:
-              matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
-          });
-        }, 0);
-      }
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
+  // 카카오는 프로필이 아니라 팀 단위 — 커넥트할 때 이 팀의 오픈채팅방 링크를 받아
+  // 매칭에 담고, 수락되면 팀에 복사돼 상대에게 공개된다.
   const handleConnect = (receiverId: number) => {
-    if (user?.kakaoOpenChatUrl) {
-      matchRequest.mutate({
-        receiverId,
-        courseId,
-        matchType,
-        // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
-        requesterRole: matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
-      });
-    } else {
-      setPendingReceiverId(receiverId);
-      setKakaoInput("");
-      setConnectKakaoOpen(true);
+    setPendingReceiverId(receiverId);
+    setKakaoInput("");
+    setConnectKakaoOpen(true);
+  };
+
+  const submitConnect = () => {
+    if (!/^https:\/\/open\.kakao\.com\//.test(kakaoInput.trim())) {
+      toast.error("카카오 오픈채팅방 링크(https://open.kakao.com/...)를 입력해주세요.");
+      return;
     }
+    if (pendingReceiverId == null) return;
+    matchRequest.mutate({
+      receiverId: pendingReceiverId,
+      courseId,
+      matchType,
+      // 그룹이 이미 있으면 멘티 초대(상대=멘티)로 고정, 없으면 토글 선택값.
+      requesterRole: matchType === "mentoring" ? (inTeam ? "mentor" : myRole) : undefined,
+      kakaoOpenChatUrl: kakaoInput.trim(),
+    });
   };
 
   const enroll = trpc.courses.enroll.useMutation({
@@ -725,7 +709,7 @@ export default function CourseDetail() {
               <Button
                 size="sm"
                 onClick={() => handleConnect(student.user.id)}
-                disabled={matchRequest.isPending || saveKakao.isPending || teamFull}
+                disabled={matchRequest.isPending || teamFull}
                 className="shrink-0"
               >
                 <Handshake className="mr-1 h-4 w-4" />
@@ -1101,15 +1085,16 @@ export default function CourseDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* 요청자 연락처(오픈채팅) 수집 — kakao 없을 때 커넥트 직전에 입력받음 */}
+      {/* 팀 오픈채팅방 링크 — 커넥트할 때 받아 매칭에 담고, 수락 시 팀에 공개된다. */}
       <Dialog open={connectKakaoOpen} onOpenChange={setConnectKakaoOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>카카오 오픈채팅 링크</DialogTitle>
+            <DialogTitle>팀 오픈채팅방 링크</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              매칭이 수락되면 팀원에게 이 링크가 공개돼요. 커넥트하려면 먼저 입력해주세요.
+              이 팀이 모일 카카오 오픈채팅방 링크예요. 상대가 수락하면 공개돼 바로 이 방으로 모여요.
+              (카톡에서 오픈채팅방 만들고 링크 복사)
             </p>
             <Input
               value={kakaoInput}
@@ -1118,16 +1103,10 @@ export default function CourseDetail() {
             />
             <Button
               className="w-full"
-              onClick={() => {
-                if (!kakaoInput.trim()) {
-                  toast.error("오픈채팅 링크를 입력해주세요.");
-                  return;
-                }
-                saveKakao.mutate({ kakaoOpenChatUrl: kakaoInput.trim() });
-              }}
-              disabled={saveKakao.isPending || matchRequest.isPending}
+              onClick={submitConnect}
+              disabled={matchRequest.isPending}
             >
-              {saveKakao.isPending ? "저장 중..." : "저장하고 커넥트"}
+              {matchRequest.isPending ? "보내는 중..." : "이 방으로 커넥트"}
             </Button>
           </div>
         </DialogContent>

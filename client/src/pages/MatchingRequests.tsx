@@ -32,11 +32,6 @@ export default function MatchingRequests() {
     onError: (err) => toast.error(err.message),
   });
 
-  // 수락 시점 kakao 수집(연락처 없는 수신자) — 요청자 커넥트 흐름과 대칭.
-  const [kakaoModalOpen, setKakaoModalOpen] = useState(false);
-  const [pendingMatchId, setPendingMatchId] = useState<number | null>(null);
-  const [kakaoInput, setKakaoInput] = useState("");
-
   const acceptMutation = trpc.matching.accept.useMutation({
     onSuccess: (result) => {
       utils.matching.received.invalidate();
@@ -51,32 +46,10 @@ export default function MatchingRequests() {
     onError: (err) => toast.error(err.message),
   });
 
-  const saveKakao = trpc.profile.update.useMutation({
-    onSuccess: () => {
-      // 모달을 먼저 닫고 후속 mutate는 다음 틱으로 — 닫힘 애니메이션과 리렌더가
-      // 겹치면 Radix Presence가 잔존(body pointer-events 잠김)할 수 있다.
-      const matchId = pendingMatchId;
-      setKakaoModalOpen(false);
-      setKakaoInput("");
-      setPendingMatchId(null);
-      utils.auth.me.invalidate();
-      if (matchId != null) {
-        setTimeout(() => acceptMutation.mutate({ matchId }), 0);
-      }
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  // 모집공고 경유 매칭은 팀이 공고의 오픈채팅방을 물려받으므로 프로필 카카오를 묻지 않는다.
-  // 직접 커넥트(공고 없음)만 연락처 없을 때 모달로 받고 저장 후 수락.
-  const handleAccept = (matchId: number, fromRecruitment: boolean) => {
-    if (fromRecruitment || user?.kakaoOpenChatUrl) {
-      acceptMutation.mutate({ matchId });
-    } else {
-      setPendingMatchId(matchId);
-      setKakaoInput("");
-      setKakaoModalOpen(true);
-    }
+  // 오픈채팅방은 요청자가 커넥트/공고에서 이미 넣었고 수락 시 팀에 복사되므로,
+  // 수락자는 아무것도 입력하지 않고 바로 수락한다.
+  const handleAccept = (matchId: number) => {
+    acceptMutation.mutate({ matchId });
   };
 
   const rejectMutation = trpc.matching.reject.useMutation({
@@ -212,8 +185,8 @@ export default function MatchingRequests() {
                       <Button
                         className="flex-1"
                         size="sm"
-                        onClick={() => handleAccept(item.match.id, !!item.match.recruitmentId)}
-                        disabled={acceptMutation.isPending || saveKakao.isPending}
+                        onClick={() => handleAccept(item.match.id)}
+                        disabled={acceptMutation.isPending}
                       >
                         <Check className="mr-1 h-4 w-4" /> 수락
                       </Button>
@@ -292,37 +265,6 @@ export default function MatchingRequests() {
           </div>
         </TabsContent>
       </Tabs>
-
-      <Dialog open={kakaoModalOpen} onOpenChange={setKakaoModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>카카오 오픈채팅 링크</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              수락하면 팀원에게 이 링크가 공개돼요. 수락하려면 먼저 입력해주세요.
-            </p>
-            <Input
-              value={kakaoInput}
-              onChange={(e) => setKakaoInput(e.target.value)}
-              placeholder="https://open.kakao.com/o/..."
-            />
-            <Button
-              className="w-full"
-              onClick={() => {
-                if (!kakaoInput.trim()) {
-                  toast.error("오픈채팅 링크를 입력해주세요.");
-                  return;
-                }
-                saveKakao.mutate({ kakaoOpenChatUrl: kakaoInput.trim() });
-              }}
-              disabled={saveKakao.isPending || acceptMutation.isPending}
-            >
-              {saveKakao.isPending ? "저장 중..." : "저장하고 수락"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -29,7 +29,6 @@ export default function ProfileSetup() {
   const [university, setUniversity] = useState<string>(DEFAULT_UNIVERSITY);
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState<string>("");
-  const [kakaoUrl, setKakaoUrl] = useState("");
   const [skillTags, setSkillTags] = useState<string[]>([]);
   const [isAdult, setIsAdult] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -70,7 +69,6 @@ export default function ProfileSetup() {
       university: university.trim(),
       department: department.trim(),
       year: parseInt(year),
-      kakaoOpenChatUrl: kakaoUrl.trim() || undefined,
       skillTags: skillTags.length > 0 ? skillTags : undefined,
     });
   };
@@ -142,18 +140,6 @@ export default function ProfileSetup() {
                   <SelectItem value="5">5학년 이상</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="kakao">카카오 오픈채팅 URL (선택)</Label>
-              <Input
-                id="kakao"
-                value={kakaoUrl}
-                onChange={(e) => setKakaoUrl(e.target.value)}
-                placeholder="https://open.kakao.com/o/..."
-              />
-              <p className="text-xs text-muted-foreground">
-                매칭 수락 후에만 상대방에게 공개됩니다
-              </p>
             </div>
             <div className="space-y-2">
               <Label>스킬 태그 (선택)</Label>

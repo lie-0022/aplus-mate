@@ -24,7 +24,6 @@ export const users = mysqlTable("users", {
   department: varchar("department", { length: 100 }),
   year: int("year"), // 1~4
   skillTags: json("skillTags").$type<string[]>().default([]),
-  kakaoOpenChatUrl: varchar("kakaoOpenChatUrl", { length: 500 }),
   profileCompleted: boolean("profileCompleted").default(false).notNull(),
   // 회원 탈퇴 시각(소프트-파기). null이면 활성 계정.
   deletedAt: timestamp("deletedAt"),
@@ -135,6 +134,9 @@ export const teamMatches = mysqlTable(
     message: text("message"),
     // 모집 공고를 통한 지원이면 해당 공고 연결. 직접 커넥트는 null.
     recruitmentId: int("recruitmentId"),
+    // 직접 커넥트(공고 없음) 시 요청자가 넣는 팀 오픈채팅방 링크 — 수락 시 팀에 복사.
+    // 공고 경유면 방은 공고에서 오므로 여기는 null.
+    kakaoOpenChatUrl: varchar("kakaoOpenChatUrl", { length: 300 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [

@@ -61,7 +61,6 @@ export default function Profile() {
   const [university, setUniversity] = useState("");
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState("");
-  const [kakaoUrl, setKakaoUrl] = useState("");
   const [skillTags, setSkillTags] = useState<string[]>([]);
 
   const updateProfile = trpc.profile.update.useMutation({
@@ -80,7 +79,6 @@ export default function Profile() {
       setUniversity(data.user.university || "");
       setDepartment(data.user.department || "");
       setYear(data.user.year?.toString() || "");
-      setKakaoUrl(data.user.kakaoOpenChatUrl || "");
       setSkillTags(parseSkillTags(data.user.skillTags));
     }
     setEditing(true);
@@ -93,7 +91,6 @@ export default function Profile() {
       department: department.trim(),
       year: parseInt(year),
       skillTags,
-      kakaoOpenChatUrl: kakaoUrl.trim(),
     });
   };
 
@@ -183,14 +180,6 @@ export default function Profile() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">카카오 오픈채팅 URL</Label>
-            <Input
-              value={kakaoUrl}
-              onChange={(e) => setKakaoUrl(e.target.value)}
-              placeholder="https://open.kakao.com/o/..."
-            />
-          </div>
         </div>
       ) : (
         <div className="space-y-2 text-sm">
@@ -198,13 +187,9 @@ export default function Profile() {
             <span className="text-muted-foreground">학년</span>
             <span className="font-medium">{profile?.year}학년</span>
           </div>
-          <div className="flex justify-between py-1.5 border-b">
+          <div className="flex justify-between py-1.5">
             <span className="text-muted-foreground">이메일</span>
             <span className="font-medium">{profile?.email || "-"}</span>
-          </div>
-          <div className="flex justify-between py-1.5">
-            <span className="text-muted-foreground">오픈채팅</span>
-            <span className="font-medium">{profile?.kakaoOpenChatUrl ? "설정됨" : "미설정"}</span>
           </div>
         </div>
       )}

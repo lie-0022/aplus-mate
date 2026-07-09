@@ -54,16 +54,6 @@ export const appRouter = router({
           year: z.number().min(1).max(6).optional(),
           // 개수·길이 상한으로 거대 페이로드를 차단한다(엣지 6-B)
           skillTags: z.array(z.string().trim().min(1).max(50)).max(30).optional(),
-          // 카카오 오픈채팅 링크만 허용 — 매칭 수락 후 상대에게 그대로 노출·링크되므로
-          // 도메인을 고정해 피싱·비정상 스킴(javascript: 등)을 차단한다(엣지 6-A).
-          kakaoOpenChatUrl: z
-            .string()
-            .trim()
-            .max(300)
-            .refine((v) => v === "" || /^https:\/\/open\.kakao\.com\//.test(v), {
-              message: "카카오 오픈채팅 링크(https://open.kakao.com/...)를 입력해주세요.",
-            })
-            .optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -355,6 +345,12 @@ export const appRouter = router({
           matchType: z.enum(["project", "study", "mentoring"]).default("project"),
           // 멘토멘티 전용: 요청자가 고른 자기 역할(미지정 시 멘티). 다른 종류는 무시.
           requesterRole: z.enum(["mentor", "mentee"]).optional(),
+          // 팀 오픈채팅방 링크 — 필수. 수락되면 팀에 복사돼 상대에게 공개된다(프로필 대신 커넥트 단위 방).
+          kakaoOpenChatUrl: z
+            .string()
+            .trim()
+            .regex(/^https:\/\/open\.kakao\.com\//, "카카오 오픈채팅방 링크(https://open.kakao.com/...)를 입력해주세요.")
+            .max(300),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -372,7 +368,8 @@ export const appRouter = router({
           input.receiverId,
           input.courseId,
           input.matchType,
-          input.requesterRole
+          input.requesterRole,
+          { kakaoOpenChatUrl: input.kakaoOpenChatUrl }
         );
       }),
     received: protectedProcedure.query(async ({ ctx }) => {

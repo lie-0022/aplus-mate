@@ -112,7 +112,6 @@ export async function updateUserProfile(
     department?: string;
     year?: number;
     skillTags?: string[];
-    kakaoOpenChatUrl?: string;
     name?: string;
   }
 ) {
@@ -123,7 +122,6 @@ export async function updateUserProfile(
   if (data.department !== undefined) updateSet.department = data.department;
   if (data.year !== undefined) updateSet.year = data.year;
   if (data.skillTags !== undefined) updateSet.skillTags = data.skillTags;
-  if (data.kakaoOpenChatUrl !== undefined) updateSet.kakaoOpenChatUrl = data.kakaoOpenChatUrl;
   if (data.name !== undefined) updateSet.name = data.name;
 
   if (Object.keys(updateSet).length === 0) return;
@@ -131,11 +129,8 @@ export async function updateUserProfile(
   await db.update(users).set(updateSet).where(eq(users.id, userId));
 
   // Mark profile as completed if all required fields are set.
-  // 게이트는 university/department/year만 요구한다.
-  // kakaoOpenChatUrl은 ProfileSetup에서 "(선택)"으로 들어오고, skillTags는 ProfileSetup에서
-  // 아예 수집하지 않는다(default []). 둘을 게이트에 포함하면 정상적으로 가입한 학생도
-  // profileCompleted=false에 영구 고정되어 매칭(createMatchRequest의 profileCompleted 검증)이
-  // 영영 열리지 않는다. kakao 연락처는 매칭 수락 후 단계에서 수집한다.
+  // 게이트는 university/department/year만 요구한다. skillTags는 ProfileSetup에서 수집하지 않고
+  // (default []), 오픈채팅방은 프로필이 아니라 공고/커넥트 단위로 받으므로 게이트에 없다.
   const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (user.length > 0) {
     const u = user[0];
@@ -181,7 +176,6 @@ export async function deleteSelf(userId: number) {
       .set({
         name: "(탈퇴한 사용자)",
         email: null,
-        kakaoOpenChatUrl: null,
         skillTags: [],
         profileCompleted: false,
         deletedAt: new Date(),
@@ -511,7 +505,7 @@ export async function createMatchRequest(
   courseId: number,
   matchType: MatchType = "project",
   requesterRole?: MentoringRole,
-  opts?: { message?: string; recruitmentId?: number }
+  opts?: { message?: string; recruitmentId?: number; kakaoOpenChatUrl?: string }
 ) {
   // 역할은 멘토멘티 전용 — 다른 종류는 무시, 멘토멘티 미지정 시 멘티(멘토를 찾는 요청)가 기본.
   const role: MentoringRole | null =
@@ -590,6 +584,7 @@ export async function createMatchRequest(
       status: "pending",
       message: opts?.message ?? null,
       recruitmentId: opts?.recruitmentId ?? null,
+      kakaoOpenChatUrl: opts?.kakaoOpenChatUrl ?? null,
     });
     // 수신자에게 요청 도착 알림 — 직접 커넥트·모집 지원 모두. (기존 누락 보완)
     // 알림 실패가 매칭 자체를 막지 않도록 격리.
@@ -725,7 +720,6 @@ export async function getPendingMatchesForAdmin() {
       name: users.name,
       department: users.department,
       year: users.year,
-      kakaoOpenChatUrl: users.kakaoOpenChatUrl,
     })
     .from(users)
     .where(inArray(users.id, userIds));
@@ -781,8 +775,8 @@ export async function acceptMatch(matchId: number, userId: number) {
   const match = matchRows[0];
   if (match.status !== "pending") throw new Error("이미 처리된 요청입니다.");
 
-  // 모집공고 경유 매칭이면, 공고의 오픈채팅방 링크를 새로 만들 팀에 복사한다(팀 방).
-  let teamKakaoUrl: string | null = null;
+  // 팀 오픈채팅방 링크: 모집공고 경유면 공고의 방, 직접 커넥트면 요청자가 커넥트 시 넣은 방.
+  let teamKakaoUrl: string | null = match.kakaoOpenChatUrl ?? null;
   if (match.recruitmentId != null) {
     const recRow = await db
       .select({ url: recruitments.kakaoOpenChatUrl })
@@ -991,7 +985,6 @@ export async function getTeamDetail(teamId: number) {
         department: users.department,
         year: users.year,
         skillTags: users.skillTags,
-        kakaoOpenChatUrl: users.kakaoOpenChatUrl,
         university: users.university,
       },
     })
@@ -2071,7 +2064,6 @@ export async function seedDemoData(professorUserId: number) {
       department: d.dept,
       year: d.year,
       skillTags: d.skills,
-      kakaoOpenChatUrl: "https://open.kakao.com/o/demo",
       name: d.name,
     });
     ids.push(u.id);
@@ -2412,7 +2404,6 @@ export async function getTeamDetailForAdmin(teamId: number) {
       name: users.name,
       department: users.department,
       year: users.year,
-      kakaoOpenChatUrl: users.kakaoOpenChatUrl,
       role: teamMembers.role,
     })
     .from(teamMembers)

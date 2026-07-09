@@ -327,17 +327,6 @@ export default function TeamDetail() {
                 </div>
               </div>
             </div>
-            {member.user.kakaoOpenChatUrl && (
-              <a
-                href={member.user.kakaoOpenChatUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                오픈채팅
-              </a>
-            )}
           </div>
         ))}
       </div>
