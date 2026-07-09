@@ -164,7 +164,8 @@ def parse_pdf(path, dept_code, category, semester):
                     if len(row) <= cmap["code"]:
                         continue
                     code = norm(row[cmap["code"]])
-                    name = cell(row[cmap["name"]]).strip()
+                    # 과목명 셀은 여러 줄로 접히기도 함 → 내부 공백/줄바꿈을 단일 공백으로.
+                    name = re.sub(r"\s+", " ", cell(row[cmap["name"]])).strip()
                     if not re.fullmatch(r"\d{7}", code) or not name:
                         continue
                     def g(key):
