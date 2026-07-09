@@ -1,3 +1,9 @@
+// 현재 코호트는 백석대학교 단일 운영 — 프로필의 대학 "선택"을 이 목록으로 제한한다.
+// (university는 매칭·수업 검색에서 정확일치로 필터되므로, 학교가 섞이면 서로 안 보임.)
+// 코호트가 늘면 여기에 학교명을 추가하면 선택지가 그대로 늘어난다.
+export const COHORT_UNIVERSITIES = ["백석대학교"] as const;
+export const DEFAULT_UNIVERSITY = COHORT_UNIVERSITIES[0];
+
 // 주요 한국 대학 — 학교명 표기 표준화용(datalist 추천 목록). 직접 입력도 허용한다.
 // university는 매칭·수업 검색에서 정확일치로 필터되므로 표기 분절을 줄이는 게 핵심.
 export const KOREAN_UNIVERSITIES = [

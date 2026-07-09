@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { consumeReturnTo } from "@/lib/returnTo";
-import { KOREAN_UNIVERSITIES } from "@/lib/universities";
+import { COHORT_UNIVERSITIES, DEFAULT_UNIVERSITY } from "@/lib/universities";
 import {
   Select,
   SelectContent,
@@ -26,7 +26,7 @@ export default function ProfileSetup() {
   const utils = trpc.useUtils();
 
   const [name, setName] = useState(user?.name || "");
-  const [university, setUniversity] = useState("");
+  const [university, setUniversity] = useState<string>(DEFAULT_UNIVERSITY);
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState<string>("");
   const [kakaoUrl, setKakaoUrl] = useState("");
@@ -100,18 +100,18 @@ export default function ProfileSetup() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="university">학교 *</Label>
-              <Input
-                id="university"
-                value={university}
-                onChange={(e) => setUniversity(e.target.value)}
-                placeholder="서울대학교"
-                list="university-list"
-              />
-              <datalist id="university-list">
-                {KOREAN_UNIVERSITIES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
+              <Select value={university} onValueChange={setUniversity}>
+                <SelectTrigger id="university">
+                  <SelectValue placeholder="학교 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COHORT_UNIVERSITIES.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">학과 *</Label>

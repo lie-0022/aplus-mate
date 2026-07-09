@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { KOREAN_UNIVERSITIES } from "@/lib/universities";
+import { COHORT_UNIVERSITIES } from "@/lib/universities";
 import { parseSkillTags } from "@/lib/utils-parse";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
 import { Button } from "@/components/ui/button";
@@ -139,16 +139,18 @@ export default function Profile() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">학교</Label>
-              <Input
-                value={university}
-                onChange={(e) => setUniversity(e.target.value)}
-                list="university-list"
-              />
-              <datalist id="university-list">
-                {KOREAN_UNIVERSITIES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
+              <Select value={university} onValueChange={setUniversity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="학교 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COHORT_UNIVERSITIES.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">학과</Label>
