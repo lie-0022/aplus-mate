@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ArrowLeft,
   Star,
   Shield,
@@ -29,7 +22,6 @@ type EvalData = {
   promiseScore: number;
   ideaScore: number;
   deadlineScore: number;
-  grade: "A+" | "A" | "B+" | "B" | "C+";
 };
 
 function StarRating({
@@ -110,8 +102,7 @@ export default function TeamEvaluate() {
         !ev ||
         !ev.promiseScore ||
         !ev.ideaScore ||
-        !ev.deadlineScore ||
-        !ev.grade
+        !ev.deadlineScore
       ) {
         toast.error("모든 팀원의 평가를 완료해주세요.");
         return;
@@ -272,26 +263,6 @@ export default function TeamEvaluate() {
                   value={ev.deadlineScore || 0}
                   onChange={(v) => updateEval(member.user.id, "deadlineScore", v)}
                 />
-              </div>
-
-              {/* Grade */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">학점 결과</span>
-                <Select
-                  value={ev.grade || ""}
-                  onValueChange={(v) => updateEval(member.user.id, "grade", v)}
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["A+", "A", "B+", "B", "C+"].map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
           </Card>

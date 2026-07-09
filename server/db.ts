@@ -1162,7 +1162,6 @@ export async function submitEvaluationBatch(data: {
     promiseScore: number;
     ideaScore: number;
     deadlineScore: number;
-    grade: "A+" | "A" | "B+" | "B" | "C+";
   }>;
 }) {
   const db = await getDb();

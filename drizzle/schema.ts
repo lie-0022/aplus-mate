@@ -260,7 +260,6 @@ export const evaluations = mysqlTable(
     promiseScore: int("promiseScore").notNull(), // 1~5
     ideaScore: int("ideaScore").notNull(), // 1~5
     deadlineScore: int("deadlineScore").notNull(), // 1~5
-    grade: mysqlEnum("grade", ["A+", "A", "B+", "B", "C+"]).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [

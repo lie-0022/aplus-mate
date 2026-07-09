@@ -148,6 +148,13 @@
       "when": 1783560156500,
       "tag": "0020_hard_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1783565203423,
+      "tag": "0021_nifty_ultron",
+      "breakpoints": true
     }
   ]
 }

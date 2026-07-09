@@ -603,7 +603,6 @@ export const appRouter = router({
               promiseScore: z.number().min(1).max(5),
               ideaScore: z.number().min(1).max(5),
               deadlineScore: z.number().min(1).max(5),
-              grade: z.enum(["A+", "A", "B+", "B", "C+"]),
             })
           ),
         })
