@@ -7,6 +7,7 @@ import {
   Award,
   BadgeCheck,
   ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 
 // A+ Mate 사용법 — 처음 온 학생이 "무엇을, 어떤 순서로" 하는지 한 화면에서 이해하게.
@@ -50,6 +51,12 @@ export default function Guide() {
   const [, setLocation] = useLocation();
   return (
     <div className="max-w-2xl mx-auto">
+      <button
+        onClick={() => (window.history.length > 1 ? window.history.back() : setLocation("/settings"))}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+      >
+        <ArrowLeft className="h-4 w-4" /> 뒤로
+      </button>
       <div className="mb-5">
         <h1 className="text-2xl font-extrabold">A+ Mate 사용법</h1>
         <p className="text-muted-foreground text-sm mt-1">

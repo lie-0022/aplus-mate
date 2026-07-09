@@ -13,6 +13,7 @@ import {
   Presentation,
   ShieldCheck,
   ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 
 const SUPPORT_EMAIL = "jayjun.rim@gmail.com";
@@ -52,6 +53,12 @@ export default function Settings() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <button
+        onClick={() => (window.history.length > 1 ? window.history.back() : setLocation("/dashboard"))}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+      >
+        <ArrowLeft className="h-4 w-4" /> 뒤로
+      </button>
       <h1 className="text-2xl font-extrabold mb-5">설정</h1>
 
       {/* 화면 */}
