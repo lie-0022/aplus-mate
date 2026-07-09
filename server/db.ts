@@ -25,6 +25,7 @@ import {
   teamNotes,
   recruitments,
   courseReviews,
+  courseSchedules,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -200,7 +201,7 @@ export async function createCourse(data: InsertCourse) {
     .where(
       and(
         eq(courses.name, data.name),
-        eq(courses.professor, data.professor),
+        eq(courses.professor, data.professor ?? ""),
         eq(courses.university, data.university)
       )
     )
@@ -219,6 +220,117 @@ export async function createCourse(data: InsertCourse) {
     }
     throw error;
   }
+}
+
+// ── 시간표 시딩(수강편람 적재) ──
+// 파서 산출 JSON을 courses(개설) + course_schedules로 멱등 적재한다.
+// sourceKey(과목코드|학기)가 자연키 — 재실행/다음 학기 적재 시 기존 건 덮어쓰고 새 건 추가.
+// 앱 수동 생성 수업(sourceKey null)은 건드리지 않는다.
+export type TimetableSeedRow = {
+  courseCode: string;
+  courseGroupId: string;
+  section: string;
+  name: string;
+  department: string | null;
+  category: "교양" | "전공" | "교직" | "기타";
+  subType: string | null;
+  credits: number | null;
+  hours: number | null;
+  capacity: number | null;
+  professor: string | null;
+  room: string | null;
+  competencies: { name: string; ratio: number }[];
+  note: string | null;
+  schedule: { slots: { day: string; period: number | null }[]; cyber: boolean; raw: string };
+  semester: string;
+  sourceKey: string;
+};
+
+export async function seedTimetableCourses(rows: TimetableSeedRow[], university = "백석대학교") {
+  const db = await getDb();
+  if (!db) return { courses: 0, schedules: 0 };
+  const CHUNK = 300;
+  const DAYS = new Set(["월", "화", "수", "목", "금", "토", "일"]);
+
+  // 1) courses 멱등 upsert(sourceKey 기준) — 청크 단위.
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    await db
+      .insert(courses)
+      .values(
+        chunk.map((r) => ({
+          name: r.name,
+          professor: r.professor,
+          credits: r.credits ?? 0,
+          hasTeamProject: false,
+          university,
+          courseCode: r.courseCode,
+          semester: r.semester,
+          courseGroupId: r.courseGroupId,
+          section: r.section,
+          department: r.department,
+          category: r.category,
+          subType: r.subType,
+          hours: r.hours,
+          capacity: r.capacity,
+          competencies: r.competencies,
+          note: r.note,
+          sourceKey: r.sourceKey,
+        }))
+      )
+      .onDuplicateKeyUpdate({
+        set: {
+          name: sql`values(name)`,
+          professor: sql`values(professor)`,
+          credits: sql`values(credits)`,
+          courseCode: sql`values(courseCode)`,
+          semester: sql`values(semester)`,
+          courseGroupId: sql`values(courseGroupId)`,
+          section: sql`values(section)`,
+          department: sql`values(department)`,
+          category: sql`values(category)`,
+          subType: sql`values(subType)`,
+          hours: sql`values(hours)`,
+          capacity: sql`values(capacity)`,
+          competencies: sql`values(competencies)`,
+          note: sql`values(note)`,
+        },
+      });
+  }
+
+  // 2) sourceKey → courseId 매핑(방금 upsert된 것 포함 전부 조회).
+  const keys = rows.map((r) => r.sourceKey);
+  const idMap = new Map<string, number>();
+  for (let i = 0; i < keys.length; i += CHUNK) {
+    const part = keys.slice(i, i + CHUNK);
+    const found = await db
+      .select({ id: courses.id, sk: courses.sourceKey })
+      .from(courses)
+      .where(inArray(courses.sourceKey, part));
+    for (const f of found) if (f.sk) idMap.set(f.sk, f.id);
+  }
+
+  // 3) 스케줄 재생성 — 대상 courseId의 기존 schedule 삭제 후 신규 삽입.
+  const courseIds = Array.from(idMap.values());
+  for (let i = 0; i < courseIds.length; i += CHUNK) {
+    await db.delete(courseSchedules).where(inArray(courseSchedules.courseId, courseIds.slice(i, i + CHUNK)));
+  }
+  const schedRows: { courseId: number; dayOfWeek: any; period: number | null; cyber: boolean; room: string | null }[] = [];
+  for (const r of rows) {
+    const cid = idMap.get(r.sourceKey);
+    if (!cid) continue;
+    for (const s of r.schedule.slots) {
+      if (!DAYS.has(s.day)) continue;
+      schedRows.push({ courseId: cid, dayOfWeek: s.day, period: s.period, cyber: false, room: r.room });
+    }
+    if (r.schedule.cyber) {
+      schedRows.push({ courseId: cid, dayOfWeek: null, period: null, cyber: true, room: null });
+    }
+  }
+  for (let i = 0; i < schedRows.length; i += CHUNK) {
+    await db.insert(courseSchedules).values(schedRows.slice(i, i + CHUNK));
+  }
+  return { courses: idMap.size, schedules: schedRows.length };
 }
 
 export async function getCourseById(id: number) {

@@ -41,7 +41,8 @@ export const courses = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     name: varchar("name", { length: 200 }).notNull(),
-    professor: varchar("professor", { length: 100 }).notNull(),
+    // 담당교수명(원문). 시간표 교류/미배정 과목은 null 가능 → notNull 완화.
+    professor: varchar("professor", { length: 100 }),
     credits: int("credits").notNull(),
     hasTeamProject: boolean("hasTeamProject").default(false).notNull(),
     university: varchar("university", { length: 100 }).notNull(),
@@ -52,17 +53,53 @@ export const courses = mysqlTable(
     inviteCode: varchar("inviteCode", { length: 8 }),
     // 팀 구성 마감일 — 교수가 설정, 대시보드 D-day·미배정 독려 기준(P2). null이면 미설정.
     matchingDeadline: timestamp("matchingDeadline"),
+    // ── 시간표(개설/offering) 필드 — 수강편람 적재. 앱 수동 생성 수업은 null. ──
+    // 개설 학기(예 '2026-1'). 후기는 학기를 넘어 courseGroupId로 집계된다.
+    semester: varchar("semester", { length: 20 }),
+    // 과목 식별자 = 과목코드 앞 5자리. 학기·분반이 달라도 같은 과목이면 동일 → 후기 승계 키.
+    courseGroupId: varchar("courseGroupId", { length: 8 }),
+    // 분반(과목코드 뒤 2자리).
+    section: varchar("section", { length: 4 }),
+    // 학과/단과(프로필 department와 표기 통일). 교양은 '교양'.
+    department: varchar("department", { length: 100 }),
+    // 교양/전공/교직 구분.
+    category: mysqlEnum("category", ["교양", "전공", "교직", "기타"]),
+    // 세부 구분(교과군/교필/교선 등 원문).
+    subType: varchar("subType", { length: 50 }),
+    hours: int("hours"), // 시수
+    capacity: int("capacity"), // 제한인원
+    // 핵심역량(비율) [{name,ratio}].
+    competencies: json("competencies").$type<{ name: string; ratio: number }[]>(),
+    note: text("note"), // 특이사항/비고
+    campus: varchar("campus", { length: 50 }),
+    // 멱등 적재 키 = 과목코드|학기. 시간표 upsert의 자연키(앱 수업은 null).
+    sourceKey: varchar("sourceKey", { length: 40 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("uniq_course").on(table.name, table.professor, table.university),
     // 조인 코드 유일성(null은 MySQL에서 중복 허용 — 미발급 수업 공존 가능)
     uniqueIndex("uniq_invite_code").on(table.inviteCode),
+    // 시간표 멱등 적재 자연키(null=앱 수업, 다중 null 허용). 다분반은 과목코드가 달라 공존.
+    uniqueIndex("uniq_source_key").on(table.sourceKey),
   ]
 );
 
 export type Course = typeof courses.$inferSelect;
 export type InsertCourse = typeof courses.$inferInsert;
+
+// ─── Course Schedules (시간표 요일×교시) ──────────────────
+// 1개설:N교시. 연강 '목4,5' → (목,4)·(목,5) 2행. 사이버는 cyber=true(교시 null).
+// 공강 매칭·시간충돌·격자 뷰의 데이터 기반.
+export const courseSchedules = mysqlTable("course_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  courseId: int("courseId").notNull(),
+  dayOfWeek: mysqlEnum("dayOfWeek", ["월", "화", "수", "목", "금", "토", "일"]),
+  period: int("period"), // 교시(1~). 사이버/미정이면 null.
+  cyber: boolean("cyber").default(false).notNull(),
+  room: varchar("room", { length: 60 }),
+});
+
+export type CourseSchedule = typeof courseSchedules.$inferSelect;
 
 // ─── User Courses (수강 연결) ────────────────────────────
 export const userCourses = mysqlTable(

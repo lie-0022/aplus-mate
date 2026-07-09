@@ -1051,7 +1051,7 @@ export const appRouter = router({
         ];
         return generateTeamReport({
           courseName: team.course.name,
-          professor: team.course.professor,
+          professor: team.course.professor ?? "미배정",
           teamType: team.team.teamType,
           memberCount: team.members.length,
           topic: input.topic,
@@ -1203,6 +1203,22 @@ export const appRouter = router({
     wipeTestData: adminProcedure.mutation(async ({ ctx }) => {
       return db.wipeAllExceptOwner(ctx.user.id);
     }),
+    // 시간표 시딩 — server/data/timetable_{semester}.json(파서 산출)을 멱등 적재.
+    // 멱등(sourceKey 기준)이라 재실행/다음 학기 적재 안전. 앱 수동 수업은 안 건드림.
+    seedTimetable: adminProcedure
+      .input(z.object({ semester: z.string().default("2026-1") }).optional())
+      .mutation(async ({ input }) => {
+        const semester = input?.semester ?? "2026-1";
+        const fs = await import("fs");
+        const path = await import("path");
+        const file = path.resolve(process.cwd(), `server/data/timetable_${semester}.json`);
+        if (!fs.existsSync(file)) {
+          throw new Error(`시간표 데이터 파일이 없어요: ${file}`);
+        }
+        const rows = JSON.parse(fs.readFileSync(file, "utf-8"));
+        const res = await db.seedTimetableCourses(rows);
+        return { semester, ...res };
+      }),
     // QA용: 특정 유저(친구 계정)에게 데모 수업·매칭 요청 배정
     assignQa: adminProcedure
       .input(z.object({ userId: z.number() }))
