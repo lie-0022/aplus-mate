@@ -2555,7 +2555,6 @@ export async function wipeAllExceptOwner(keepUserId: number) {
     await tx.delete(postComments);
     await tx.delete(notifications);
     await tx.delete(badges);
-    await tx.delete(consents);
     await tx.delete(reports);
     await tx.delete(userCourses);
     await tx.delete(courseMilestones);
