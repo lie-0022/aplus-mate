@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, Plus, Wifi, BookOpen } from "lucide-react";
+import { CalendarDays, CalendarPlus, Plus, Wifi, BookOpen } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -157,9 +157,14 @@ export default function Timetable() {
               : "등록한 수업 없음"}
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> 일정 추가
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setLocation("/planner")}>
+            <CalendarPlus className="h-4 w-4 mr-1" /> 시간표 짜기
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> 일정 추가
+          </Button>
+        </div>
       </div>
 
       {isEmpty ? (

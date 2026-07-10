@@ -1303,6 +1303,100 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => db.deleteUserSchedule(ctx.user.id, input.id)),
   }),
 
+  // ─── 시간표 플래너(짜보기) ───────────────────────────────
+  planner: router({
+    listMine: protectedProcedure.query(async ({ ctx }) => db.listMyTimetables(ctx.user.id)),
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => db.getTimetableWithItems(input.id, ctx.user.id)),
+    create: protectedProcedure
+      .input(
+        z.object({
+          semester: z.string().trim().min(1).max(20),
+          title: z.string().trim().min(1, "이름을 입력해주세요.").max(100),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        db.createTimetable(ctx.user.id, input.semester, input.title)
+      ),
+    rename: protectedProcedure
+      .input(z.object({ id: z.number(), title: z.string().trim().min(1).max(100) }))
+      .mutation(async ({ ctx, input }) => db.renameTimetable(ctx.user.id, input.id, input.title)),
+    remove: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => db.deleteTimetable(ctx.user.id, input.id)),
+    setPosted: protectedProcedure
+      .input(z.object({ id: z.number(), posted: z.boolean() }))
+      .mutation(async ({ ctx, input }) =>
+        db.setTimetablePosted(ctx.user.id, input.id, input.posted)
+      ),
+    addCourse: protectedProcedure
+      .input(z.object({ timetableId: z.number(), courseId: z.number() }))
+      .mutation(async ({ ctx, input }) =>
+        db.addCourseToTimetable(ctx.user.id, input.timetableId, input.courseId)
+      ),
+    addBlock: protectedProcedure
+      .input(
+        z
+          .object({
+            timetableId: z.number(),
+            title: z.string().trim().min(1, "이름을 입력해주세요.").max(100),
+            dayOfWeek: z.enum(["월", "화", "수", "목", "금", "토", "일"]),
+            startPeriod: z.number().int().min(1).max(14),
+            endPeriod: z.number().int().min(1).max(14),
+          })
+          .refine((v) => v.endPeriod >= v.startPeriod, {
+            message: "끝 교시는 시작 교시보다 빠를 수 없어요.",
+          })
+      )
+      .mutation(async ({ ctx, input }) =>
+        db.addCustomBlockToTimetable(ctx.user.id, input.timetableId, input)
+      ),
+    removeItem: protectedProcedure
+      .input(z.object({ itemId: z.number() }))
+      .mutation(async ({ ctx, input }) => db.removeTimetableItem(ctx.user.id, input.itemId)),
+    enroll: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => db.enrollFromTimetable(ctx.user.id, input.id)),
+  }),
+
+  // ─── 봐주세요 게시판 ─────────────────────────────────────
+  timetableBoard: router({
+    list: protectedProcedure
+      .input(z.object({ semester: z.string().optional() }).optional())
+      .query(async ({ input }) => db.listPostedTimetables(input?.semester)),
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => db.getTimetableWithItems(input.id, ctx.user.id)),
+    comments: protectedProcedure
+      .input(z.object({ timetableId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const rows = await db.listTimetableComments(input.timetableId);
+        // 익명 노출 — 내 댓글만 표시(삭제 버튼용), 나머지는 작성자 감춤.
+        return rows.map((r) => ({
+          id: r.id,
+          content: r.content,
+          createdAt: r.createdAt,
+          isMine: r.userId === ctx.user.id,
+        }));
+      }),
+    addComment: protectedProcedure
+      .input(
+        z.object({
+          timetableId: z.number(),
+          content: z.string().trim().min(1, "내용을 입력해주세요.").max(500),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        db.addTimetableComment(ctx.user.id, input.timetableId, input.content)
+      ),
+    deleteComment: protectedProcedure
+      .input(z.object({ commentId: z.number() }))
+      .mutation(async ({ ctx, input }) =>
+        db.deleteTimetableComment(ctx.user.id, input.commentId)
+      ),
+  }),
+
   recruitment: router({
     list: protectedProcedure
       .input(z.object({ courseId: z.number(), openOnly: z.boolean().default(true) }))

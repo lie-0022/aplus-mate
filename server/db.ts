@@ -1,4 +1,4 @@
-import { eq, ne, and, or, inArray, desc, count, sql, like, isNull } from "drizzle-orm";
+import { eq, ne, and, or, inArray, desc, count, sql, like, isNull, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -516,6 +516,353 @@ export async function getFreeOverlapsWith(
   const mine = occ.get(viewerId);
   for (const id of uniq) result[id] = computeFreeOverlap(mine, occ.get(id));
   return result;
+}
+
+// ─── 시간표 플래너 (짜보기 + 봐주세요) ──────────────────────
+
+const MAX_TIMETABLES = 20;
+
+// 연속 교시(목4,5)를 한 블록으로 접는다 — timetable_items 저장·격자의 공통 단위.
+type FoldedBlock = { day: string; start: number; end: number; room: string | null };
+function foldSchedulesToBlocks(
+  slots: { dayOfWeek: string | null; period: number | null; room: string | null }[]
+): FoldedBlock[] {
+  const byDay = new Map<string, { period: number; room: string | null }[]>();
+  for (const s of slots) {
+    if (!s.dayOfWeek || s.period == null) continue;
+    const arr = byDay.get(s.dayOfWeek) ?? [];
+    arr.push({ period: s.period, room: s.room });
+    byDay.set(s.dayOfWeek, arr);
+  }
+  const out: FoldedBlock[] = [];
+  byDay.forEach((arr, day) => {
+    arr.sort((a, b) => a.period - b.period);
+    let run: FoldedBlock | null = null;
+    const flush = () => {
+      if (run) out.push(run);
+      run = null;
+    };
+    for (const s of arr) {
+      if (run && s.period === run.end + 1) {
+        run.end = s.period;
+        if (!run.room && s.room) run.room = s.room;
+      } else {
+        flush();
+        run = { day, start: s.period, end: s.period, room: s.room };
+      }
+    }
+    flush();
+  });
+  return out;
+}
+
+async function assertTimetableOwner(userId: number, timetableId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const rows = await db
+    .select()
+    .from(timetables)
+    .where(eq(timetables.id, timetableId))
+    .limit(1);
+  const tt = rows[0];
+  if (!tt || tt.userId !== userId) throw new Error("권한이 없어요.");
+  return tt;
+}
+
+export async function listMyTimetables(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select()
+    .from(timetables)
+    .where(eq(timetables.userId, userId))
+    .orderBy(desc(timetables.updatedAt));
+  if (rows.length === 0) return [];
+  const counts = await db
+    .select({ timetableId: timetableItems.timetableId, c: count() })
+    .from(timetableItems)
+    .where(inArray(timetableItems.timetableId, rows.map((r) => r.id)))
+    .groupBy(timetableItems.timetableId);
+  const byId = new Map(counts.map((c) => [c.timetableId, Number(c.c)]));
+  return rows.map((r) => ({ ...r, itemCount: byId.get(r.id) ?? 0 }));
+}
+
+// 편집·조회 공용. viewerId가 소유자가 아니면 게시된 것만 열람 가능(봐주세요 게시판).
+export async function getTimetableWithItems(timetableId: number, viewerId?: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(timetables)
+    .where(eq(timetables.id, timetableId))
+    .limit(1);
+  const tt = rows[0];
+  if (!tt) return null;
+  const isOwner = viewerId != null && tt.userId === viewerId;
+  if (!isOwner && !tt.postedAt) return null; // 남의 비공개 초안은 못 봄
+  const items = await db
+    .select()
+    .from(timetableItems)
+    .where(eq(timetableItems.timetableId, timetableId));
+  return { ...tt, isOwner, items };
+}
+
+export async function createTimetable(userId: number, semester: string, title: string) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const existing = await db
+    .select({ c: count() })
+    .from(timetables)
+    .where(eq(timetables.userId, userId));
+  if (Number(existing[0]?.c ?? 0) >= MAX_TIMETABLES) {
+    throw new Error(`시간표는 최대 ${MAX_TIMETABLES}개까지 만들 수 있어요.`);
+  }
+  const res = await db.insert(timetables).values({ userId, semester, title: title.trim() });
+  return { id: res[0].insertId };
+}
+
+export async function renameTimetable(userId: number, timetableId: number, title: string) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  await assertTimetableOwner(userId, timetableId);
+  await db.update(timetables).set({ title: title.trim() }).where(eq(timetables.id, timetableId));
+  return { ok: true };
+}
+
+export async function deleteTimetable(userId: number, timetableId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  await assertTimetableOwner(userId, timetableId);
+  await db.transaction(async (tx) => {
+    await tx.delete(timetableComments).where(eq(timetableComments.timetableId, timetableId));
+    await tx.delete(timetableItems).where(eq(timetableItems.timetableId, timetableId));
+    await tx.delete(timetables).where(eq(timetables.id, timetableId));
+  });
+  return { ok: true };
+}
+
+export async function setTimetablePosted(userId: number, timetableId: number, posted: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  await assertTimetableOwner(userId, timetableId);
+  await db
+    .update(timetables)
+    .set({ postedAt: posted ? new Date() : null })
+    .where(eq(timetables.id, timetableId));
+  return { ok: true, posted };
+}
+
+// 카탈로그 수업을 플랜에 담는다 — 그 시점의 스케줄을 블록으로 스냅샷(카탈로그가
+// 바뀌어도 저장된 플랜은 불변). 같은 수업 중복 담기는 막는다.
+export async function addCourseToTimetable(userId: number, timetableId: number, courseId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  await assertTimetableOwner(userId, timetableId);
+  const dup = await db
+    .select({ id: timetableItems.id })
+    .from(timetableItems)
+    .where(and(eq(timetableItems.timetableId, timetableId), eq(timetableItems.courseId, courseId)))
+    .limit(1);
+  if (dup[0]) throw new Error("이미 담은 수업이에요.");
+  const cRows = await db.select().from(courses).where(eq(courses.id, courseId)).limit(1);
+  const c = cRows[0];
+  if (!c) throw new Error("수업을 찾을 수 없어요.");
+  const scheds = await db
+    .select()
+    .from(courseSchedules)
+    .where(eq(courseSchedules.courseId, courseId));
+  const blocks = foldSchedulesToBlocks(scheds);
+  const hasCyber = scheds.some((s) => s.cyber);
+  const rows: (typeof timetableItems.$inferInsert)[] = blocks.map((b) => ({
+    timetableId,
+    courseId,
+    title: c.name,
+    professor: c.professor,
+    dayOfWeek: b.day as any,
+    startPeriod: b.start,
+    endPeriod: b.end,
+    room: b.room,
+    cyber: false,
+  }));
+  // 시간표에 시간이 하나도 안 잡히는 순수 사이버는 격자엔 안 뜨지만 담긴 건 남긴다.
+  if (rows.length === 0 || hasCyber) {
+    rows.push({
+      timetableId,
+      courseId,
+      title: c.name,
+      professor: c.professor,
+      dayOfWeek: null,
+      startPeriod: null,
+      endPeriod: null,
+      room: null,
+      cyber: true,
+    });
+  }
+  await db.insert(timetableItems).values(rows);
+  await db.update(timetables).set({ updatedAt: new Date() }).where(eq(timetables.id, timetableId));
+  return { added: rows.length };
+}
+
+export async function addCustomBlockToTimetable(
+  userId: number,
+  timetableId: number,
+  data: { title: string; dayOfWeek: string; startPeriod: number; endPeriod: number }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  await assertTimetableOwner(userId, timetableId);
+  const res = await db.insert(timetableItems).values({
+    timetableId,
+    courseId: null,
+    title: data.title.trim(),
+    professor: null,
+    dayOfWeek: data.dayOfWeek as any,
+    startPeriod: data.startPeriod,
+    endPeriod: data.endPeriod,
+    room: null,
+    cyber: false,
+  });
+  await db.update(timetables).set({ updatedAt: new Date() }).where(eq(timetables.id, timetableId));
+  return { id: res[0].insertId };
+}
+
+// 아이템 삭제 — 카탈로그 수업이면 그 수업의 모든 블록(연강·사이버)을 함께 제거.
+export async function removeTimetableItem(userId: number, itemId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const rows = await db
+    .select({ timetableId: timetableItems.timetableId, courseId: timetableItems.courseId })
+    .from(timetableItems)
+    .where(eq(timetableItems.id, itemId))
+    .limit(1);
+  const it = rows[0];
+  if (!it) return { ok: true };
+  await assertTimetableOwner(userId, it.timetableId);
+  if (it.courseId != null) {
+    await db
+      .delete(timetableItems)
+      .where(
+        and(
+          eq(timetableItems.timetableId, it.timetableId),
+          eq(timetableItems.courseId, it.courseId)
+        )
+      );
+  } else {
+    await db.delete(timetableItems).where(eq(timetableItems.id, itemId));
+  }
+  await db
+    .update(timetables)
+    .set({ updatedAt: new Date() })
+    .where(eq(timetables.id, it.timetableId));
+  return { ok: true };
+}
+
+// "이대로 실제 수강 등록" — 플랜의 카탈로그 수업을 그 학기 userCourses로 등록.
+// 이미 등록/충돌은 건너뛰고 결과만 알린다(에러로 전체 실패시키지 않음).
+export async function enrollFromTimetable(userId: number, timetableId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const tt = await assertTimetableOwner(userId, timetableId);
+  const items = await db
+    .selectDistinct({ courseId: timetableItems.courseId })
+    .from(timetableItems)
+    .where(eq(timetableItems.timetableId, timetableId));
+  const courseIds = items.map((i) => i.courseId).filter((id): id is number => id != null);
+  let enrolled = 0;
+  const skipped: string[] = [];
+  for (const cid of courseIds) {
+    try {
+      await enrollCourse(userId, cid, tt.semester);
+      enrolled++;
+    } catch (e: any) {
+      skipped.push(String(e?.message ?? "등록 실패"));
+    }
+  }
+  return { enrolled, skipped: skipped.length };
+}
+
+// ─── 봐주세요 게시판 ───────────────────────────────────────
+
+// 게시된 시간표 목록(익명) — 학기 필터·최신순. 항목 수·댓글 수 요약.
+export async function listPostedTimetables(semester?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: timetables.id,
+      semester: timetables.semester,
+      title: timetables.title,
+      postedAt: timetables.postedAt,
+      authorDept: users.department,
+      authorYear: users.year,
+    })
+    .from(timetables)
+    .innerJoin(users, eq(users.id, timetables.userId))
+    .where(
+      semester
+        ? and(isNotNull(timetables.postedAt), eq(timetables.semester, semester))
+        : isNotNull(timetables.postedAt)
+    )
+    .orderBy(desc(timetables.postedAt));
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const itemCounts = await db
+    .select({ timetableId: timetableItems.timetableId, c: count() })
+    .from(timetableItems)
+    .where(and(inArray(timetableItems.timetableId, ids), isNotNull(timetableItems.dayOfWeek)))
+    .groupBy(timetableItems.timetableId);
+  const cmtCounts = await db
+    .select({ timetableId: timetableComments.timetableId, c: count() })
+    .from(timetableComments)
+    .where(inArray(timetableComments.timetableId, ids))
+    .groupBy(timetableComments.timetableId);
+  const itemMap = new Map(itemCounts.map((x) => [x.timetableId, Number(x.c)]));
+  const cmtMap = new Map(cmtCounts.map((x) => [x.timetableId, Number(x.c)]));
+  return rows.map((r) => ({
+    ...r,
+    blockCount: itemMap.get(r.id) ?? 0,
+    commentCount: cmtMap.get(r.id) ?? 0,
+  }));
+}
+
+export async function listTimetableComments(timetableId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: timetableComments.id,
+      content: timetableComments.content,
+      createdAt: timetableComments.createdAt,
+      userId: timetableComments.userId,
+    })
+    .from(timetableComments)
+    .where(eq(timetableComments.timetableId, timetableId))
+    .orderBy(timetableComments.createdAt);
+}
+
+export async function addTimetableComment(userId: number, timetableId: number, content: string) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const rows = await db
+    .select({ postedAt: timetables.postedAt })
+    .from(timetables)
+    .where(eq(timetables.id, timetableId))
+    .limit(1);
+  if (!rows[0]) throw new Error("시간표를 찾을 수 없어요.");
+  if (!rows[0].postedAt) throw new Error("아직 게시되지 않은 시간표예요.");
+  const res = await db
+    .insert(timetableComments)
+    .values({ timetableId, userId, content: content.trim() });
+  return { id: res[0].insertId };
+}
+
+export async function deleteTimetableComment(userId: number, commentId: number) {
+  const db = await getDb();
+  if (!db) return { ok: false };
+  await db
+    .delete(timetableComments)
+    .where(and(eq(timetableComments.id, commentId), eq(timetableComments.userId, userId)));
+  return { ok: true };
 }
 
 export type CourseFilters = {

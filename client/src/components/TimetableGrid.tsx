@@ -29,6 +29,8 @@ export type GridBlock = {
   colorIndex?: number;
   /** 점선 테두리(개인 일정·커스텀 표시) */
   dashed?: boolean;
+  /** 시간 충돌 블록 — 빨간색으로 강조(colorIndex보다 우선) */
+  danger?: boolean;
   /** 있으면 호버 시 ✕ 삭제 버튼 */
   onRemove?: () => void;
 };
@@ -116,8 +118,9 @@ export default function TimetableGrid({
             ))}
             {placed.map((b) => {
               const width = 100 / laneCount;
-              const color =
-                b.colorIndex != null
+              const color = b.danger
+                ? { bg: "var(--danger-bg)", fg: "var(--danger-fg)" }
+                : b.colorIndex != null
                   ? BLOCK_COLORS[b.colorIndex % BLOCK_COLORS.length]
                   : { bg: "var(--tag-bg)", fg: "var(--tag-fg)" };
               return (
