@@ -2958,16 +2958,37 @@ export async function getRecommendedPeers(userId: number, limit = 4) {
 }
 
 // ─── Course Reviews (수업 리뷰) ───────────────────────────
-// 수강생(현·과거 학기 무관)만 작성, 수업당 1인 1리뷰(재작성=덮어쓰기).
+// 수강생(현·과거 학기 무관)만 작성, 개설당 1인 1리뷰(재작성=덮어쓰기).
 // 목록은 익명 노출(작성자 식별정보 없음) + 내 리뷰만 isMine 플래그.
+//
+// ★ 후기 연속성: 후기는 "개설(분반·학기)"이 아니라 "과목(courseGroupId)" 단위로 집계한다.
+// 2026-1에 쌓인 후기가 2026-2의 같은 과목에도 그대로 보인다. 앱 수동 생성 수업
+// (courseGroupId null)은 예전처럼 자기 개설만 본다.
+async function getReviewScopeCourseIds(courseId: number): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [courseId];
+  const cur = await db
+    .select({ gid: courses.courseGroupId, uni: courses.university })
+    .from(courses)
+    .where(eq(courses.id, courseId))
+    .limit(1);
+  const gid = cur[0]?.gid;
+  if (!gid) return [courseId];
+  const sibs = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(and(eq(courses.courseGroupId, gid), eq(courses.university, cur[0].uni)));
+  return sibs.length > 0 ? sibs.map((s) => s.id) : [courseId];
+}
 
 export async function getCourseReviews(courseId: number, viewerId?: number) {
   const db = await getDb();
   if (!db) return [];
+  const scope = await getReviewScopeCourseIds(courseId);
   const rows = await db
     .select()
     .from(courseReviews)
-    .where(eq(courseReviews.courseId, courseId))
+    .where(inArray(courseReviews.courseId, scope))
     .orderBy(desc(courseReviews.createdAt));
   return rows.map((r) => ({
     id: r.id,
@@ -2996,12 +3017,14 @@ export type CourseReviewSummary = {
 
 // 요약 — 수강생 경험을 크라우드소싱해 "이 수업 팀플이 어떤지"를 다음 수강생에게 알린다.
 // 팀플 유무·보통 팀 규모·팀플 유형·미리 짠 팀 교수 허용까지 집계(작은 N이라 JS 집계).
+// 집계 스코프는 과목(courseGroupId) — 분반·학기를 넘어 합산된다(후기 승계).
 export async function getCourseReviewSummary(courseId: number): Promise<CourseReviewSummary> {
   const empty: CourseReviewSummary = {
     count: 0, avgRating: 0, teamYes: 0, teamNo: 0, avgTeamSize: null, preformYes: 0, preformNo: 0, projectTypes: [],
   };
   const db = await getDb();
   if (!db) return empty;
+  const scope = await getReviewScopeCourseIds(courseId);
   const rows = await db
     .select({
       rating: courseReviews.rating,
@@ -3011,7 +3034,7 @@ export async function getCourseReviewSummary(courseId: number): Promise<CourseRe
       preformAllowed: courseReviews.preformAllowed,
     })
     .from(courseReviews)
-    .where(eq(courseReviews.courseId, courseId));
+    .where(inArray(courseReviews.courseId, scope));
   if (rows.length === 0) return empty;
   const count = rows.length;
   const avgRating = Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10;
@@ -3125,33 +3148,70 @@ export type CourseReviewMini = {
   preformYes: number;
   preformNo: number;
 };
+// 검색 결과용 벌크 요약 — 과목(courseGroupId) 단위 집계. 같은 과목의 다른 분반·학기
+// 후기가 함께 잡힌다. courseGroupId 없는 앱 수업은 자기 개설만.
 export async function getReviewSummariesForCourses(courseIds: number[]) {
   const db = await getDb();
   const out: Record<number, CourseReviewMini> = {};
   if (!db || courseIds.length === 0) return out;
+
+  // 1) 요청 수업의 과목키
+  const reqs = await db
+    .select({ id: courses.id, gid: courses.courseGroupId })
+    .from(courses)
+    .where(inArray(courses.id, courseIds));
+  if (reqs.length === 0) return out;
+  const gids = Array.from(new Set(reqs.map((r) => r.gid).filter((g): g is string => !!g)));
+
+  // 2) 같은 과목의 모든 개설 id → 그룹키 매핑 (+ 그룹 없는 수업은 자기 자신)
+  const idToGroup = new Map<number, string>();
+  if (gids.length > 0) {
+    const sibs = await db
+      .select({ id: courses.id, gid: courses.courseGroupId })
+      .from(courses)
+      .where(inArray(courses.courseGroupId, gids));
+    for (const s of sibs) if (s.gid) idToGroup.set(s.id, s.gid);
+  }
+  for (const r of reqs) if (!r.gid) idToGroup.set(r.id, `id:${r.id}`);
+  const scopeIds = Array.from(idToGroup.keys());
+  if (scopeIds.length === 0) return out;
+
+  // 3) 리뷰 로드 → 그룹별 JS 집계(검색 결과는 소량이라 충분)
   const rows = await db
     .select({
       courseId: courseReviews.courseId,
-      count: count(),
-      avg: sql<number>`COALESCE(AVG(${courseReviews.rating}), 0)`,
-      teamYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 1 THEN 1 ELSE 0 END), 0)`,
-      teamNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.hadTeamProject} = 0 THEN 1 ELSE 0 END), 0)`,
-      avgSize: sql<number | null>`AVG(${courseReviews.teamSize})`,
-      preformYes: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.preformAllowed} = 1 THEN 1 ELSE 0 END), 0)`,
-      preformNo: sql<number>`COALESCE(SUM(CASE WHEN ${courseReviews.preformAllowed} = 0 THEN 1 ELSE 0 END), 0)`,
+      rating: courseReviews.rating,
+      hadTeamProject: courseReviews.hadTeamProject,
+      teamSize: courseReviews.teamSize,
+      preformAllowed: courseReviews.preformAllowed,
     })
     .from(courseReviews)
-    .where(inArray(courseReviews.courseId, courseIds))
-    .groupBy(courseReviews.courseId);
+    .where(inArray(courseReviews.courseId, scopeIds));
+  const byGroup = new Map<string, typeof rows>();
   for (const r of rows) {
-    out[r.courseId] = {
-      count: Number(r.count),
-      avgRating: Math.round(Number(r.avg) * 10) / 10,
-      teamYes: Number(r.teamYes),
-      teamNo: Number(r.teamNo),
-      avgTeamSize: r.avgSize == null ? null : Math.round(Number(r.avgSize) * 10) / 10,
-      preformYes: Number(r.preformYes),
-      preformNo: Number(r.preformNo),
+    const key = idToGroup.get(r.courseId);
+    if (!key) continue;
+    const arr = byGroup.get(key);
+    if (arr) arr.push(r);
+    else byGroup.set(key, [r]);
+  }
+
+  // 4) 요청 courseId → 그 과목의 합산 요약
+  for (const req of reqs) {
+    const rs = byGroup.get(req.gid ?? `id:${req.id}`);
+    if (!rs || rs.length === 0) continue;
+    const n = rs.length;
+    const sizes = rs.map((r) => r.teamSize).filter((v): v is number => typeof v === "number");
+    out[req.id] = {
+      count: n,
+      avgRating: Math.round((rs.reduce((s, r) => s + r.rating, 0) / n) * 10) / 10,
+      teamYes: rs.filter((r) => r.hadTeamProject === true).length,
+      teamNo: rs.filter((r) => r.hadTeamProject === false).length,
+      avgTeamSize: sizes.length
+        ? Math.round((sizes.reduce((a, b) => a + b, 0) / sizes.length) * 10) / 10
+        : null,
+      preformYes: rs.filter((r) => r.preformAllowed === true).length,
+      preformNo: rs.filter((r) => r.preformAllowed === false).length,
     };
   }
   return out;
