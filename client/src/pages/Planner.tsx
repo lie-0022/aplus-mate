@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ import {
   Megaphone,
   GraduationCap,
   MessageSquare,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_SEMESTER, TIMETABLE_DAYS, MAX_PERIOD } from "@shared/const";
@@ -157,6 +159,42 @@ export default function Planner() {
   const [blkDay, setBlkDay] = useState("월");
   const [blkStart, setBlkStart] = useState("1");
   const [blkEnd, setBlkEnd] = useState("1");
+
+  // ── 에타 시간표 참고 이미지 — 서버에 저장하지 않고 이 기기(localStorage)에만.
+  // 본인 스크린샷을 옆에 띄워두고 보면서 수업을 담는 용도(크롤링 아님·프라이버시 보존).
+  const [refImage, setRefImage] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const refKey = selectedId != null ? `planner-ref-${selectedId}` : null;
+  useEffect(() => {
+    if (!refKey) return;
+    try {
+      setRefImage(localStorage.getItem(refKey));
+    } catch {
+      setRefImage(null);
+    }
+  }, [refKey]);
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !refKey) return;
+    if (!f.type.startsWith("image/")) return toast.error("이미지 파일만 올릴 수 있어요.");
+    if (f.size > 4 * 1024 * 1024) return toast.error("이미지가 너무 커요 (4MB 이하).");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result);
+      try {
+        localStorage.setItem(refKey, url);
+        setRefImage(url);
+      } catch {
+        toast.error("이미지를 저장하지 못했어요 (용량 초과).");
+      }
+    };
+    reader.readAsDataURL(f);
+    e.target.value = "";
+  };
+  const clearRefImage = () => {
+    if (refKey) localStorage.removeItem(refKey);
+    setRefImage(null);
+  };
 
   const items = (detail.data?.items ?? []) as Item[];
   const { blocks, conflicts, cyberItems, courseCount } = useMemo(() => {
@@ -379,6 +417,53 @@ export default function Planner() {
               </div>
             ) : (
               <TimetableGrid blocks={blocks} maxPeriods={MAX_PERIOD} />
+            )}
+          </div>
+
+          {/* 에타 시간표 참고(이 기기에만 저장) */}
+          <div className="rounded-[18px] bg-card shadow-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <ImagePlus className="h-4 w-4 text-primary" /> 에타 시간표 참고
+              </h3>
+              {refImage ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground"
+                  onClick={clearRefImage}
+                >
+                  <X className="h-4 w-4 mr-1" /> 지우기
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <ImagePlus className="h-4 w-4 mr-1" /> 이미지 올리기
+                </Button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onPickImage}
+              />
+            </div>
+            {refImage ? (
+              <img
+                src={refImage}
+                alt="에타 시간표 참고"
+                className="mt-2 w-full rounded-lg border border-border max-h-[420px] object-contain bg-muted"
+              />
+            ) : (
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                본인 에타 시간표를 캡처해 올려두면, 여기 보면서 같은 수업을 담기 편해요.
+                이미지는 서버에 올라가지 않고 이 기기에만 저장돼요.
+              </p>
             )}
           </div>
 
