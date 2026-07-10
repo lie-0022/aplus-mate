@@ -12,6 +12,7 @@ import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
 import Timetable from "./pages/Timetable";
 import Planner from "./pages/Planner";
+import TimetableBoard from "./pages/TimetableBoard";
 import PostDetail from "./pages/PostDetail";
 import Admin from "./pages/Admin";
 import Professor from "./pages/Professor";
@@ -104,6 +105,12 @@ function Router() {
       </Route>
       <Route path="/planner">
         <ProtectedPage component={Planner} />
+      </Route>
+      <Route path="/timetables">
+        <ProtectedPage component={TimetableBoard} />
+      </Route>
+      <Route path="/timetables/:id">
+        <ProtectedPage component={TimetableBoard} />
       </Route>
       <Route path="/posts/:id">
         <ProtectedPage component={PostDetail} />
