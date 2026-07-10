@@ -62,13 +62,16 @@
 - 나머지(유니크 교체·course_schedules·검색필터·공강매칭 등)는 아래 기존 설계 그대로.
 
 ### 이번 방향 로드맵 (기존 로드맵 위에)
-- **P0. 2026-1 데이터 소스 확보** ← 지금 여기. (엑셀 우선, 없으면 PDF)
-- **P1. 스키마 선수정** — semester(courses에)·department·category·subType·courseGroupId·course_schedules 추가, courseCode 유니크, create 운영자 제한.
-- **P2. 2026-1 파싱·시딩** — 멱등 upsert, 과별·교양전공 태깅, 사람 검수.
-- **P3. 화면** — 과별/교양전공 필터 + 내 시간표 격자 뷰.
-- **P4. 2026-2 들어오면** — courseGroupId로 연속성 유지 적재 + 공강 매칭.
+- ✅ **P0. 2026-1 데이터 소스 확보** — 백석대 수강편람 학과별 PDF 20종(18학부+교양+교직).
+- ✅ **P1. 스키마 선수정** — 마이그레이션 0023(semester·courseGroupId·section·department·category·subType·hours·capacity·competencies·note·campus·sourceKey, professor nullable, uniq_source_key, course_schedules) + 0024(departments json).
+- ✅ **P2. 2026-1 파싱·시딩** — 3368 개설 / 1163 과목, sourceKey 멱등 upsert, `admin.seedTimetable` + 운영자 페이지 버튼.
+- ✅ **P3. 후기 연속성 + 화면** — 후기 집계를 courseGroupId 단위로 전환, 학과·구분 검색 필터, 수업 상세 시간표 표기.
+- **P4. 2026-2 들어오면** — 새 PDF → `timetable_2026-2.json` 커밋 → 운영자 페이지에서 학기만 `2026-2`로 바꿔 적재. 후기는 courseGroupId로 자동 승계. 이후 시간표 격자 뷰·공강 매칭.
 
-> **지금은 P0(데이터 소스·학과목록 확정)만 사용자와 정하면 됨. 코드 착수는 그 다음.**
+#### P3에서 잡은 데이터 함정 — 공동 개설
+같은 과목이 여러 학과 PDF에 실린다(2026-1 기준 **90과목**, 예: C언어프로그래밍 = 컴퓨터공학부 + 첨단IT학부).
+초기 dedup이 `seen[sourceKey] = c`로 **마지막 소스가 앞 소스를 덮어써**, 컴퓨터공학부가 73 → 21개로 줄어 있었다.
+→ 스칼라 필드는 first-wins(빈 값만 뒤 소스로 보충), 학과는 **union(`departments` json)**. 학과 필터는 `department = ? OR JSON_CONTAINS(departments, ?)`.
 
 ---
 
