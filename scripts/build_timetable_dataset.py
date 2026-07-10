@@ -65,10 +65,27 @@ def main():
         all_courses.extend(res["courses"])
         per_source[code] = {"count": res["count"], "raw": res["count_raw"], "pages": res["npages"]}
 
-    # 전역 dedup(sourceKey) — 학과 전역 공유 과목이 여러 PDF에 중복될 수 있음
+    # 전역 dedup(sourceKey) — 같은 과목이 여러 학과 PDF에 공동 개설로 실린다
+    # (예: C언어프로그래밍 = 컴퓨터공학부 + 첨단IT학부, 2026-1 기준 90과목).
+    # 마지막 소스로 덮어쓰면 앞 학과의 필터에서 과목이 통째로 사라지므로,
+    # 스칼라 필드는 먼저 만난 소스(= 전공 PDF가 교양보다 앞)를 우선하되
+    # 비어 있으면 뒤 소스로 채우고, 학과만 union으로 모은다.
+    SCALARS = ("professor", "room", "capacity", "hours", "note", "subType", "credits")
     seen = {}
     for c in all_courses:
-        seen[c["sourceKey"]] = c
+        k = c["sourceKey"]
+        prev = seen.get(k)
+        if prev is None:
+            c["departments"] = [c["department"]] if c["department"] else []
+            seen[k] = c
+            continue
+        if c["department"] and c["department"] not in prev["departments"]:
+            prev["departments"].append(c["department"])
+        for f in SCALARS:
+            if not prev.get(f) and c.get(f):
+                prev[f] = c[f]
+        if not prev["schedule"]["slots"] and c["schedule"]["slots"]:
+            prev["schedule"] = c["schedule"]
     dataset = list(seen.values())
 
     with open(args.out, "w", encoding="utf-8") as f:
@@ -81,6 +98,10 @@ def main():
     w(f"총 개설(offering) {len(dataset)} · 고유 과목(courseGroupId) {len(set(c['courseGroupId'] for c in dataset))}")
     bycat = Counter(c["category"] for c in dataset)
     w(f"카테고리: {dict(bycat)}")
+    cross = [c for c in dataset if len(c["departments"]) > 1]
+    w(f"공동개설(2개 이상 학과) {len(cross)}")
+    bydept = Counter(d for c in dataset for d in c["departments"])
+    w(f"학과별 개설 수(공동개설 중복 포함): {dict(bydept.most_common())}")
     w("소스별 개설 수:")
     for code, cat in targets:
         info = per_source.get(code, {})

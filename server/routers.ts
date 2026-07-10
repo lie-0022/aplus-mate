@@ -106,11 +106,18 @@ export const appRouter = router({
         z.object({
           query: z.string().default(""),
           university: z.string().optional(),
+          department: z.string().optional(),
+          category: z.enum(["교양", "전공", "교직", "기타"]).optional(),
+          semester: z.string().optional(),
         })
       )
       .query(async ({ input }) => {
         // 검색 단계에서 별점·팀플 응답 + 지금 팀 구하는 신호까지 보이게(수업 선택 즉답).
-        const list = await db.searchCourses(input.query, input.university);
+        const list = await db.searchCourses(input.query, input.university, {
+          department: input.department,
+          category: input.category,
+          semester: input.semester,
+        });
         const ids = list.map((c) => c.id);
         const [sums, recruits] = await Promise.all([
           db.getReviewSummariesForCourses(ids),

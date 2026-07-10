@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Plus, GraduationCap, CheckCircle2, Star as StarIcon } from "lucide-react";
 import { RecruitingBadge } from "@/components/RecruitingBadge";
+import { COURSE_DEPARTMENTS } from "@/lib/universities";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -33,6 +34,9 @@ export default function Courses() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [searchQuery, setSearchQuery] = useState("");
+  // 개설이 3천 건대라 검색어만으로는 좁혀지지 않는다. 학과·구분 필터를 함께 건다.
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [catFilter, setCatFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [tab, setTab] = useState("my");
 
@@ -45,9 +49,16 @@ export default function Courses() {
 
   const myCourses = trpc.courses.myCourses.useQuery({ semester: CURRENT_SEMESTER });
 
+  // 필터만 걸어도 목록이 나오도록(학과 훑어보기). 셋 다 비면 조회하지 않는다.
+  const hasFilter = deptFilter !== "all" || catFilter !== "all";
   const searchResults = trpc.courses.search.useQuery(
-    { query: searchQuery, university: user?.university || undefined },
-    { enabled: searchQuery.length > 0 }
+    {
+      query: searchQuery,
+      university: user?.university || undefined,
+      department: deptFilter === "all" ? undefined : deptFilter,
+      category: catFilter === "all" ? undefined : (catFilter as "교양" | "전공" | "교직"),
+    },
+    { enabled: searchQuery.length > 0 || hasFilter }
   );
 
   const enrollMutation = trpc.courses.enroll.useMutation({
@@ -93,6 +104,13 @@ export default function Courses() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // 내 학과를 맨 위로 — 대부분의 검색이 자기 전공에서 시작한다.
+  const deptOptions = useMemo(() => {
+    const mine = user?.department;
+    const rest = COURSE_DEPARTMENTS.filter((d) => d !== mine);
+    return mine && COURSE_DEPARTMENTS.includes(mine as any) ? [mine, ...rest] : [...rest];
+  }, [user?.department]);
 
   const enrolledCourseIds = useMemo(
     () => new Set(myCourses.data?.map((c) => c.course.id) || []),
@@ -229,7 +247,48 @@ export default function Courses() {
         />
       </div>
 
-      {searchQuery.length > 0 && (
+      <div className="flex gap-2 mt-2">
+        <Select value={deptFilter} onValueChange={setDeptFilter}>
+          <SelectTrigger className="flex-1 h-9 text-[13px]">
+            <SelectValue placeholder="학과" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 학과</SelectItem>
+            {deptOptions.map((d) => (
+              <SelectItem key={d} value={d}>
+                {d === user?.department ? `내 학과 · ${d}` : d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={catFilter} onValueChange={setCatFilter}>
+          <SelectTrigger className="flex-1 h-9 text-[13px]">
+            <SelectValue placeholder="구분" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전공·교양 전체</SelectItem>
+            <SelectItem value="전공">전공</SelectItem>
+            <SelectItem value="교양">교양</SelectItem>
+            <SelectItem value="교직">교직</SelectItem>
+          </SelectContent>
+        </Select>
+        {(hasFilter || searchQuery.length > 0) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 shrink-0 text-[13px]"
+            onClick={() => {
+              setSearchQuery("");
+              setDeptFilter("all");
+              setCatFilter("all");
+            }}
+          >
+            초기화
+          </Button>
+        )}
+      </div>
+
+      {(searchQuery.length > 0 || hasFilter) && (
         <div className="grid gap-2 lg:grid-cols-2 mt-3">
           {searchResults.isLoading ? (
             [1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-[18px]" />)
@@ -247,9 +306,20 @@ export default function Courses() {
                   <div className="min-w-0">
                     <div className="font-bold text-[15px] truncate">{course.name}</div>
                     <div className="text-[13px] text-muted-foreground mt-0.5 truncate">
-                      {course.professor} · {course.credits}학점
+                      {course.professor || "교수 미배정"} · {course.credits}학점
+                      {course.section && ` · ${Number(course.section)}분반`}
                       {course.courseCode && ` · ${course.courseCode}`}
                     </div>
+                    {/* 같은 이름의 개설이 여러 학과에 걸쳐 있어, 어느 학과 것인지 바로 보여준다 */}
+                    {(course.departments?.length || course.department) && (
+                      <div className="text-[12px] text-muted-foreground/80 mt-0.5 truncate">
+                        {(course.departments?.length
+                          ? course.departments
+                          : [course.department]
+                        ).join(" · ")}
+                        {course.category && ` · ${course.category}`}
+                      </div>
+                    )}
                     {/* 수강 리뷰 요약 — 수업을 고르는 순간에 별점·팀플 유무 즉답 */}
                     {course.reviewSummary && course.reviewSummary.count > 0 && (
                       <div className="text-xs mt-1 flex items-center gap-1.5 flex-wrap">

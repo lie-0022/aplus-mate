@@ -169,6 +169,13 @@
       "when": 1783576915706,
       "tag": "0023_unknown_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1783664580456,
+      "tag": "0024_glamorous_ink",
+      "breakpoints": true
     }
   ]
 }

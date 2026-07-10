@@ -29,6 +29,9 @@ export const COHORT_DEPARTMENTS = [
   "기타",
 ] as const;
 
+// 수업 검색의 학과 필터 — 시간표에 실제로 존재하는 학과만(프로필의 '기타'는 개설이 없다).
+export const COURSE_DEPARTMENTS = COHORT_DEPARTMENTS.filter((d) => d !== "기타");
+
 // 주요 한국 대학 — 학교명 표기 표준화용(datalist 추천 목록). 직접 입력도 허용한다.
 // university는 매칭·수업 검색에서 정확일치로 필터되므로 표기 분절을 줄이는 게 핵심.
 export const KOREAN_UNIVERSITIES = [

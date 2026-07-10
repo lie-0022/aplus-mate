@@ -60,8 +60,11 @@ export const courses = mysqlTable(
     courseGroupId: varchar("courseGroupId", { length: 8 }),
     // 분반(과목코드 뒤 2자리).
     section: varchar("section", { length: 4 }),
-    // 학과/단과(프로필 department와 표기 통일). 교양은 '교양'.
+    // 학과/단과(프로필 department와 표기 통일). 교양은 '교양'. 대표 1개(표시용).
     department: varchar("department", { length: 100 }),
+    // 공동 개설 학과 전부. 같은 과목이 컴퓨터공학부·첨단IT학부에 함께 실리므로
+    // 학과 필터는 이 배열을 본다(대표 학과 하나만 보면 과목이 사라진다).
+    departments: json("departments").$type<string[]>(),
     // 교양/전공/교직 구분.
     category: mysqlEnum("category", ["교양", "전공", "교직", "기타"]),
     // 세부 구분(교과군/교필/교선 등 원문).

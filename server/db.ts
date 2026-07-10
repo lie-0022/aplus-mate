@@ -232,6 +232,7 @@ export type TimetableSeedRow = {
   section: string;
   name: string;
   department: string | null;
+  departments?: string[];
   category: "교양" | "전공" | "교직" | "기타";
   subType: string | null;
   credits: number | null;
@@ -269,6 +270,7 @@ export async function seedTimetableCourses(rows: TimetableSeedRow[], university 
           courseGroupId: r.courseGroupId,
           section: r.section,
           department: r.department,
+          departments: r.departments ?? (r.department ? [r.department] : []),
           category: r.category,
           subType: r.subType,
           hours: r.hours,
@@ -288,6 +290,7 @@ export async function seedTimetableCourses(rows: TimetableSeedRow[], university 
           courseGroupId: sql`values(courseGroupId)`,
           section: sql`values(section)`,
           department: sql`values(department)`,
+          departments: sql`values(departments)`,
           category: sql`values(category)`,
           subType: sql`values(subType)`,
           hours: sql`values(hours)`,
@@ -340,11 +343,28 @@ export async function getCourseById(id: number) {
   return result.length > 0 ? result[0] : null;
 }
 
-export async function searchCourses(query: string, university?: string) {
+export type CourseFilters = {
+  department?: string;
+  category?: "교양" | "전공" | "교직" | "기타";
+  semester?: string;
+};
+
+export async function searchCourses(query: string, university?: string, filters: CourseFilters = {}) {
   const db = await getDb();
   if (!db) return [];
 
   let conditions = [];
+  if (filters.department) {
+    // 공동 개설(컴퓨터공학부+첨단IT학부)은 departments 배열에만 남으므로 둘 다 본다.
+    conditions.push(
+      or(
+        eq(courses.department, filters.department),
+        sql`JSON_CONTAINS(${courses.departments}, ${JSON.stringify(filters.department)})`
+      )
+    );
+  }
+  if (filters.category) conditions.push(eq(courses.category, filters.category));
+  if (filters.semester) conditions.push(eq(courses.semester, filters.semester));
   if (query) {
     // 부분 일치(LIKE) — 수업명·교수명·수업코드 중 하나라도 포함하면 매칭.
     // 특수문자(%, _)는 와일드카드로 오작동하므로 이스케이프한다.
@@ -362,14 +382,15 @@ export async function searchCourses(query: string, university?: string) {
     conditions.push(eq(courses.university, university));
   }
 
+  // 개설이 3천 건대라 정렬 없이 자르면 결과가 들쭉날쭉해진다. 과목명·분반 순 고정.
   if (conditions.length === 0) {
-    return db.select().from(courses).limit(50);
+    return db.select().from(courses).orderBy(courses.name, courses.section).limit(50);
   }
-
   return db
     .select()
     .from(courses)
     .where(and(...conditions))
+    .orderBy(courses.name, courses.section)
     .limit(50);
 }
 
