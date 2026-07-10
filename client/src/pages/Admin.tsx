@@ -21,7 +21,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDashed,
+  CalendarDays,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -87,6 +89,12 @@ export default function Admin() {
   });
   const clearDemo = trpc.admin.clearDemo.useMutation({
     onSuccess: () => toast.success("데모 데이터를 정리했어요."),
+    onError: (err) => toast.error(err.message),
+  });
+  const [seedSemester, setSeedSemester] = useState("2026-1");
+  const seedTimetable = trpc.admin.seedTimetable.useMutation({
+    onSuccess: (r) =>
+      toast.success(`${r.semester} 적재 완료 — 수업 ${r.courses}개 · 시간표 ${r.schedules}개`),
     onError: (err) => toast.error(err.message),
   });
   const wipeTest = trpc.admin.wipeTestData.useMutation({
@@ -414,6 +422,36 @@ export default function Admin() {
           </CardContent>
         </Card>
       ))}
+
+      {/* 수강편람 시간표 적재 — 학기가 바뀌면 여기서 다시 돌린다 */}
+      <div className="flex items-center gap-2 pt-4 border-t">
+        <CalendarDays className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-bold">시간표 적재</h2>
+      </div>
+      <Card className="rounded-2xl border-0 shadow-card">
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            <code>server/data/timetable_&#123;학기&#125;.json</code>을 읽어 수업·시간표를 적재합니다.
+            과목코드 기준으로 <b>덮어쓰기(멱등)</b>라 여러 번 눌러도 안전하고, 학생들이 남긴
+            후기는 과목 단위로 유지됩니다. 다음 학기 파일을 커밋한 뒤 학기만 바꿔 실행하세요.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={seedSemester}
+              onChange={(e) => setSeedSemester(e.target.value)}
+              placeholder="2026-1"
+              className="max-w-[140px]"
+            />
+            <Button
+              onClick={() => seedTimetable.mutate({ semester: seedSemester.trim() })}
+              disabled={seedTimetable.isPending || !seedSemester.trim()}
+              variant="secondary"
+            >
+              {seedTimetable.isPending ? "적재 중..." : "시간표 적재 / 갱신"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 데모 데이터 (교수 시연용) */}
       <div className="flex items-center gap-2 pt-4 border-t">
