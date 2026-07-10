@@ -2534,6 +2534,9 @@ export async function wipeAllExceptOwner(keepUserId: number) {
     await tx.delete(userCourses);
     await tx.delete(courseMilestones);
     await tx.delete(courseAnnouncements);
+    await tx.delete(courseReviews); // 수강 리뷰 — courses 삭제 전(고아 방지)
+    await tx.delete(courseSchedules); // 시간표 슬롯 — 재적재(시간표 적재 버튼)로 복원
+    await tx.delete(userSchedules); // 개인 일정(운영자 것 포함 — 테스트 일정)
     await tx.delete(teams); // teamId 참조들 삭제 후
     await tx.delete(teamMatches); // teams(matchId) 삭제 후
     await tx.delete(recruitments); // teamMatches(recruitmentId) 삭제 후
