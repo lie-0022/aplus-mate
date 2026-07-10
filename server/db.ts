@@ -576,6 +576,31 @@ export async function enrollCourse(userId: number, courseId: number, semester: s
   if (await isUserEnrolled(userId, courseId)) {
     throw new Error("이미 참여한 수업이에요.");
   }
+  // 같은 학기에 같은 과목의 다른 분반을 또 담는 건 실제로 불가능하다.
+  // (막지 않으면 한 사람이 한 과목에 후기를 분반 수만큼 쓸 수 있다.)
+  const scope = await getReviewScopeCourseIds(courseId);
+  if (scope.length > 1) {
+    const sibling = await db
+      .select({ section: courses.section })
+      .from(userCourses)
+      .innerJoin(courses, eq(courses.id, userCourses.courseId))
+      .where(
+        and(
+          eq(userCourses.userId, userId),
+          eq(userCourses.semester, semester),
+          inArray(userCourses.courseId, scope)
+        )
+      )
+      .limit(1);
+    if (sibling[0]) {
+      const sec = sibling[0].section;
+      throw new Error(
+        sec
+          ? `이미 이 과목의 ${Number(sec)}분반을 듣고 있어요. 한 학기에 같은 과목은 하나만 담을 수 있어요.`
+          : "이미 이 과목을 듣고 있어요."
+      );
+    }
+  }
   try {
     await db.insert(userCourses).values({ userId, courseId, semester });
   } catch (error: any) {
@@ -3334,6 +3359,18 @@ export async function upsertCourseReview(
   // 수강생만 — 등록 이력(학기 무관)이 있어야 작성 가능.
   if (!(await isUserEnrolled(userId, courseId))) {
     throw new Error("이 수업을 수강한 사람만 리뷰를 남길 수 있어요.");
+  }
+  // ★ 1인 1과목 1리뷰 — 유니크 키는 (courseId,userId)라 분반 단위다. 같은 과목의
+  // 다른 분반에 등록해 후기를 또 쓰면 courseGroupId 집계에서 중복 반영된다.
+  // 이미 이 과목(그룹)에 쓴 리뷰가 있으면 그 행을 수정한다.
+  const scope = await getReviewScopeCourseIds(courseId);
+  if (scope.length > 1) {
+    const mine = await db
+      .select({ courseId: courseReviews.courseId })
+      .from(courseReviews)
+      .where(and(eq(courseReviews.userId, userId), inArray(courseReviews.courseId, scope)))
+      .limit(1);
+    if (mine[0]) courseId = mine[0].courseId;
   }
   const values = {
     courseId,
