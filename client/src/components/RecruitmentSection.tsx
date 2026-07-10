@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MATCH_TYPE_LABELS, type MatchType, type MentoringRole } from "@shared/const";
-import { Megaphone, Plus, Send } from "lucide-react";
+import { Megaphone, Plus, Send, CalendarCheck2 } from "lucide-react";
 import { toast } from "sonner";
 
 const TYPE_OPTS: MatchType[] = ["project", "study", "mentoring"];
@@ -118,6 +118,11 @@ export default function RecruitmentSection({
                     <span className="badge-tag text-xs font-bold px-2.5 py-0.5 rounded-full">
                       {r.neededCount}명 모집
                     </span>
+                    {r.fromSiblingSection && r.courseSection && (
+                      <span className="badge-sky text-[11px] font-bold px-2 py-0.5 rounded-full">
+                        {Number(r.courseSection)}분반 공고
+                      </span>
+                    )}
                     {mine && (
                       <span className="badge-pos text-[11px] font-bold px-2 py-0.5 rounded-full">
                         내 공고
@@ -129,6 +134,15 @@ export default function RecruitmentSection({
                     {r.author.department ?? "학과 미입력"}
                     {r.author.year ? ` · ${r.author.year}학년` : ""}
                   </p>
+                  {/* 공강 신호 — 모집자와 나의 공통 빈 시간(수업+개인 일정 기준) */}
+                  {!mine && r.freeOverlap && r.freeOverlap.commonFree > 0 && (
+                    <p className="text-[11px] font-semibold mt-1 flex items-center gap-1 text-[color:var(--pos-fg)]">
+                      <CalendarCheck2 className="h-3 w-3 shrink-0" />
+                      나와 공강 주 {r.freeOverlap.commonFree}교시
+                      {r.freeOverlap.topRanges.length > 0 &&
+                        ` · ${r.freeOverlap.topRanges.join(", ")}`}
+                    </p>
+                  )}
                 </div>
                 {mine ? (
                   <div className="flex flex-col items-end gap-1 shrink-0">

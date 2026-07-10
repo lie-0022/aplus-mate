@@ -10,6 +10,7 @@ import ProfileSetup from "./pages/ProfileSetup";
 import Profile from "./pages/Profile";
 import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
+import Timetable from "./pages/Timetable";
 import PostDetail from "./pages/PostDetail";
 import Admin from "./pages/Admin";
 import Professor from "./pages/Professor";
@@ -96,6 +97,9 @@ function Router() {
       </Route>
       <Route path="/courses/:id">
         <ProtectedPage component={CourseDetail} />
+      </Route>
+      <Route path="/timetable">
+        <ProtectedPage component={Timetable} />
       </Route>
       <Route path="/posts/:id">
         <ProtectedPage component={PostDetail} />

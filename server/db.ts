@@ -26,6 +26,7 @@ import {
   recruitments,
   courseReviews,
   courseSchedules,
+  userSchedules,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -33,6 +34,7 @@ import { ENV } from "./_core/env";
 import {
   TEAM_SIZE_LIMITS,
   MENTORING_MAX_MENTEES,
+  CURRENT_SEMESTER,
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
@@ -354,6 +356,164 @@ export async function getCourseSchedules(courseId: number) {
     .orderBy(courseSchedules.dayOfWeek, courseSchedules.period);
 }
 
+// ─── 내 시간표(격자) + 개인 일정 + 공강 ─────────────────────
+
+const MAX_USER_SCHEDULES = 30;
+
+export async function listUserSchedules(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(userSchedules)
+    .where(eq(userSchedules.userId, userId))
+    .orderBy(userSchedules.dayOfWeek, userSchedules.startPeriod);
+}
+
+export async function addUserSchedule(
+  userId: number,
+  data: { title: string; dayOfWeek: string; startPeriod: number; endPeriod: number }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const existing = await db
+    .select({ c: count() })
+    .from(userSchedules)
+    .where(eq(userSchedules.userId, userId));
+  if (Number(existing[0]?.c ?? 0) >= MAX_USER_SCHEDULES) {
+    throw new Error(`개인 일정은 최대 ${MAX_USER_SCHEDULES}개까지 등록할 수 있어요.`);
+  }
+  const result = await db.insert(userSchedules).values({
+    userId,
+    title: data.title,
+    dayOfWeek: data.dayOfWeek as any,
+    startPeriod: data.startPeriod,
+    endPeriod: data.endPeriod,
+  });
+  return { id: result[0].insertId };
+}
+
+export async function deleteUserSchedule(userId: number, scheduleId: number) {
+  const db = await getDb();
+  if (!db) return { ok: false };
+  await db
+    .delete(userSchedules)
+    .where(and(eq(userSchedules.id, scheduleId), eq(userSchedules.userId, userId)));
+  return { ok: true };
+}
+
+// 시간표 격자 데이터 — 이번 학기 수강 개설의 슬롯 + 개인 일정.
+export async function getMyTimetable(userId: number, semester: string) {
+  const db = await getDb();
+  if (!db) return { courses: [], events: [] };
+  const enrolled = await db
+    .select({ course: courses })
+    .from(userCourses)
+    .innerJoin(courses, eq(courses.id, userCourses.courseId))
+    .where(and(eq(userCourses.userId, userId), eq(userCourses.semester, semester)));
+  const ids = enrolled.map((e) => e.course.id);
+  const scheds = ids.length
+    ? await db.select().from(courseSchedules).where(inArray(courseSchedules.courseId, ids))
+    : [];
+  const byCourse = new Map<number, typeof scheds>();
+  for (const s of scheds) {
+    const arr = byCourse.get(s.courseId);
+    if (arr) arr.push(s);
+    else byCourse.set(s.courseId, [s]);
+  }
+  const events = await listUserSchedules(userId);
+  return {
+    courses: enrolled.map(({ course: c }) => {
+      const rows = byCourse.get(c.id) ?? [];
+      return {
+        id: c.id,
+        name: c.name,
+        professor: c.professor,
+        section: c.section,
+        credits: c.credits,
+        slots: rows
+          .filter((s) => s.dayOfWeek && s.period != null)
+          .map((s) => ({ day: s.dayOfWeek!, period: s.period!, room: s.room })),
+        cyber: rows.some((s) => s.cyber),
+      };
+    }),
+    events,
+  };
+}
+
+// 주간 점유(수업 슬롯 + 개인 일정) — 공강 계산의 원료. 키 = "월-3".
+export async function getWeeklyOccupancies(userIds: number[], semester: string) {
+  const out = new Map<number, Set<string>>();
+  const db = await getDb();
+  if (!db || userIds.length === 0) return out;
+  for (const id of userIds) out.set(id, new Set());
+  const rows = await db
+    .select({
+      userId: userCourses.userId,
+      day: courseSchedules.dayOfWeek,
+      period: courseSchedules.period,
+    })
+    .from(userCourses)
+    .innerJoin(courseSchedules, eq(courseSchedules.courseId, userCourses.courseId))
+    .where(and(inArray(userCourses.userId, userIds), eq(userCourses.semester, semester)));
+  for (const r of rows) {
+    if (r.day && r.period != null) out.get(r.userId)?.add(`${r.day}-${r.period}`);
+  }
+  const evts = await db
+    .select()
+    .from(userSchedules)
+    .where(inArray(userSchedules.userId, userIds));
+  for (const e of evts) {
+    for (let p = e.startPeriod; p <= e.endPeriod; p++) out.get(e.userId)?.add(`${e.dayOfWeek}-${p}`);
+  }
+  return out;
+}
+
+export type FreeOverlap = { commonFree: number; topRanges: string[] };
+
+// 두 사람의 공통 공강 — 주중(월~금) 1~9교시 45슬롯 기준.
+// 어느 한쪽이라도 시간표가 통째로 비면(수강·일정 0) 전 슬롯이 공강으로 잡혀
+// 무의미하므로 null(표시 안 함).
+export function computeFreeOverlap(a: Set<string> | undefined, b: Set<string> | undefined): FreeOverlap | null {
+  if (!a || !b || a.size === 0 || b.size === 0) return null;
+  const days = ["월", "화", "수", "목", "금"];
+  let commonFree = 0;
+  const runs: { day: string; start: number; end: number }[] = [];
+  for (const d of days) {
+    let runStart: number | null = null;
+    for (let p = 1; p <= 10; p++) {
+      const free = p <= 9 && !a.has(`${d}-${p}`) && !b.has(`${d}-${p}`);
+      if (free) {
+        commonFree++;
+        if (runStart == null) runStart = p;
+      } else if (runStart != null) {
+        runs.push({ day: d, start: runStart, end: p - 1 });
+        runStart = null;
+      }
+    }
+  }
+  runs.sort((x, y) => y.end - y.start - (x.end - x.start));
+  const topRanges = runs
+    .slice(0, 2)
+    .map((r) => (r.start === r.end ? `${r.day} ${r.start}교시` : `${r.day} ${r.start}~${r.end}교시`));
+  return { commonFree, topRanges };
+}
+
+// 뷰어 vs 여러 상대의 공강을 한 번에 — 모집공고·지원자 목록에 붙인다.
+export async function getFreeOverlapsWith(
+  viewerId: number,
+  otherIds: number[],
+  semester: string
+): Promise<Record<number, FreeOverlap | null>> {
+  const uniq = Array.from(new Set(otherIds.filter((id) => id !== viewerId)));
+  const result: Record<number, FreeOverlap | null> = {};
+  if (uniq.length === 0) return result;
+  const occ = await getWeeklyOccupancies([viewerId, ...uniq], semester);
+  const mine = occ.get(viewerId);
+  for (const id of uniq) result[id] = computeFreeOverlap(mine, occ.get(id));
+  return result;
+}
+
 export type CourseFilters = {
   department?: string;
   category?: "교양" | "전공" | "교직" | "기타";
@@ -486,6 +646,21 @@ export async function isUserEnrolled(userId: number, courseId: number) {
     .select()
     .from(userCourses)
     .where(and(eq(userCourses.userId, userId), eq(userCourses.courseId, courseId)))
+    .limit(1);
+  return result.length > 0;
+}
+
+// 같은 과목(courseGroupId)의 아무 분반이나 수강 중인가 — 스터디·멘토링은
+// 분반이 달라도 같은 과목이면 매칭을 허용한다(팀플은 분반 고정).
+export async function isUserEnrolledInGroup(userId: number, courseId: number) {
+  const scope = await getReviewScopeCourseIds(courseId);
+  if (scope.length === 1) return isUserEnrolled(userId, courseId);
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db
+    .select({ id: userCourses.id })
+    .from(userCourses)
+    .where(and(eq(userCourses.userId, userId), inArray(userCourses.courseId, scope)))
     .limit(1);
   return result.length > 0;
 }
@@ -780,7 +955,13 @@ export async function getReceivedMatchRequests(userId: number) {
     .innerJoin(courses, eq(teamMatches.courseId, courses.id))
     .where(and(eq(teamMatches.receiverId, userId), eq(teamMatches.status, "pending")))
     .orderBy(desc(teamMatches.createdAt));
-  return rows;
+  // 수락 판단 재료 — 요청자와 나의 공통 공강.
+  const overlaps = await getFreeOverlapsWith(
+    userId,
+    rows.map((r) => r.requester.id),
+    CURRENT_SEMESTER
+  );
+  return rows.map((r) => ({ ...r, freeOverlap: overlaps[r.requester.id] ?? null }));
 }
 
 // 내가 보낸 pending 요청 — 수신자 정보는 받은 요청과 동일하게 실명 제외 마스킹.
@@ -2665,6 +2846,19 @@ export async function createRecruitment(
 export async function listRecruitments(courseId: number, openOnly = true, viewerId?: number) {
   const db = await getDb();
   if (!db) return [];
+  // 스터디·멘토링은 같은 과목(courseGroupId)의 다른 분반 공고도 함께 보인다.
+  // 팀플은 같은 분반끼리 결과물을 내야 하므로 분반 고정.
+  const scope = await getReviewScopeCourseIds(courseId);
+  const whereBase =
+    scope.length > 1
+      ? or(
+          eq(recruitments.courseId, courseId),
+          and(
+            inArray(recruitments.courseId, scope),
+            ne(recruitments.matchType, "project")
+          )
+        )!
+      : eq(recruitments.courseId, courseId);
   const rows = await db
     .select({
       recruitment: recruitments,
@@ -2674,14 +2868,12 @@ export async function listRecruitments(courseId: number, openOnly = true, viewer
         year: users.year,
         skillTags: users.skillTags,
       },
+      courseSection: courses.section,
     })
     .from(recruitments)
     .innerJoin(users, eq(users.id, recruitments.authorId))
-    .where(
-      openOnly
-        ? and(eq(recruitments.courseId, courseId), eq(recruitments.status, "open"))
-        : eq(recruitments.courseId, courseId)
-    )
+    .innerJoin(courses, eq(courses.id, recruitments.courseId))
+    .where(openOnly ? and(whereBase, eq(recruitments.status, "open")) : whereBase)
     .orderBy(desc(recruitments.createdAt));
   if (rows.length === 0) return [];
   // 각 공고의 대기 지원자 수 + 내가 이미 지원했는지
@@ -2701,12 +2893,24 @@ export async function listRecruitments(courseId: number, openOnly = true, viewer
       if (viewerId && a.requesterId === viewerId) appliedByMe.add(a.recruitmentId);
     }
   }
+  // 나와 모집자의 공통 공강 — 후보를 고르는 즉답 신호.
+  const overlaps = viewerId
+    ? await getFreeOverlapsWith(
+        viewerId,
+        rows.map((r) => r.recruitment.authorId),
+        CURRENT_SEMESTER
+      )
+    : {};
   return rows.map((r) => ({
     ...r.recruitment,
     desiredSkills: parseRecruitmentSkills(r.recruitment.desiredSkills),
     author: r.author,
     pendingApplicants: countByRec.get(r.recruitment.id) ?? 0,
     hasApplied: appliedByMe.has(r.recruitment.id),
+    // 다른 분반의 공고면 몇 분반인지 알려준다(스터디·멘토링 전용 노출).
+    courseSection: r.courseSection,
+    fromSiblingSection: r.recruitment.courseId !== courseId,
+    freeOverlap: overlaps[r.recruitment.authorId] ?? null,
   }));
 }
 
@@ -2727,6 +2931,18 @@ export async function applyToRecruitment(
   if (!rec) throw new Error("모집 공고를 찾을 수 없어요.");
   if (rec.status !== "open") throw new Error("이미 마감된 모집이에요.");
   if (rec.authorId === applicantId) throw new Error("내가 올린 모집에는 지원할 수 없어요.");
+  // 지원 자격 — 팀플은 그 분반 수강생만, 스터디·멘토링은 같은 과목 아무 분반이나.
+  const eligible =
+    rec.matchType === "project"
+      ? await isUserEnrolled(applicantId, rec.courseId)
+      : await isUserEnrolledInGroup(applicantId, rec.courseId);
+  if (!eligible) {
+    throw new Error(
+      rec.matchType === "project"
+        ? "이 분반 수강생만 지원할 수 있어요."
+        : "이 과목 수강생만 지원할 수 있어요."
+    );
+  }
   // 멘토멘티는 지원자 역할 = 모집자 역할의 반대.
   const applicantRole: MentoringRole | undefined =
     rec.matchType === "mentoring"
@@ -2745,7 +2961,7 @@ export async function getRecruitmentApplicants(recruitmentId: number, authorId: 
   if (!db) return [];
   const rec = await getRecruitmentById(recruitmentId);
   if (!rec || rec.authorId !== authorId) throw new Error("권한이 없어요.");
-  return db
+  const rows = await db
     .select({
       match: teamMatches,
       applicant: {
@@ -2759,6 +2975,13 @@ export async function getRecruitmentApplicants(recruitmentId: number, authorId: 
     .innerJoin(users, eq(users.id, teamMatches.requesterId))
     .where(eq(teamMatches.recruitmentId, recruitmentId))
     .orderBy(desc(teamMatches.createdAt));
+  // 모집자가 지원자를 고를 때 공강 겹침을 바로 본다.
+  const overlaps = await getFreeOverlapsWith(
+    authorId,
+    rows.map((r) => r.applicant.id),
+    CURRENT_SEMESTER
+  );
+  return rows.map((r) => ({ ...r, freeOverlap: overlaps[r.applicant.id] ?? null }));
 }
 
 export async function closeRecruitment(recruitmentId: number, authorId: number) {
@@ -3250,15 +3473,43 @@ export async function getReviewSummariesForCourses(courseIds: number[]) {
 }
 
 // "이 수업에서 팀 구하고 있어요" 신호 — 수업별 열린 모집공고 수(벌크, N+1 방지).
+// 팀플은 그 분반의 공고만, 스터디·멘토링은 같은 과목(courseGroupId) 전체가 잡힌다
+// (팀원 찾기 탭의 노출 범위와 일치해야 배지 숫자가 안 어긋난다).
 export async function getOpenRecruitmentCountsForCourses(courseIds: number[]) {
   const db = await getDb();
   const out: Record<number, number> = {};
   if (!db || courseIds.length === 0) return out;
+  const reqs = await db
+    .select({ id: courses.id, gid: courses.courseGroupId, uni: courses.university })
+    .from(courses)
+    .where(inArray(courses.id, courseIds));
+  const gids = Array.from(new Set(reqs.map((r) => r.gid).filter((g): g is string => !!g)));
   const rows = await db
-    .select({ courseId: recruitments.courseId, c: count() })
+    .select({
+      courseId: recruitments.courseId,
+      matchType: recruitments.matchType,
+      gid: courses.courseGroupId,
+      uni: courses.university,
+    })
     .from(recruitments)
-    .where(and(inArray(recruitments.courseId, courseIds), eq(recruitments.status, "open")))
-    .groupBy(recruitments.courseId);
-  for (const r of rows) out[r.courseId] = Number(r.c);
+    .innerJoin(courses, eq(courses.id, recruitments.courseId))
+    .where(
+      and(
+        eq(recruitments.status, "open"),
+        gids.length > 0
+          ? or(inArray(recruitments.courseId, courseIds), inArray(courses.courseGroupId, gids))!
+          : inArray(recruitments.courseId, courseIds)
+      )
+    );
+  for (const req of reqs) {
+    let n = 0;
+    for (const r of rows) {
+      const exact = r.courseId === req.id;
+      const sibling =
+        !exact && r.matchType !== "project" && !!req.gid && r.gid === req.gid && r.uni === req.uni;
+      if (exact || sibling) n++;
+    }
+    if (n > 0) out[req.id] = n;
+  }
   return out;
 }

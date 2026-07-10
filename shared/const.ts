@@ -23,6 +23,14 @@ export const ROLE_LABELS: Record<MentoringRole, string> = {
   mentor: "멘토",
   mentee: "멘티",
 };
+// 현재 운영 학기 — 수강 등록·시간표·공강 계산이 공유. 학기가 바뀌면 여기 한 곳만 수정.
+export const CURRENT_SEMESTER = "2026-1";
+
+// 시간표 격자·개인 일정의 교시 범위(1~14; 데이터 실측 최대 10교시 + 야간 여유).
+export const TIMETABLE_DAYS = ["월", "화", "수", "목", "금", "토", "일"] as const;
+export type TimetableDay = (typeof TIMETABLE_DAYS)[number];
+export const MAX_PERIOD = 14;
+
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';

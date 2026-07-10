@@ -176,6 +176,13 @@
       "when": 1783664580456,
       "tag": "0024_glamorous_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1783672296806,
+      "tag": "0025_clean_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

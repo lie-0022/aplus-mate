@@ -167,6 +167,15 @@ export default function MatchingRequests() {
                       </div>
                     )}
 
+                    {/* 공강 신호 — 수락 판단 재료(둘 다 시간표가 있을 때만) */}
+                    {item.freeOverlap && item.freeOverlap.commonFree > 0 && (
+                      <p className="text-[11px] font-semibold mt-2 text-[color:var(--pos-fg)]">
+                        🗓️ 나와 공강 주 {item.freeOverlap.commonFree}교시
+                        {item.freeOverlap.topRanges.length > 0 &&
+                          ` · ${item.freeOverlap.topRanges.join(", ")}`}
+                      </p>
+                    )}
+
                     {/* 지원/요청 메시지 — "왜 함께하고 싶은지" 의도 표현 */}
                     {item.match.message && (
                       <div className="mt-3 p-2.5 rounded-lg bg-muted text-sm">

@@ -367,11 +367,19 @@ export const appRouter = router({
         if (ctx.user.id === input.receiverId) {
           throw new Error("자기 자신에게 매칭 요청을 보낼 수 없습니다.");
         }
-        // Verify both users are enrolled
-        const requesterEnrolled = await db.isUserEnrolled(ctx.user.id, input.courseId);
-        const receiverEnrolled = await db.isUserEnrolled(input.receiverId, input.courseId);
+        // 수강 확인 — 팀플은 같은 분반, 스터디·멘토링은 같은 과목(다른 분반 허용).
+        const check =
+          input.matchType === "project" ? db.isUserEnrolled : db.isUserEnrolledInGroup;
+        const [requesterEnrolled, receiverEnrolled] = await Promise.all([
+          check(ctx.user.id, input.courseId),
+          check(input.receiverId, input.courseId),
+        ]);
         if (!requesterEnrolled || !receiverEnrolled) {
-          throw new Error("두 사용자 모두 해당 수업에 등록되어 있어야 합니다.");
+          throw new Error(
+            input.matchType === "project"
+              ? "두 사용자 모두 해당 수업(분반)에 등록되어 있어야 합니다."
+              : "두 사용자 모두 이 과목을 수강 중이어야 합니다."
+          );
         }
         return db.createMatchRequest(
           ctx.user.id,
@@ -1258,6 +1266,32 @@ export const appRouter = router({
   }),
 
   // 모집 공고 — 구조화된 모집 + 원클릭 지원(teamMatches 재사용)
+  // ─── 내 시간표(격자 + 개인 일정) ─────────────────────────
+  timetable: router({
+    my: protectedProcedure
+      .input(z.object({ semester: z.string().default("2026-1") }).optional())
+      .query(async ({ ctx, input }) =>
+        db.getMyTimetable(ctx.user.id, input?.semester ?? "2026-1")
+      ),
+    addEvent: protectedProcedure
+      .input(
+        z
+          .object({
+            title: z.string().trim().min(1, "일정 이름을 입력해주세요.").max(100),
+            dayOfWeek: z.enum(["월", "화", "수", "목", "금", "토", "일"]),
+            startPeriod: z.number().int().min(1).max(14),
+            endPeriod: z.number().int().min(1).max(14),
+          })
+          .refine((v) => v.endPeriod >= v.startPeriod, {
+            message: "끝 교시는 시작 교시보다 빠를 수 없어요.",
+          })
+      )
+      .mutation(async ({ ctx, input }) => db.addUserSchedule(ctx.user.id, input)),
+    deleteEvent: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => db.deleteUserSchedule(ctx.user.id, input.id)),
+  }),
+
   recruitment: router({
     list: protectedProcedure
       .input(z.object({ courseId: z.number(), openOnly: z.boolean().default(true) }))

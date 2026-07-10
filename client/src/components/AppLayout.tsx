@@ -14,6 +14,7 @@ import {
   Presentation,
   ShieldCheck,
   Settings as SettingsIcon,
+  CalendarDays,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -28,6 +29,7 @@ import {
 const navItems = [
   { icon: Home, label: "홈", path: "/dashboard" },
   { icon: BookOpen, label: "수업", path: "/courses" },
+  { icon: CalendarDays, label: "시간표", path: "/timetable" },
   { icon: Handshake, label: "매칭", path: "/matching/requests" },
   { icon: Users, label: "팀", path: "/teams" },
   { icon: UserCircle, label: "프로필", path: "/profile" },

@@ -104,6 +104,21 @@ export const courseSchedules = mysqlTable("course_schedules", {
 
 export type CourseSchedule = typeof courseSchedules.$inferSelect;
 
+// ─── User Schedules (개인 일정) ──────────────────────────
+// 수업이 아닌 고정 일정(알바·동아리 등). 시간표 격자에 함께 그려지고
+// 공강 계산에서 수업과 똑같이 "점유"로 친다. 연속 교시는 start~end 한 행.
+export const userSchedules = mysqlTable("user_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 100 }).notNull(),
+  dayOfWeek: mysqlEnum("dayOfWeek", ["월", "화", "수", "목", "금", "토", "일"]).notNull(),
+  startPeriod: int("startPeriod").notNull(), // 교시(1~14)
+  endPeriod: int("endPeriod").notNull(), // start 이상. 단일 교시는 start=end.
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserSchedule = typeof userSchedules.$inferSelect;
+
 // ─── User Courses (수강 연결) ────────────────────────────
 export const userCourses = mysqlTable(
   "user_courses",
