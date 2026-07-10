@@ -112,6 +112,24 @@ describe("courses", () => {
       caller.courses.search({ query: "데이터" })
     ).rejects.toThrow();
   });
+});
+
+// 리뷰 품질 게이트 — 리워드 이벤트에서 성의 없는 리뷰(별점만) farming을 막는다.
+describe("reviews", () => {
+  it("upsert rejects content shorter than the minimum (zod)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(createUser()));
+    await expect(
+      caller.reviews.upsert({ courseId: 1, rating: 5, content: "좋아요" })
+    ).rejects.toThrow();
+  });
+
+  it("upsert rejects missing content", async () => {
+    const caller = appRouter.createCaller(createAuthContext(createUser()));
+    await expect(
+      // @ts-expect-error content is now required
+      caller.reviews.upsert({ courseId: 1, rating: 5 })
+    ).rejects.toThrow();
+  });
 
   // 수업 생성은 운영자 전용 — 학생이 만든 중복 수업이 후기를 갈라놓는 걸 막는다.
   // (validates* 테스트는 zod가 먼저 걸려도 통과하므로, 권한 회귀는 이 케이스가 잡는다.)

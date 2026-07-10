@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   CircleDashed,
   CalendarDays,
+  Star,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -65,6 +66,12 @@ export default function Admin() {
     enabled: isAdmin,
     retry: false,
   });
+  const reviewStats = trpc.admin.reviewStats.useQuery(undefined, {
+    enabled: isAdmin,
+    retry: false,
+  });
+  const [reviewSort, setReviewSort] = useState<"firstReview" | "count">("firstReview");
+  const [openReviewUser, setOpenReviewUser] = useState<number | null>(null);
   const setRole = trpc.admin.setUserRole.useMutation({
     onSuccess: () => {
       utils.admin.listUsers.invalidate();
@@ -371,6 +378,128 @@ export default function Admin() {
           </CardContent>
         </Card>
       ))}
+
+      {/* 리뷰 현황 — 리워드(선착순) 지급·남용 점검 */}
+      <div className="flex items-center justify-between gap-2 pt-2">
+        <div className="flex items-center gap-2">
+          <Star className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-bold">리뷰 현황</h2>
+          {reviewStats.data && (
+            <span className="text-sm text-muted-foreground">
+              {reviewStats.data.totalReviewers}명 · 리뷰 {reviewStats.data.totalReviews}개
+            </span>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            variant={reviewSort === "firstReview" ? "secondary" : "ghost"}
+            className="h-7 text-xs"
+            onClick={() => setReviewSort("firstReview")}
+          >
+            선착순
+          </Button>
+          <Button
+            size="sm"
+            variant={reviewSort === "count" ? "secondary" : "ghost"}
+            className="h-7 text-xs"
+            onClick={() => setReviewSort("count")}
+          >
+            개수순
+          </Button>
+        </div>
+      </div>
+      {reviewStats.isLoading ? (
+        <Skeleton className="h-20 rounded-2xl" />
+      ) : !reviewStats.data || reviewStats.data.users.length === 0 ? (
+        <Card className="rounded-2xl border-0 shadow-card">
+          <CardContent className="p-4 text-sm text-muted-foreground text-center">
+            아직 작성된 리뷰가 없어요.
+          </CardContent>
+        </Card>
+      ) : (
+        [...reviewStats.data.users]
+          .sort((a, b) =>
+            reviewSort === "count"
+              ? b.reviewCount - a.reviewCount
+              : new Date(a.firstReviewAt).getTime() - new Date(b.firstReviewAt).getTime()
+          )
+          .map((u, idx) => {
+            const open = openReviewUser === u.userId;
+            return (
+              <Card key={`rev-${u.userId}`} className="rounded-2xl border-0 shadow-card">
+                <CardContent className="p-3">
+                  <button
+                    className="w-full flex items-center justify-between gap-2 text-left"
+                    onClick={() => setOpenReviewUser(open ? null : u.userId)}
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      {reviewSort === "firstReview" && (
+                        <span className="text-xs font-bold text-muted-foreground w-6 shrink-0">
+                          #{idx + 1}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">
+                          {u.name ?? "(이름 없음)"}
+                          {u.department && (
+                            <span className="text-muted-foreground font-normal">
+                              {" "}
+                              · {u.department}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[11px]">
+                        리뷰 {u.reviewCount}
+                      </Badge>
+                      {open ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+                  {open && (
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        첫 리뷰{" "}
+                        {new Date(u.firstReviewAt).toLocaleString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {" · "}이메일로 기프티콘 발송
+                      </p>
+                      {u.reviews.map((r, i) => (
+                        <div key={i} className="rounded-lg bg-muted p-2.5">
+                          <div className="flex items-center gap-1.5 text-xs font-medium">
+                            <span className="text-[color:var(--dday-fg)]">
+                              {"★".repeat(r.rating)}
+                            </span>
+                            <span className="truncate">
+                              {r.courseName}
+                              {r.section && ` ${Number(r.section)}분반`}
+                            </span>
+                          </div>
+                          {r.content && (
+                            <p className="text-[13px] text-muted-foreground mt-1 whitespace-pre-wrap">
+                              {r.content}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })
+      )}
 
       {/* 유저 역할 관리 — 교수 지정은 운영자가 직접(사칭 방지) */}
       <div className="flex items-center gap-2 pt-2">

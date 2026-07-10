@@ -35,6 +35,7 @@ import {
   TEAM_SIZE_LIMITS,
   MENTORING_MAX_MENTEES,
   CURRENT_SEMESTER,
+  REVIEW_MIN_CONTENT_LEN,
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
@@ -3375,6 +3376,10 @@ export async function upsertCourseReview(
   if (!(await isUserEnrolled(userId, courseId))) {
     throw new Error("이 수업을 수강한 사람만 리뷰를 남길 수 있어요.");
   }
+  // 한줄평 필수·최소 길이 — 라우터 zod와 이중 방어(성의 없는 리뷰 차단).
+  if ((data.content?.trim().length ?? 0) < REVIEW_MIN_CONTENT_LEN) {
+    throw new Error(`한줄평을 ${REVIEW_MIN_CONTENT_LEN}자 이상 자세히 남겨주세요.`);
+  }
   // ★ 1인 1과목 1리뷰 — 유니크 키는 (courseId,userId)라 분반 단위다. 같은 과목의
   // 다른 분반에 등록해 후기를 또 쓰면 courseGroupId 집계에서 중복 반영된다.
   // 이미 이 과목(그룹)에 쓴 리뷰가 있으면 그 행을 수정한다.
@@ -3412,6 +3417,78 @@ export async function upsertCourseReview(
         semester: values.semester,
       },
     });
+}
+
+// 운영자용 리뷰 현황 — 리워드 지급(선착순)·남용 점검. 유저별로 묶어
+// 리뷰 수·첫 리뷰 시각(선착순 기준)·이메일(기프티콘 발송)·리뷰 내용까지 반환.
+export async function getReviewStatsForAdmin() {
+  const db = await getDb();
+  if (!db) return { totalReviewers: 0, totalReviews: 0, users: [] };
+  const rows = await db
+    .select({
+      userId: courseReviews.userId,
+      name: users.name,
+      email: users.email,
+      department: users.department,
+      reviewId: courseReviews.id,
+      rating: courseReviews.rating,
+      content: courseReviews.content,
+      createdAt: courseReviews.createdAt,
+      courseName: courses.name,
+      section: courses.section,
+    })
+    .from(courseReviews)
+    .innerJoin(users, eq(users.id, courseReviews.userId))
+    .innerJoin(courses, eq(courses.id, courseReviews.courseId))
+    .orderBy(courseReviews.createdAt);
+
+  const byUser = new Map<
+    number,
+    {
+      userId: number;
+      name: string | null;
+      email: string | null;
+      department: string | null;
+      reviewCount: number;
+      firstReviewAt: Date;
+      reviews: {
+        rating: number;
+        content: string | null;
+        courseName: string;
+        section: string | null;
+        createdAt: Date;
+      }[];
+    }
+  >();
+  for (const r of rows) {
+    let u = byUser.get(r.userId);
+    if (!u) {
+      u = {
+        userId: r.userId,
+        name: r.name,
+        email: r.email,
+        department: r.department,
+        reviewCount: 0,
+        firstReviewAt: r.createdAt,
+        reviews: [],
+      };
+      byUser.set(r.userId, u);
+    }
+    u.reviewCount++;
+    u.reviews.push({
+      rating: r.rating,
+      content: r.content,
+      courseName: r.courseName,
+      section: r.section,
+      createdAt: r.createdAt,
+    });
+  }
+  // 선착순 = 첫 리뷰 시각 오름차순. 동시에 순위(rank)를 매겨 클라가 바로 쓴다.
+  const list = Array.from(byUser.values()).sort(
+    (a, b) => a.firstReviewAt.getTime() - b.firstReviewAt.getTime()
+  );
+  const totalReviews = rows.length;
+  return { totalReviewers: list.length, totalReviews, users: list };
 }
 
 export async function deleteCourseReview(userId: number, reviewId: number) {

@@ -9,6 +9,7 @@ import {
   MENTORING_MAX_MENTEES,
   MATCH_TYPES,
   MATCH_TYPE_LABELS,
+  REVIEW_MIN_CONTENT_LEN,
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
@@ -1095,14 +1096,28 @@ export default function CourseDetail() {
             )}
 
             <div className="space-y-2">
-              <Label>한줄평 (선택)</Label>
+              <div className="flex items-center justify-between">
+                <Label>한줄평</Label>
+                <span
+                  className={`text-[11px] ${
+                    revContent.trim().length >= REVIEW_MIN_CONTENT_LEN
+                      ? "text-[color:var(--pos-fg)]"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {revContent.trim().length}/{REVIEW_MIN_CONTENT_LEN}자
+                </span>
+              </div>
               <Textarea
                 value={revContent}
                 onChange={(e) => setRevContent(e.target.value)}
-                placeholder="팀플 난이도, 과제량, 꿀팁 등을 남겨주세요"
-                rows={3}
+                placeholder="후배들에게 도움이 되도록 팀플 난이도·과제량·시험·꿀팁 등을 자세히 남겨주세요 (3줄 이상)"
+                rows={4}
                 maxLength={500}
               />
+              <p className="text-[11px] text-muted-foreground">
+                도움이 되는 후기를 위해 {REVIEW_MIN_CONTENT_LEN}자 이상 남겨주세요.
+              </p>
             </div>
             <Button
               className="w-full"
@@ -1110,6 +1125,10 @@ export default function CourseDetail() {
               onClick={() => {
                 if (revRating < 1) {
                   toast.error("별점을 선택해주세요.");
+                  return;
+                }
+                if (revContent.trim().length < REVIEW_MIN_CONTENT_LEN) {
+                  toast.error(`한줄평을 ${REVIEW_MIN_CONTENT_LEN}자 이상 자세히 남겨주세요.`);
                   return;
                 }
                 const hadTeam =
@@ -1128,7 +1147,7 @@ export default function CourseDetail() {
                         ? false
                         : null
                     : null,
-                  content: revContent.trim() || undefined,
+                  content: revContent.trim(),
                   semester: CURRENT_SEMESTER,
                 });
               }}

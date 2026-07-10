@@ -1,4 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, REVIEW_MIN_CONTENT_LEN } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -240,7 +240,12 @@ export const appRouter = router({
           teamSize: z.number().int().min(1).max(20).nullable().optional(),
           projectTypes: z.array(z.string().max(20)).max(6).nullable().optional(),
           preformAllowed: z.boolean().nullable().optional(),
-          content: z.string().trim().max(500).optional(),
+          // 한줄평 필수 — 최소 길이로 성의 없는 리뷰(리워드 farming)를 거른다.
+          content: z
+            .string()
+            .trim()
+            .min(REVIEW_MIN_CONTENT_LEN, `한줄평을 ${REVIEW_MIN_CONTENT_LEN}자 이상 자세히 남겨주세요.`)
+            .max(500),
           semester: z.string().max(20).optional(),
         })
       )
@@ -1179,6 +1184,10 @@ export const appRouter = router({
     // 유저 역할 관리 — 교수 지정은 운영자가 직접 한다(사칭 방지).
     listUsers: adminProcedure.query(async () => {
       return db.listAllUsers();
+    }),
+    // 리뷰 현황 — 리워드 지급(선착순)·남용 점검용. 유저별 리뷰 수·첫 리뷰 시각·내용.
+    reviewStats: adminProcedure.query(async () => {
+      return db.getReviewStatsForAdmin();
     }),
     setUserRole: adminProcedure
       .input(

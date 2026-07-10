@@ -31,6 +31,10 @@ export const TIMETABLE_DAYS = ["월", "화", "수", "목", "금", "토", "일"] 
 export type TimetableDay = (typeof TIMETABLE_DAYS)[number];
 export const MAX_PERIOD = 14;
 
+// 리뷰 최소 글자 수 — "대충 별점만" 리뷰를 막는 품질 게이트(리워드 이벤트 대비).
+// 한줄평이 이 길이를 넘어야 등록된다. 3줄 상당(짧은 줄 3개 ≈ 40자).
+export const REVIEW_MIN_CONTENT_LEN = 40;
+
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';
