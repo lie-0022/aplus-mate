@@ -31,6 +31,7 @@ const CURRENT_SEMESTER = "2026-1";
 
 export default function Courses() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [searchQuery, setSearchQuery] = useState("");
@@ -294,10 +295,20 @@ export default function Courses() {
             [1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-[18px]" />)
           ) : searchResults.data?.length === 0 ? (
             <div className="rounded-[18px] bg-card shadow-card p-6 text-center lg:col-span-2">
-              <p className="text-sm text-muted-foreground mb-3">검색 결과가 없어요</p>
-              <Button variant="secondary" size="sm" onClick={() => setShowCreate(true)}>
-                <Plus className="mr-1 h-4 w-4" /> 직접 수업 만들기
-              </Button>
+              <p className="text-sm text-muted-foreground mb-1">검색 결과가 없어요</p>
+              <p className="text-xs text-muted-foreground">
+                수업명·교수명·수업 코드로 다시 찾아보세요. 학과·구분 필터가 걸려 있으면 풀어보고요.
+              </p>
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowCreate(true)}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> 직접 수업 만들기
+                </Button>
+              )}
             </div>
           ) : (
             searchResults.data?.map((course) => (
@@ -389,9 +400,10 @@ export default function Courses() {
     <div className="space-y-4 mx-auto w-full max-w-[980px]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">수업</h1>
+        {/* 수업 생성은 운영자 전용 — 수강편람이 이미 적재돼 있어 학생은 검색해서 등록한다 */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="secondary">
+            <Button size="sm" variant="secondary" className={isAdmin ? "" : "hidden"}>
               <Plus className="mr-1 h-4 w-4" /> 수업 생성
             </Button>
           </DialogTrigger>
@@ -459,8 +471,8 @@ export default function Courses() {
         <div className="hidden lg:block space-y-3">
           {joinCard}
           <div className="rounded-[18px] bg-card shadow-card p-4 text-[13px] text-muted-foreground leading-relaxed">
-            찾는 수업이 없다면 <span className="font-semibold text-foreground">수업 검색</span>에서 찾거나
-            직접 만들어 첫 수강생이 되어보세요.
+            <span className="font-semibold text-foreground">수업 검색</span>에 이번 학기 수강편람이
+            전부 들어 있어요. 지난 학기에 들었던 수업도 검색해 등록하면 후기를 남길 수 있어요.
           </div>
         </div>
       </div>

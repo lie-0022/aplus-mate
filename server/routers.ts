@@ -140,7 +140,9 @@ export const appRouter = router({
         ]);
         return { ...course, openRecruitCount: recruits[input.id] ?? 0, schedules };
       }),
-    create: protectedProcedure
+    // 운영자 전용 — 수강편람 3,368개 개설이 이미 적재돼 있어 학생이 수업을 만들 이유가 없다.
+    // 중복 수업이 생기면 후기가 진짜 과목(courseGroupId)과 갈라져 학기 승계가 끊긴다.
+    create: adminProcedure
       .input(
         z.object({
           // 길이 상한으로 거대 페이로드를 차단하고 저장값을 정규화한다(엣지 8-A)

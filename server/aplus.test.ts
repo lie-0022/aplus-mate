@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import type { User } from "../drizzle/schema";
+import { NOT_ADMIN_ERR_MSG } from "@shared/const";
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -110,6 +111,21 @@ describe("courses", () => {
     await expect(
       caller.courses.search({ query: "데이터" })
     ).rejects.toThrow();
+  });
+
+  // 수업 생성은 운영자 전용 — 학생이 만든 중복 수업이 후기를 갈라놓는 걸 막는다.
+  // (validates* 테스트는 zod가 먼저 걸려도 통과하므로, 권한 회귀는 이 케이스가 잡는다.)
+  it("create is admin-only — a valid payload from a student is rejected", async () => {
+    const student = createUser({ role: "user" });
+    const caller = appRouter.createCaller(createAuthContext(student));
+    await expect(
+      caller.courses.create({
+        name: "학생이 만든 수업",
+        professor: "김교수",
+        credits: 3,
+        university: "서울대학교",
+      })
+    ).rejects.toThrow(NOT_ADMIN_ERR_MSG);
   });
 
   it("create validates required fields", async () => {
