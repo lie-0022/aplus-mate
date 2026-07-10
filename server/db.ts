@@ -2536,8 +2536,9 @@ export async function clearDemoData() {
   return { cleared: true, courseId: courseId ?? null, students: uids.length };
 }
 
-// 파일럿 리셋 — 운영자(keepUserId) 계정만 남기고 모든 운영 데이터를 비운다.
+// 파일럿 리셋 — 운영자(keepUserId) 계정과 수강편람 수업만 남기고 활동 데이터를 비운다.
 // 테스트 데이터로 시작한 프로덕션을 '실제 학생 받기' 직전에 깨끗이 초기화하는 용도.
+// ★ 수강편람 적재분(courseGroupId 있음)은 운영 데이터라 보존한다 — 재적재가 필요 없다.
 // 되돌릴 수 없다 — adminProcedure + 클라 이중 확인을 거쳐서만 호출한다.
 // 삭제는 FK 자식→부모(참조하는 쪽 먼저) 순서로 진행한다.
 export async function wipeAllExceptOwner(keepUserId: number) {
@@ -2560,17 +2561,32 @@ export async function wipeAllExceptOwner(keepUserId: number) {
     await tx.delete(courseMilestones);
     await tx.delete(courseAnnouncements);
     await tx.delete(courseReviews); // 수강 리뷰 — courses 삭제 전(고아 방지)
-    await tx.delete(courseSchedules); // 시간표 슬롯 — 재적재(시간표 적재 버튼)로 복원
     await tx.delete(userSchedules); // 개인 일정(운영자 것 포함 — 테스트 일정)
     await tx.delete(teams); // teamId 참조들 삭제 후
     await tx.delete(teamMatches); // teams(matchId) 삭제 후
     await tx.delete(recruitments); // teamMatches(recruitmentId) 삭제 후
     await tx.delete(surveys); // surveyQuestions/Responses 삭제 후
     await tx.delete(posts); // postComments 삭제 후
-    await tx.delete(courses); // 모든 course 참조 삭제 후(professorId→users)
+
+    // 수업은 통째로 지우지 않는다 — 수강편람 적재분(courseGroupId 있음)은 테스트 데이터가
+    // 아니라 운영 데이터다. 앱에서 수동 생성한 수업(데모·테스트, courseGroupId null)만 삭제.
+    const manual = await tx
+      .select({ id: courses.id })
+      .from(courses)
+      .where(isNull(courses.courseGroupId));
+    const manualIds = manual.map((m) => m.id);
+    if (manualIds.length > 0) {
+      await tx.delete(courseSchedules).where(inArray(courseSchedules.courseId, manualIds));
+      await tx.delete(courses).where(inArray(courses.id, manualIds));
+    }
+    // 남는 수업이 곧 삭제될 교수 계정을 참조하지 않도록 담당 교수를 끊는다.
+    await tx.update(courses).set({ professorId: null });
+
+    await tx.delete(consents).where(ne(consents.userId, keepUserId));
     await tx.delete(users).where(ne(users.id, keepUserId));
   });
-  return { wiped: true };
+  const left = await db.select({ c: count() }).from(courses);
+  return { wiped: true, keptCourses: Number(left[0]?.c ?? 0) };
 }
 
 // QA용: 특정 유저(실제 친구 계정 등)를 데모 수업에 등록하고, 데모 학생들이

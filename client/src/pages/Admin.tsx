@@ -98,8 +98,10 @@ export default function Admin() {
     onError: (err) => toast.error(err.message),
   });
   const wipeTest = trpc.admin.wipeTestData.useMutation({
-    onSuccess: () => {
-      toast.success("테스트 데이터를 모두 정리했어요. 이제 실제 학생을 받을 수 있어요.");
+    onSuccess: (res) => {
+      toast.success(
+        `테스트 데이터를 정리했어요. 수업 ${res?.keptCourses ?? 0}개는 그대로 남아 있어요.`
+      );
       // 데이터가 전부 바뀌므로 화면을 새로 불러온다.
       setTimeout(() => window.location.reload(), 800);
     },
@@ -492,16 +494,18 @@ export default function Admin() {
       <Card className="rounded-2xl border border-destructive/40 shadow-none">
         <CardContent className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            운영자(나) 계정만 남기고 <b>모든 수업·리뷰·시간표·팀·매칭·설문·게시글과 다른 계정</b>
-            을 영구 삭제합니다. 실제 학생을 받기 직전, 테스트 데이터를 깨끗이 비울 때만
-            사용하세요. <b>되돌릴 수 없습니다.</b> 초기화 후에는 위의 <b>"시간표 적재 / 갱신"</b>
-            을 한 번 눌러 수강편람(3,368개 수업)을 복원하세요.
+            운영자(나) 계정만 남기고 <b>수강·리뷰·개인 일정·팀·매칭·설문·게시글과 다른 계정</b>을
+            영구 삭제합니다. 실제 학생을 받기 직전, 테스트 데이터를 깨끗이 비울 때만 사용하세요.{" "}
+            <b>되돌릴 수 없습니다.</b>
+            <br />
+            <b>수강편람 수업(3,368개)과 시간표는 그대로 남습니다</b> — 재적재할 필요 없어요. 앱에서
+            직접 만든 수업(데모·테스트)만 함께 지워집니다.
           </p>
           <Button
             onClick={() => {
               if (
                 !window.confirm(
-                  "운영자(나) 계정만 남기고 모든 수업·팀·매칭·설문·게시글·다른 계정을 영구 삭제합니다. 되돌릴 수 없어요. 계속할까요?"
+                  "운영자(나) 계정만 남기고 수강·리뷰·개인 일정·팀·매칭·설문·게시글·다른 계정을 영구 삭제합니다. (수강편람 수업과 시간표는 남습니다.) 되돌릴 수 없어요. 계속할까요?"
                 )
               )
                 return;
