@@ -119,6 +119,50 @@ export const userSchedules = mysqlTable("user_schedules", {
 
 export type UserSchedule = typeof userSchedules.$inferSelect;
 
+// ─── Timetable Planner (짜보는 시간표 + 봐주세요 게시판) ────
+// 수강신청 전 다음 학기를 미리 구성하는 "가상" 시간표 — 실제 수강(userCourses)과 별개.
+// 한 명이 여러 개·여러 학기. postedAt이 있으면 "봐주세요"로 게시된 것(익명 노출).
+export const timetables = mysqlTable("timetables", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  semester: varchar("semester", { length: 20 }).notNull(), // 예 "2026-2"
+  title: varchar("title", { length: 100 }).notNull(),
+  postedAt: timestamp("postedAt"), // null = 비공개 초안
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Timetable = typeof timetables.$inferSelect;
+
+// 항목 = 연속 교시 한 블록(목4,5 = 1행). 카탈로그 수업을 담으면 스케줄을 블록으로
+// 접어 "스냅샷"으로 저장 — 카탈로그가 바뀌어도 저장한 플랜은 불변.
+// courseId는 참조용(실제 등록 전환·상세 링크). 커스텀/반입 블록은 null.
+export const timetableItems = mysqlTable("timetable_items", {
+  id: int("id").autoincrement().primaryKey(),
+  timetableId: int("timetableId").notNull(),
+  courseId: int("courseId"),
+  title: varchar("title", { length: 100 }).notNull(),
+  professor: varchar("professor", { length: 100 }),
+  dayOfWeek: mysqlEnum("dayOfWeek", ["월", "화", "수", "목", "금", "토", "일"]), // null = 사이버 전용
+  startPeriod: int("startPeriod"),
+  endPeriod: int("endPeriod"),
+  room: varchar("room", { length: 60 }),
+  cyber: boolean("cyber").default(false).notNull(),
+});
+
+export type TimetableItem = typeof timetableItems.$inferSelect;
+
+// 봐주세요 댓글 — 목록·상세 모두 익명 노출(작성자 판별은 서버만).
+export const timetableComments = mysqlTable("timetable_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  timetableId: int("timetableId").notNull(),
+  userId: int("userId").notNull(),
+  content: varchar("content", { length: 500 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TimetableComment = typeof timetableComments.$inferSelect;
+
 // ─── User Courses (수강 연결) ────────────────────────────
 export const userCourses = mysqlTable(
   "user_courses",

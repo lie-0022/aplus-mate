@@ -15,53 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, Plus, X, Wifi, BookOpen } from "lucide-react";
+import { CalendarDays, Plus, Wifi, BookOpen } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { CURRENT_SEMESTER, TIMETABLE_DAYS, MAX_PERIOD } from "@shared/const";
-
-const ROW_H = 52; // 1교시 높이(px)
-const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
-
-// 수업 블록 색 — 시맨틱 배지 변수를 돌려쓴다(라이트·다크 모두 정의돼 있음).
-const COURSE_COLORS = [
-  { bg: "var(--stat-b-bg)", fg: "var(--stat-b-fg)" },
-  { bg: "var(--stat-c-bg)", fg: "var(--stat-c-fg)" },
-  { bg: "var(--stat-a-bg)", fg: "var(--stat-a-fg)" },
-  { bg: "var(--sky-badge-bg)", fg: "var(--sky-badge-fg)" },
-  { bg: "var(--mine-bg)", fg: "var(--mine-fg)" },
-  { bg: "var(--pos-bg)", fg: "var(--pos-fg)" },
-];
-
-type Block = {
-  key: string;
-  day: string;
-  start: number; // 교시
-  end: number; // 교시(포함)
-  title: string;
-  sub?: string | null;
-  color: { bg: string; fg: string };
-  isEvent: boolean;
-  eventId?: number;
-};
-
-// 같은 요일에서 겹치는 블록을 나란히 배치 — lane 배정(그리디).
-function layoutLanes(blocks: Block[]) {
-  const sorted = [...blocks].sort((a, b) => a.start - b.start || b.end - a.end);
-  const laneEnds: number[] = [];
-  const placed = sorted.map((b) => {
-    let lane = laneEnds.findIndex((end) => end < b.start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(b.end);
-    } else {
-      laneEnds[lane] = b.end;
-    }
-    return { ...b, lane };
-  });
-  return { placed, laneCount: Math.max(1, laneEnds.length) };
-}
+import TimetableGrid, { type GridBlock } from "@/components/TimetableGrid";
 
 export default function Timetable() {
   const [, setLocation] = useLocation();
@@ -93,14 +52,13 @@ export default function Timetable() {
 
   const data = tt.data;
 
-  const { days, periods, blocksByDay, cyberCourses, totalCredits } = useMemo(() => {
+  const { blocks, cyberCourses, totalCredits } = useMemo(() => {
     const courses = data?.courses ?? [];
     const events = data?.events ?? [];
 
     // 수업 슬롯: 같은 수업·요일의 연속 교시(목4,5)는 한 블록으로 접는다.
-    const blocks: Block[] = [];
+    const blocks: GridBlock[] = [];
     courses.forEach((c, idx) => {
-      const color = COURSE_COLORS[idx % COURSE_COLORS.length];
       const byDay = new Map<string, { period: number; room: string | null }[]>();
       for (const s of c.slots) {
         const arr = byDay.get(s.day) ?? [];
@@ -119,8 +77,7 @@ export default function Timetable() {
             end: run.end,
             title: c.name,
             sub: run.room,
-            color,
-            isEvent: false,
+            colorIndex: idx,
           });
           run = null;
         };
@@ -143,32 +100,17 @@ export default function Timetable() {
         start: e.startPeriod,
         end: e.endPeriod,
         title: e.title,
-        color: { bg: "var(--tag-bg)", fg: "var(--tag-fg)" },
-        isEvent: true,
-        eventId: e.id,
+        dashed: true,
+        onRemove: () => deleteEvent.mutate({ id: e.id }),
       });
     }
 
-    // 요일: 평일 고정 + 토/일은 실제 항목이 있을 때만.
-    const extraDays = (["토", "일"] as const).filter((d) => blocks.some((b) => b.day === d));
-    const days = [...WEEKDAYS, ...extraDays];
-
-    // 교시: 기본 1~9, 늦은 항목이 있으면 그만큼 확장.
-    const maxUsed = Math.max(9, ...blocks.map((b) => b.end));
-    const periods = Array.from({ length: Math.min(maxUsed, MAX_PERIOD) }, (_, i) => i + 1);
-
-    const blocksByDay = new Map<string, ReturnType<typeof layoutLanes>>();
-    for (const d of days) {
-      blocksByDay.set(d, layoutLanes(blocks.filter((b) => b.day === d)));
-    }
-
     return {
-      days,
-      periods,
-      blocksByDay,
+      blocks,
       cyberCourses: courses.filter((c) => c.cyber),
       totalCredits: courses.reduce((s, c) => s + (c.credits ?? 0), 0),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   const submitEvent = () => {
@@ -234,91 +176,7 @@ export default function Timetable() {
         </div>
       ) : (
         <div className="rounded-[18px] bg-card shadow-card p-3 sm:p-4 overflow-x-auto">
-          <div
-            className="grid min-w-[520px]"
-            style={{ gridTemplateColumns: `2.2rem repeat(${days.length}, minmax(0, 1fr))` }}
-          >
-            {/* 헤더 행 */}
-            <div />
-            {days.map((d) => (
-              <div key={d} className="text-center text-[13px] font-bold pb-2">
-                {d}
-              </div>
-            ))}
-
-            {/* 교시 라벨 열 */}
-            <div className="relative" style={{ height: periods.length * ROW_H }}>
-              {periods.map((p) => (
-                <div
-                  key={p}
-                  className="absolute left-0 right-1 text-right text-[11px] text-muted-foreground"
-                  style={{ top: (p - 1) * ROW_H + 2 }}
-                >
-                  {p}
-                </div>
-              ))}
-            </div>
-
-            {/* 요일 열 */}
-            {days.map((d) => {
-              const { placed, laneCount } = blocksByDay.get(d) ?? {
-                placed: [],
-                laneCount: 1,
-              };
-              return (
-                <div
-                  key={d}
-                  className="relative border-l border-border/60"
-                  style={{ height: periods.length * ROW_H }}
-                >
-                  {/* 교시 눈금 */}
-                  {periods.map((p) => (
-                    <div
-                      key={p}
-                      className="absolute left-0 right-0 border-t border-border/40"
-                      style={{ top: (p - 1) * ROW_H }}
-                    />
-                  ))}
-                  {placed.map((b) => {
-                    const width = 100 / laneCount;
-                    return (
-                      <div
-                        key={b.key}
-                        className="absolute rounded-lg px-1.5 py-1 overflow-hidden group"
-                        style={{
-                          top: (b.start - 1) * ROW_H + 2,
-                          height: (b.end - b.start + 1) * ROW_H - 4,
-                          left: `calc(${b.lane * width}% + 2px)`,
-                          width: `calc(${width}% - 4px)`,
-                          background: b.color.bg,
-                          color: b.color.fg,
-                          border: b.isEvent ? "1.5px dashed currentColor" : "none",
-                        }}
-                      >
-                        <p className="text-[11px] font-bold leading-tight break-keep line-clamp-3">
-                          {b.title}
-                        </p>
-                        {b.sub && (
-                          <p className="text-[10px] opacity-80 leading-tight truncate mt-0.5">
-                            {b.sub}
-                          </p>
-                        )}
-                        {b.isEvent && b.eventId != null && (
-                          <button
-                            onClick={() => deleteEvent.mutate({ id: b.eventId! })}
-                            className="absolute top-1 right-1 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/60"
-                            aria-label="일정 삭제"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+          <TimetableGrid blocks={blocks} maxPeriods={MAX_PERIOD} />
         </div>
       )}
 

@@ -27,6 +27,9 @@ import {
   courseReviews,
   courseSchedules,
   userSchedules,
+  timetables,
+  timetableItems,
+  timetableComments,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
