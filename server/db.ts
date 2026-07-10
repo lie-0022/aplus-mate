@@ -343,6 +343,17 @@ export async function getCourseById(id: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+// 요일·교시(연강이면 여러 행) + 사이버 표기 행(dayOfWeek=null, cyber=true).
+export async function getCourseSchedules(courseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(courseSchedules)
+    .where(eq(courseSchedules.courseId, courseId))
+    .orderBy(courseSchedules.dayOfWeek, courseSchedules.period);
+}
+
 export type CourseFilters = {
   department?: string;
   category?: "교양" | "전공" | "교직" | "기타";

@@ -45,6 +45,7 @@ import {
   Star,
   GraduationCap,
   Trash2,
+  CalendarDays,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
@@ -55,6 +56,33 @@ const CATEGORIES = ["족보", "과제팁", "후기", "스터디"] as const;
 const PROJECT_TYPE_OPTIONS = ["발표", "개발·제작", "보고서·논문", "설계·기획", "실험·실습", "기타"] as const;
 // Courses.tsx와 동일 값 유지 (등록 학기). 추후 client/src/const.ts로 중앙화 가능.
 const CURRENT_SEMESTER = "2026-1";
+
+const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
+type ScheduleRow = { dayOfWeek: string | null; period: number | null; cyber: boolean; room: string | null };
+
+// 연강(목4, 목5)은 "목 4·5교시"로 접고, 사이버 병행 행(dayOfWeek=null)은 꼬리표로 붙인다.
+function formatSchedule(rows: ScheduleRow[]) {
+  const byDay = new Map<string, number[]>();
+  let cyber = false;
+  let room: string | null = null;
+  for (const s of rows) {
+    if (!s.dayOfWeek) {
+      if (s.cyber) cyber = true;
+      continue;
+    }
+    if (!room && s.room) room = s.room;
+    const periods = byDay.get(s.dayOfWeek) ?? [];
+    if (s.period != null) periods.push(s.period);
+    byDay.set(s.dayOfWeek, periods);
+  }
+  const parts = Array.from(byDay.entries())
+    .sort((a, b) => DAY_ORDER.indexOf(a[0]) - DAY_ORDER.indexOf(b[0]))
+    .map(([day, ps]) =>
+      ps.length > 0 ? `${day} ${[...ps].sort((a, b) => a - b).join("·")}교시` : day
+    );
+  if (cyber) parts.push("사이버 병행");
+  return { text: parts.join(" · "), room };
+}
 
 export default function CourseDetail() {
   const params = useParams<{ id: string }>();
@@ -244,6 +272,19 @@ export default function CourseDetail() {
       </div>
     );
   }
+
+  // 수강편람에서 온 개설 정보(앱에서 손으로 만든 수업은 비어 있다).
+  const schedule = formatSchedule((courseData.schedules ?? []) as ScheduleRow[]);
+  const deptLine = [
+    (courseData.departments?.length ? courseData.departments : [courseData.department])
+      .filter(Boolean)
+      .join(" · "),
+    courseData.category,
+    courseData.subType,
+    courseData.semester,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   // ─── 재사용 요소 ─────────────────────────────────────────
   const noticeEl =
@@ -748,9 +789,22 @@ export default function CourseDetail() {
               )}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {courseData.professor} · {courseData.credits}학점
+              {courseData.professor || "교수 미배정"} · {courseData.credits}학점
+              {courseData.section && ` · ${Number(courseData.section)}분반`}
               {courseData.courseCode && ` · ${courseData.courseCode}`}
             </p>
+            {schedule.text && (
+              <p className="text-sm mt-1.5 flex items-center gap-1.5 font-bold">
+                <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{schedule.text}</span>
+                {schedule.room && (
+                  <span className="font-normal text-muted-foreground">· {schedule.room}</span>
+                )}
+              </p>
+            )}
+            {deptLine && (
+              <p className="text-[13px] text-muted-foreground/80 mt-0.5">{deptLine}</p>
+            )}
           </div>
           {courseData.hasTeamProject && (
             <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full shrink-0">팀플</span>

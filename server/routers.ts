@@ -134,8 +134,11 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const course = await db.getCourseById(input.id);
         if (!course) return course;
-        const recruits = await db.getOpenRecruitmentCountsForCourses([input.id]);
-        return { ...course, openRecruitCount: recruits[input.id] ?? 0 };
+        const [recruits, schedules] = await Promise.all([
+          db.getOpenRecruitmentCountsForCourses([input.id]),
+          db.getCourseSchedules(input.id),
+        ]);
+        return { ...course, openRecruitCount: recruits[input.id] ?? 0, schedules };
       }),
     create: protectedProcedure
       .input(
