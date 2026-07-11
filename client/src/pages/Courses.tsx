@@ -319,7 +319,7 @@ export default function Courses() {
                     <div className="text-[13px] text-muted-foreground mt-0.5 truncate">
                       {course.professor || "교수 미배정"} · {course.credits}학점
                       {course.section && ` · ${Number(course.section)}분반`}
-                      {course.courseCode && ` · ${course.courseCode}`}
+                      {course.scheduleLabel && ` · ${course.scheduleLabel}`}
                     </div>
                     {/* 같은 이름의 개설이 여러 학과에 걸쳐 있어, 어느 학과 것인지 바로 보여준다 */}
                     {(course.departments?.length || course.department) && (
@@ -329,6 +329,7 @@ export default function Courses() {
                           : [course.department]
                         ).join(" · ")}
                         {course.category && ` · ${course.category}`}
+                        {course.courseCode && ` · ${course.courseCode}`}
                       </div>
                     )}
                     {/* 수강 리뷰 요약 — 수업을 고르는 순간에 별점·팀플 유무 즉답 */}

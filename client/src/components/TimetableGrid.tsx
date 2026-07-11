@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // 블록 = 연속 교시 한 덩어리. 겹치면 lane 분할로 나란히 그린다.
 // 블록을 길게 누르거나(모바일) 우클릭하면(PC) 메뉴 — 분반·시간 + 리뷰/지우기.
 
-const ROW_H = 64; // 1교시 높이(px) — 에타 비율 참고(셀 넉넉히, 글씨 안 깨지게)
+// 에타 실측 비율 — 행 높이 ≈ 열 폭 × 0.73 (412px 폰에서 열 ≈73px, 행 ≈55px).
+const ROW_H = 56; // 1교시 높이(px)
 const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
 
 // 블록 색 — 시맨틱 배지 변수 재사용(라이트·다크 모두 정의됨).
@@ -110,17 +111,21 @@ export default function TimetableGrid({
   const minWidth = days.length <= 5 ? 0 : 520;
 
   return (
+    // 에타처럼 격자 전체를 얇은 보더 박스로 감싼다.
     <div
-      className="grid select-none"
+      className="grid select-none rounded-xl border border-border/70 overflow-hidden"
       style={{
         minWidth,
-        gridTemplateColumns: `1.7rem repeat(${days.length}, minmax(0, 1fr))`,
+        gridTemplateColumns: `1.4rem repeat(${days.length}, minmax(0, 1fr))`,
       }}
     >
       {/* 헤더 행 */}
-      <div />
+      <div className="border-b border-border/50" />
       {days.map((d) => (
-        <div key={d} className="text-center text-[13px] font-bold pb-2">
+        <div
+          key={d}
+          className="text-center text-[12px] font-semibold text-muted-foreground py-1.5 border-b border-border/50"
+        >
           {d}
         </div>
       ))}
@@ -130,8 +135,8 @@ export default function TimetableGrid({
         {periods.map((p) => (
           <div
             key={p}
-            className="absolute left-0 right-1 text-right text-[11px] text-muted-foreground"
-            style={{ top: (p - 1) * ROW_H + 2 }}
+            className="absolute left-0 right-0 text-center text-[10px] text-muted-foreground/80"
+            style={{ top: (p - 1) * ROW_H + 3 }}
           >
             {p}
           </div>
@@ -144,13 +149,13 @@ export default function TimetableGrid({
         return (
           <div
             key={d}
-            className="relative border-l border-border/60"
+            className="relative border-l border-border/40"
             style={{ height: periods.length * ROW_H }}
           >
-            {periods.map((p) => (
+            {periods.slice(1).map((p) => (
               <div
                 key={p}
-                className="absolute left-0 right-0 border-t border-border/40"
+                className="absolute left-0 right-0 border-t border-border/30"
                 style={{ top: (p - 1) * ROW_H }}
               />
             ))}
@@ -163,16 +168,15 @@ export default function TimetableGrid({
                   : { bg: "var(--tag-bg)", fg: "var(--tag-fg)" };
               const actionable = !!(b.onReview || b.onRemove);
               const sec = secLabel(b.section);
-              const sub2 = [sec, b.sub].filter(Boolean).join(" · ");
               return (
                 <div
                   key={b.key}
-                  className="absolute rounded-lg px-2 py-1.5 overflow-hidden group"
+                  className="absolute rounded-md px-1.5 py-1 overflow-hidden group"
                   style={{
-                    top: (b.start - 1) * ROW_H + 2,
-                    height: (b.end - b.start + 1) * ROW_H - 4,
-                    left: `calc(${b.lane * width}% + 2px)`,
-                    width: `calc(${width}% - 4px)`,
+                    top: (b.start - 1) * ROW_H + 1,
+                    height: (b.end - b.start + 1) * ROW_H - 2,
+                    left: `calc(${b.lane * width}% + 1px)`,
+                    width: `calc(${width}% - 2px)`,
                     background: color.bg,
                     color: color.fg,
                     border: b.dashed ? "1.5px dashed currentColor" : "none",
@@ -204,13 +208,15 @@ export default function TimetableGrid({
                     if (pressTimer.current) clearTimeout(pressTimer.current);
                   }}
                 >
-                  <p className="text-[12.5px] font-bold leading-[1.2] break-words line-clamp-3">
+                  {/* 에타 스타일 — 제목 크게, 그 아래 분반·강의실 각 한 줄 */}
+                  <p className="text-[12px] font-bold leading-[1.2] break-words line-clamp-3">
                     {b.title}
                   </p>
-                  {sub2 && (
-                    <p className="text-[11px] opacity-80 leading-tight line-clamp-2 mt-1">
-                      {sub2}
-                    </p>
+                  {sec && (
+                    <p className="text-[10px] opacity-85 leading-snug truncate mt-0.5">{sec}</p>
+                  )}
+                  {b.sub && (
+                    <p className="text-[10px] opacity-85 leading-snug truncate">{b.sub}</p>
                   )}
                   {/* ⋮ 은 데스크톱 hover에서만 — 모바일은 길게 누르기(에타처럼 깔끔) */}
                   {actionable && (

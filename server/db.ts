@@ -349,6 +349,45 @@ export async function getCourseById(id: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+// 검색 결과용 시간 라벨(벌크) — "화2,3 수5,6", 사이버 병행은 끝에 "사이버".
+// 수업을 담기 전에 몇 교시인지 바로 보이게 한다(플래너·수업 검색 공용).
+export async function getScheduleLabelsForCourses(courseIds: number[]) {
+  const out: Record<number, string> = {};
+  const db = await getDb();
+  if (!db || courseIds.length === 0) return out;
+  const rows = await db
+    .select()
+    .from(courseSchedules)
+    .where(inArray(courseSchedules.courseId, courseIds));
+  const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
+  const byCourse = new Map<number, typeof rows>();
+  for (const r of rows) {
+    const arr = byCourse.get(r.courseId);
+    if (arr) arr.push(r);
+    else byCourse.set(r.courseId, [r]);
+  }
+  byCourse.forEach((list, id) => {
+    const byDay = new Map<string, number[]>();
+    let cyber = false;
+    for (const r of list) {
+      if (r.cyber) cyber = true;
+      if (r.dayOfWeek && r.period != null) {
+        const arr = byDay.get(r.dayOfWeek) ?? [];
+        arr.push(r.period);
+        byDay.set(r.dayOfWeek, arr);
+      }
+    }
+    const parts: string[] = [];
+    for (const d of DAY_ORDER) {
+      const ps = byDay.get(d);
+      if (ps) parts.push(`${d}${ps.sort((a, b) => a - b).join(",")}`);
+    }
+    if (cyber) parts.push("사이버");
+    if (parts.length > 0) out[id] = parts.join(" ");
+  });
+  return out;
+}
+
 // 요일·교시(연강이면 여러 행) + 사이버 표기 행(dayOfWeek=null, cyber=true).
 export async function getCourseSchedules(courseId: number) {
   const db = await getDb();

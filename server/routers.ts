@@ -119,14 +119,17 @@ export const appRouter = router({
           semester: input.semester,
         });
         const ids = list.map((c) => c.id);
-        const [sums, recruits] = await Promise.all([
+        const [sums, recruits, schedLabels] = await Promise.all([
           db.getReviewSummariesForCourses(ids),
           db.getOpenRecruitmentCountsForCourses(ids),
+          db.getScheduleLabelsForCourses(ids),
         ]);
         return list.map((c) => ({
           ...c,
           reviewSummary: sums[c.id] ?? null,
           openRecruitCount: recruits[c.id] ?? 0,
+          // "화2,3 수5,6 사이버" — 담기 전에 몇 교시인지 바로 보이게
+          scheduleLabel: schedLabels[c.id] ?? null,
         }));
       }),
     get: protectedProcedure

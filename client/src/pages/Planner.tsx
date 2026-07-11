@@ -538,8 +538,8 @@ export default function Planner() {
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {c.professor ?? "미배정"}
+                          {c.scheduleLabel ? ` · ${c.scheduleLabel}` : " · 시간 미지정"}
                           {c.credits ? ` · ${c.credits}학점` : ""}
-                          {c.department ? ` · ${c.department}` : ""}
                         </p>
                       </div>
                       <Button
