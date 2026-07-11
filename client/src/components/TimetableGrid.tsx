@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // 블록 = 연속 교시 한 덩어리. 겹치면 lane 분할로 나란히 그린다.
 // 블록을 길게 누르거나(모바일) 우클릭하면(PC) 메뉴 — 분반·시간 + 리뷰/지우기.
 
-const ROW_H = 52; // 1교시 높이(px)
+const ROW_H = 64; // 1교시 높이(px) — 에타 비율 참고(셀 넉넉히, 글씨 안 깨지게)
 const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
 
 // 블록 색 — 시맨틱 배지 변수 재사용(라이트·다크 모두 정의됨).
@@ -167,7 +167,7 @@ export default function TimetableGrid({
               return (
                 <div
                   key={b.key}
-                  className="absolute rounded-lg px-1.5 py-1 overflow-hidden group"
+                  className="absolute rounded-lg px-2 py-1.5 overflow-hidden group"
                   style={{
                     top: (b.start - 1) * ROW_H + 2,
                     height: (b.end - b.start + 1) * ROW_H - 4,
@@ -204,14 +204,15 @@ export default function TimetableGrid({
                     if (pressTimer.current) clearTimeout(pressTimer.current);
                   }}
                 >
-                  <p className="text-[11px] font-bold leading-tight break-words line-clamp-3">
+                  <p className="text-[12.5px] font-bold leading-[1.2] break-words line-clamp-3">
                     {b.title}
                   </p>
                   {sub2 && (
-                    <p className="text-[10px] opacity-80 leading-tight line-clamp-2 mt-0.5">
+                    <p className="text-[11px] opacity-80 leading-tight line-clamp-2 mt-1">
                       {sub2}
                     </p>
                   )}
+                  {/* ⋮ 은 데스크톱 hover에서만 — 모바일은 길게 누르기(에타처럼 깔끔) */}
                   {actionable && (
                     <button
                       onClick={(e) => {
@@ -220,7 +221,7 @@ export default function TimetableGrid({
                         openMenu(b, r.right, r.bottom);
                       }}
                       aria-label="메뉴"
-                      className="absolute top-0.5 right-0.5 rounded p-0.5 opacity-40 hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 rounded bg-background/50 p-0.5 hidden group-hover:flex"
                     >
                       <MoreVertical className="h-3.5 w-3.5" />
                     </button>
