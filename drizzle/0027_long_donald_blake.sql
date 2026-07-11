@@ -1,0 +1,1 @@
+ALTER TABLE `timetable_items` ADD `section` varchar(4);

@@ -22,6 +22,7 @@ type Item = {
   id: number;
   courseId: number | null;
   title: string;
+  section: string | null;
   professor: string | null;
   dayOfWeek: string | null;
   startPeriod: number | null;
@@ -146,8 +147,10 @@ function BoardDetail({ id }: { id: number }) {
         end: i.endPeriod!,
         title: i.title,
         sub: i.room ?? i.professor,
+        section: i.section,
         colorIndex: i.courseId != null ? colorOf.get(i.courseId) : undefined,
         dashed: i.courseId == null,
+        onReview: i.courseId != null ? () => setLocation(`/courses/${i.courseId}`) : undefined,
       }));
     return { blocks, cyberItems: items.filter((i) => !i.dayOfWeek && i.cyber) };
   }, [items]);

@@ -77,7 +77,9 @@ export default function Timetable() {
             end: run.end,
             title: c.name,
             sub: run.room,
+            section: c.section,
             colorIndex: idx,
+            onReview: () => setLocation(`/courses/${c.id}`),
           });
           run = null;
         };

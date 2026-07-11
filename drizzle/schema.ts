@@ -142,6 +142,7 @@ export const timetableItems = mysqlTable("timetable_items", {
   timetableId: int("timetableId").notNull(),
   courseId: int("courseId"),
   title: varchar("title", { length: 100 }).notNull(),
+  section: varchar("section", { length: 4 }), // 분반(스냅샷). 커스텀 블록은 null.
   professor: varchar("professor", { length: 100 }),
   dayOfWeek: mysqlEnum("dayOfWeek", ["월", "화", "수", "목", "금", "토", "일"]), // null = 사이버 전용
   startPeriod: int("startPeriod"),

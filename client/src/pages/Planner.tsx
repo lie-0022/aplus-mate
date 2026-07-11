@@ -42,6 +42,7 @@ type Item = {
   id: number;
   courseId: number | null;
   title: string;
+  section: string | null;
   professor: string | null;
   dayOfWeek: string | null;
   startPeriod: number | null;
@@ -213,9 +214,11 @@ export default function Planner() {
         end: i.endPeriod!,
         title: i.title,
         sub: i.room ?? i.professor,
+        section: i.section,
         colorIndex: i.courseId != null ? colorOf.get(i.courseId) : undefined,
         dashed: i.courseId == null,
         danger: conflicts.has(i.id),
+        onReview: i.courseId != null ? () => setLocation(`/courses/${i.courseId}`) : undefined,
         onRemove: () => removeItem.mutate({ itemId: i.id }),
       }));
     const cyberItems = items.filter((i) => !i.dayOfWeek && i.cyber);
@@ -480,6 +483,7 @@ export default function Planner() {
                     className="badge-sky text-xs font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1"
                   >
                     {i.title}
+                    {i.section && ` ${Number(i.section)}분반`}
                     <button
                       onClick={() => removeItem.mutate({ itemId: i.id })}
                       aria-label="삭제"
