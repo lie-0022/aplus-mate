@@ -176,7 +176,6 @@ export default function TimetableGrid({
                     background: color.bg,
                     color: color.fg,
                     border: b.dashed ? "1.5px dashed currentColor" : "none",
-                    touchAction: actionable ? "none" : undefined,
                   }}
                   onContextMenu={
                     actionable
