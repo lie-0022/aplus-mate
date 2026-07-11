@@ -176,7 +176,7 @@ export default function TimetableGrid({
               return (
                 <div
                   key={b.key}
-                  className="absolute rounded-[4px] px-1.5 pt-1 pb-0.5 overflow-hidden group text-white"
+                  className="absolute rounded-[4px] px-1 py-0.5 overflow-hidden group text-white"
                   style={{
                     top: (b.start - 1) * ROW_H + 0.5,
                     height: (b.end - b.start + 1) * ROW_H - 1,
@@ -217,9 +217,7 @@ export default function TimetableGrid({
                     {b.title}
                   </p>
                   {b.sub && (
-                    <p className="text-[10.5px] text-white/85 leading-snug truncate mt-0.5">
-                      {b.sub}
-                    </p>
+                    <p className="text-[10.5px] text-white/85 leading-snug truncate">{b.sub}</p>
                   )}
                   {/* ⋮ 은 hover 되는 기기(PC)에서만 — 모바일은 꾹 누르기만(에타처럼 깔끔) */}
                   {actionable && (
