@@ -10,15 +10,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const ROW_H = 56; // 1교시 높이(px)
 const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
 
-// 블록 색 — 시맨틱 배지 변수 재사용(라이트·다크 모두 정의됨).
+// 블록 색 — 에타처럼 진한 단색 + 흰 글자. 중간 명도 원색이라 라이트·다크 공용.
+// (배지용 파스텔 토큰은 격자에선 흐릿해서 쓰지 않는다.)
 export const BLOCK_COLORS = [
-  { bg: "var(--stat-b-bg)", fg: "var(--stat-b-fg)" },
-  { bg: "var(--stat-c-bg)", fg: "var(--stat-c-fg)" },
-  { bg: "var(--stat-a-bg)", fg: "var(--stat-a-fg)" },
-  { bg: "var(--sky-badge-bg)", fg: "var(--sky-badge-fg)" },
-  { bg: "var(--mine-bg)", fg: "var(--mine-fg)" },
-  { bg: "var(--pos-bg)", fg: "var(--pos-fg)" },
+  "#C4635C", // 벽돌 레드
+  "#7C96DB", // 블루
+  "#C2A24D", // 머스터드
+  "#7FA85C", // 그린
+  "#58A69E", // 틸
+  "#CD9153", // 오렌지
+  "#977FD0", // 퍼플
+  "#C97BA3", // 핑크
 ];
+const BLOCK_NEUTRAL = "#878DA0"; // 개인 일정·커스텀(중립 슬레이트)
+const BLOCK_DANGER = "#D9534F"; // 시간 충돌
 
 export type GridBlock = {
   key: string;
@@ -161,25 +166,25 @@ export default function TimetableGrid({
             ))}
             {placed.map((b) => {
               const width = 100 / laneCount;
-              const color = b.danger
-                ? { bg: "var(--danger-bg)", fg: "var(--danger-fg)" }
+              // 에타처럼 진한 단색 + 흰 글자. 셀에 거의 꽉 차게(0.5px 띄움), 모서리 최소.
+              const bg = b.danger
+                ? BLOCK_DANGER
                 : b.colorIndex != null
                   ? BLOCK_COLORS[b.colorIndex % BLOCK_COLORS.length]
-                  : { bg: "var(--tag-bg)", fg: "var(--tag-fg)" };
+                  : BLOCK_NEUTRAL;
               const actionable = !!(b.onReview || b.onRemove);
               const sec = secLabel(b.section);
               return (
                 <div
                   key={b.key}
-                  className="absolute rounded-md px-1.5 py-1 overflow-hidden group"
+                  className="absolute rounded-[4px] px-1.5 pt-1 pb-0.5 overflow-hidden group text-white"
                   style={{
-                    top: (b.start - 1) * ROW_H + 1,
-                    height: (b.end - b.start + 1) * ROW_H - 2,
-                    left: `calc(${b.lane * width}% + 1px)`,
-                    width: `calc(${width}% - 2px)`,
-                    background: color.bg,
-                    color: color.fg,
-                    border: b.dashed ? "1.5px dashed currentColor" : "none",
+                    top: (b.start - 1) * ROW_H + 0.5,
+                    height: (b.end - b.start + 1) * ROW_H - 1,
+                    left: `calc(${b.lane * width}% + 0.5px)`,
+                    width: `calc(${width}% - 1px)`,
+                    background: bg,
+                    border: b.dashed ? "1.5px dashed rgba(255,255,255,0.8)" : "none",
                   }}
                   onContextMenu={
                     actionable
@@ -208,17 +213,19 @@ export default function TimetableGrid({
                     if (pressTimer.current) clearTimeout(pressTimer.current);
                   }}
                 >
-                  {/* 에타 스타일 — 제목 크게, 그 아래 분반·강의실 각 한 줄 */}
-                  <p className="text-[12px] font-bold leading-[1.2] break-words line-clamp-3">
+                  {/* 에타 스타일 — 제목 크게(흰 볼드), 그 아래 분반·강의실 각 한 줄 */}
+                  <p className="text-[13px] font-bold leading-[1.15] break-words line-clamp-3">
                     {b.title}
                   </p>
                   {sec && (
-                    <p className="text-[10px] opacity-85 leading-snug truncate mt-0.5">{sec}</p>
+                    <p className="text-[10.5px] text-white/85 leading-snug truncate mt-0.5">
+                      {sec}
+                    </p>
                   )}
                   {b.sub && (
-                    <p className="text-[10px] opacity-85 leading-snug truncate">{b.sub}</p>
+                    <p className="text-[10.5px] text-white/85 leading-snug truncate">{b.sub}</p>
                   )}
-                  {/* ⋮ 은 데스크톱 hover에서만 — 모바일은 길게 누르기(에타처럼 깔끔) */}
+                  {/* ⋮ 은 hover 되는 기기(PC)에서만 — 모바일은 꾹 누르기만(에타처럼 깔끔) */}
                   {actionable && (
                     <button
                       onClick={(e) => {
@@ -227,7 +234,7 @@ export default function TimetableGrid({
                         openMenu(b, r.right, r.bottom);
                       }}
                       aria-label="메뉴"
-                      className="absolute top-1 right-1 rounded bg-background/50 p-0.5 hidden group-hover:flex"
+                      className="absolute top-1 right-1 rounded bg-black/25 p-0.5 hidden [@media(hover:hover)]:group-hover:flex"
                     >
                       <MoreVertical className="h-3.5 w-3.5" />
                     </button>
