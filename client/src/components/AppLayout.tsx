@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// 데스크톱 사이드바 — 전체 항목.
 const navItems = [
   { icon: Home, label: "홈", path: "/dashboard" },
   { icon: BookOpen, label: "수업", path: "/courses" },
@@ -33,6 +34,16 @@ const navItems = [
   { icon: Handshake, label: "매칭", path: "/matching/requests" },
   { icon: Users, label: "팀", path: "/teams" },
   { icon: UserCircle, label: "프로필", path: "/profile" },
+];
+
+// 모바일 하단바 — 홈은 가운데 띄우고, 좌2·우2만. 프로필은 우상단 아바타로.
+const mobileLeft = [
+  { icon: BookOpen, label: "수업", path: "/courses" },
+  { icon: CalendarDays, label: "시간표", path: "/timetable" },
+];
+const mobileRight = [
+  { icon: Handshake, label: "매칭", path: "/matching/requests" },
+  { icon: Users, label: "팀", path: "/teams" },
 ];
 
 function AppLayoutSkeleton() {
@@ -255,35 +266,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="container">{children}</div>
       </main>
 
-      {/* Bottom navigation (mobile-first) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur border-t lg:hidden" style={{height: '64px'}}>
-        <div className="flex items-center justify-around h-full px-2">
-          {navItems.map((item) => {
-            const isActive =
-              location === item.path ||
-              (item.path !== "/dashboard" && location.startsWith(item.path));
-            return (
-              <button
-                key={item.path}
-                onClick={() => setLocation(item.path)}
-                className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors relative ${
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
-                {item.path === "/matching/requests" && pendingCount > 0 && (
-                  <span className="absolute -top-0.5 right-0 bg-destructive text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {pendingCount > 9 ? "9+" : pendingCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Bottom navigation (mobile) — 홈은 가운데 노치 위로 띄운 형태 */}
+      <MobileNav
+        location={location}
+        setLocation={setLocation}
+        pendingCount={pendingCount}
+      />
 
       {/* Desktop side nav (lg+) */}
       <nav className="hidden lg:flex fixed left-0 top-14 bottom-0 w-60 border-r bg-background/95 flex-col p-4 gap-1 z-40 overflow-y-auto">
@@ -313,5 +301,99 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
     </div>
+  );
+}
+
+// ─── 모바일 하단바 (노치 + 가운데 홈) ────────────────────────
+function MobileNav({
+  location,
+  setLocation,
+  pendingCount,
+}: {
+  location: string;
+  setLocation: (p: string) => void;
+  pendingCount: number;
+}) {
+  const isActive = (path: string) =>
+    location === path || (path !== "/dashboard" && location.startsWith(path));
+
+  const NavBtn = ({
+    item,
+  }: {
+    item: { icon: any; label: string; path: string };
+  }) => (
+    <button
+      onClick={() => setLocation(item.path)}
+      className={`flex flex-col items-center gap-0.5 w-16 relative ${
+        isActive(item.path) ? "text-primary" : "text-muted-foreground"
+      }`}
+    >
+      <item.icon className="h-[22px] w-[22px]" />
+      <span className="text-[10px] font-medium">{item.label}</span>
+      {item.path === "/matching/requests" && pendingCount > 0 && (
+        <span className="absolute top-0 right-2.5 bg-destructive text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+          {pendingCount > 9 ? "9+" : pendingCount}
+        </span>
+      )}
+    </button>
+  );
+
+  const homeActive = location === "/dashboard";
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden" style={{ height: 82 }}>
+      {/* 노치가 파인 바 배경 */}
+      <svg
+        viewBox="0 0 375 82"
+        preserveAspectRatio="none"
+        className="absolute inset-0 w-full h-full"
+        style={{ filter: "drop-shadow(0 -3px 10px rgba(80,60,120,0.10))" }}
+        aria-hidden="true"
+      >
+        <path
+          d="M0,22 L129,22 C151,22 152,58 187.5,58 C223,58 224,22 246,22 L375,22 L375,82 L0,82 Z"
+          fill="var(--card)"
+        />
+      </svg>
+
+      {/* 좌2 · (가운데 홈 자리) · 우2 */}
+      <div className="absolute inset-x-0 bottom-0 h-[60px] flex items-center">
+        <div className="flex-1 flex justify-evenly">
+          {mobileLeft.map((i) => (
+            <NavBtn key={i.path} item={i} />
+          ))}
+        </div>
+        <div className="w-16 shrink-0" />
+        <div className="flex-1 flex justify-evenly">
+          {mobileRight.map((i) => (
+            <NavBtn key={i.path} item={i} />
+          ))}
+        </div>
+      </div>
+
+      {/* 가운데 올라온 홈 */}
+      <button
+        onClick={() => setLocation("/dashboard")}
+        aria-label="홈"
+        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center"
+        style={{ top: 0 }}
+      >
+        <span
+          className={`flex items-center justify-center rounded-full text-white shadow-lg ${
+            homeActive ? "gradient-primary" : "bg-primary"
+          }`}
+          style={{ width: 54, height: 54 }}
+        >
+          <Home className="h-6 w-6" />
+        </span>
+        <span
+          className={`text-[10px] font-medium mt-0.5 ${
+            homeActive ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          홈
+        </span>
+      </button>
+    </nav>
   );
 }

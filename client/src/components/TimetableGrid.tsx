@@ -74,10 +74,15 @@ export default function TimetableGrid({
     return { days, periods, byDay };
   }, [blocks, minPeriods, maxPeriods]);
 
+  // 평일(≤5)만이면 화면에 꽉 채워 가로 스크롤 없이 한눈에. 토·일이 끼면 폭 확보 위해 스크롤.
+  const minWidth = days.length <= 5 ? 0 : 520;
   return (
     <div
-      className="grid min-w-[520px]"
-      style={{ gridTemplateColumns: `2.2rem repeat(${days.length}, minmax(0, 1fr))` }}
+      className="grid"
+      style={{
+        minWidth,
+        gridTemplateColumns: `1.7rem repeat(${days.length}, minmax(0, 1fr))`,
+      }}
     >
       {/* 헤더 행 */}
       <div />
