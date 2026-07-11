@@ -182,7 +182,8 @@ export default function Timetable() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-[18px] bg-card shadow-card p-3 sm:p-4 overflow-x-auto">
+        // 모바일은 에타처럼 화면에 딱 붙게(카드 액자 없이 격자 보더만), sm+는 카드 유지
+        <div className="-mx-2 overflow-x-auto sm:mx-0 sm:rounded-[18px] sm:bg-card sm:shadow-card sm:p-4">
           <TimetableGrid blocks={blocks} maxPeriods={MAX_PERIOD} />
         </div>
       )}
