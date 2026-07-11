@@ -351,7 +351,7 @@ function MobileNav({
         aria-hidden="true"
       >
         <path
-          d="M0,22 L129,22 C151,22 152,58 187.5,58 C223,58 224,22 246,22 L375,22 L375,82 L0,82 Z"
+          d="M0,20 L118,20 C145,20 148,62 187.5,62 C227,62 230,20 257,20 L375,20 L375,82 L0,82 Z"
           fill="var(--card)"
         />
       </svg>
@@ -371,28 +371,14 @@ function MobileNav({
         </div>
       </div>
 
-      {/* 가운데 올라온 홈 */}
+      {/* 가운데 올라온 홈 — 이미지처럼 라벨 없는 원형(선명한 주 색) */}
       <button
         onClick={() => setLocation("/dashboard")}
         aria-label="홈"
-        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center"
-        style={{ top: 0 }}
+        className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full text-white gradient-primary shadow-lg ring-4 ring-card active:scale-95 transition-transform"
+        style={{ top: 2, width: 56, height: 56 }}
       >
-        <span
-          className={`flex items-center justify-center rounded-full text-white shadow-lg ${
-            homeActive ? "gradient-primary" : "bg-primary"
-          }`}
-          style={{ width: 54, height: 54 }}
-        >
-          <Home className="h-6 w-6" />
-        </span>
-        <span
-          className={`text-[10px] font-medium mt-0.5 ${
-            homeActive ? "text-primary" : "text-muted-foreground"
-          }`}
-        >
-          홈
-        </span>
+        <Home className="h-[26px] w-[26px]" strokeWidth={homeActive ? 2.6 : 2} />
       </button>
     </nav>
   );

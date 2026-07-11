@@ -142,7 +142,7 @@ export default function TimetableGrid({
                     border: b.dashed ? "1.5px dashed currentColor" : "none",
                   }}
                 >
-                  <p className="text-[11px] font-bold leading-tight break-keep line-clamp-3">
+                  <p className="text-[11px] font-bold leading-tight break-words line-clamp-3">
                     {b.title}
                   </p>
                   {b.sub && (
