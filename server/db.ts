@@ -368,9 +368,11 @@ export async function getScheduleLabelsForCourses(courseIds: number[]) {
   }
   byCourse.forEach((list, id) => {
     const byDay = new Map<string, number[]>();
+    const rooms = new Set<string>();
     let cyber = false;
     for (const r of list) {
       if (r.cyber) cyber = true;
+      if (r.room) rooms.add(r.room);
       if (r.dayOfWeek && r.period != null) {
         const arr = byDay.get(r.dayOfWeek) ?? [];
         arr.push(r.period);
@@ -383,7 +385,10 @@ export async function getScheduleLabelsForCourses(courseIds: number[]) {
       if (ps) parts.push(`${d}${ps.sort((a, b) => a - b).join(",")}`);
     }
     if (cyber) parts.push("사이버");
-    if (parts.length > 0) out[id] = parts.join(" ");
+    // 강의실까지 붙인다 — 수업 고를 때 어디서 하는지 바로 보이게.
+    const label = parts.join(" ");
+    const room = Array.from(rooms).join(",");
+    if (label || room) out[id] = room ? `${label} · ${room}` : label;
   });
   return out;
 }

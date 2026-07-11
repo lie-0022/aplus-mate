@@ -173,7 +173,6 @@ export default function TimetableGrid({
                   ? BLOCK_COLORS[b.colorIndex % BLOCK_COLORS.length]
                   : BLOCK_NEUTRAL;
               const actionable = !!(b.onReview || b.onRemove);
-              const sec = secLabel(b.section);
               return (
                 <div
                   key={b.key}
@@ -213,17 +212,14 @@ export default function TimetableGrid({
                     if (pressTimer.current) clearTimeout(pressTimer.current);
                   }}
                 >
-                  {/* 에타 스타일 — 제목 크게(흰 볼드), 그 아래 분반·강의실 각 한 줄 */}
+                  {/* 에타 스타일 — 제목(흰 볼드) + 강의실 한 줄. 분반은 메뉴에서만. */}
                   <p className="text-[13px] font-bold leading-[1.15] break-words line-clamp-3">
                     {b.title}
                   </p>
-                  {sec && (
-                    <p className="text-[10.5px] text-white/85 leading-snug truncate mt-0.5">
-                      {sec}
-                    </p>
-                  )}
                   {b.sub && (
-                    <p className="text-[10.5px] text-white/85 leading-snug truncate">{b.sub}</p>
+                    <p className="text-[10.5px] text-white/85 leading-snug truncate mt-0.5">
+                      {b.sub}
+                    </p>
                   )}
                   {/* ⋮ 은 hover 되는 기기(PC)에서만 — 모바일은 꾹 누르기만(에타처럼 깔끔) */}
                   {actionable && (

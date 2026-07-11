@@ -483,7 +483,6 @@ export default function Planner() {
                     className="badge-sky text-xs font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1"
                   >
                     {i.title}
-                    {i.section && ` ${Number(i.section)}분반`}
                     <button
                       onClick={() => removeItem.mutate({ itemId: i.id })}
                       aria-label="삭제"
