@@ -50,6 +50,32 @@ function getRedirectUri(req: Request) {
   return `${base}/api/auth/google/callback`;
 }
 
+// 인증 실패 안내 페이지 — OAuth 콜백은 SPA 밖이라 생 텍스트가 그대로 노출된다.
+// 브랜드 스타일(웜 아이보리 배경 + 카드 + 그라데이션 버튼)을 입힌 최소 HTML로 응답.
+// primaryLabel 버튼은 /api/auth/google로 재진입 — 시작 라우트가 prompt=select_account를
+// 보내므로 개인 gmail로 거절당해도 계정 선택 화면이 다시 뜬다(무한 403 방지).
+function sendAuthErrorPage(
+  res: Response,
+  status: number,
+  title: string,
+  message: string,
+  primaryLabel = "다시 로그인"
+) {
+  res.status(status).type("html").send(`<!doctype html>
+<html lang="ko"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title} — A+ Mate</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" /></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff6ee;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;padding:16px;box-sizing:border-box">
+<div style="max-width:400px;width:100%;background:#fff;border-radius:20px;padding:36px 28px;text-align:center;box-shadow:0 8px 28px rgba(58,53,102,0.10)">
+  <div style="font-size:26px;font-weight:900;font-style:italic;background:linear-gradient(92deg,#7a2fe6,#2e7df0);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:18px">A+ Mate</div>
+  <h1 style="font-size:19px;color:#3a3566;margin:0 0 10px">${title}</h1>
+  <p style="font-size:14px;line-height:1.65;color:#6b6787;margin:0 0 24px">${message}</p>
+  <a href="/api/auth/google" style="display:block;padding:13px 16px;border-radius:12px;background:linear-gradient(92deg,#7a2fe6,#2e7df0);color:#fff;font-weight:700;font-size:15px;text-decoration:none">${primaryLabel}</a>
+  <a href="/" style="display:block;margin-top:12px;font-size:13.5px;color:#8b87a3;text-decoration:none">홈으로 돌아가기</a>
+</div></body></html>`);
+}
+
 export function registerGoogleAuthRoutes(app: Express) {
   if (!ENV.googleClientId || !ENV.googleClientSecret) {
     app.get("/api/auth/google", (_req, res) => {
@@ -70,6 +96,9 @@ export function registerGoogleAuthRoutes(app: Express) {
     url.searchParams.set("response_type", "code");
     url.searchParams.set("scope", "openid email profile");
     url.searchParams.set("state", state);
+    // 항상 계정 선택 화면을 띄운다 — 개인 gmail이 자동 재선택되면
+    // 도메인 제한(403) 후 학교 계정으로 바꿀 방법이 없어지기 때문.
+    url.searchParams.set("prompt", "select_account");
     res.redirect(302, url.toString());
   });
 
@@ -81,7 +110,12 @@ export function registerGoogleAuthRoutes(app: Express) {
 
       if (!code || !verifyState(state)) {
         console.warn("[GoogleAuth] state 검증 실패", { hasCode: !!code, state });
-        res.status(400).send("잘못된 로그인 요청입니다. 다시 시도해주세요.");
+        sendAuthErrorPage(
+          res,
+          400,
+          "로그인 요청이 만료됐어요",
+          "로그인 화면에 오래 머물렀거나 잘못된 경로로 들어왔어요. 아래 버튼으로 다시 시도해 주세요."
+        );
         return;
       }
 
@@ -98,12 +132,22 @@ export function registerGoogleAuthRoutes(app: Express) {
       });
       if (!tokenRes.ok) {
         console.error("[GoogleAuth] token exchange failed:", await tokenRes.text());
-        res.status(502).send("Google 로그인에 실패했습니다. 다시 시도해주세요.");
+        sendAuthErrorPage(
+          res,
+          502,
+          "Google 로그인에 실패했어요",
+          "Google과 통신하는 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+        );
         return;
       }
       const tokens = (await tokenRes.json()) as { access_token?: string };
       if (!tokens.access_token) {
-        res.status(502).send("Google 로그인에 실패했습니다. 다시 시도해주세요.");
+        sendAuthErrorPage(
+          res,
+          502,
+          "Google 로그인에 실패했어요",
+          "Google과 통신하는 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+        );
         return;
       }
 
@@ -112,7 +156,12 @@ export function registerGoogleAuthRoutes(app: Express) {
       });
       if (!userRes.ok) {
         console.error("[GoogleAuth] userinfo failed:", await userRes.text());
-        res.status(502).send("Google 프로필 조회에 실패했습니다.");
+        sendAuthErrorPage(
+          res,
+          502,
+          "Google 프로필 조회에 실패했어요",
+          "Google에서 프로필 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."
+        );
         return;
       }
       const profile = (await userRes.json()) as {
@@ -121,7 +170,12 @@ export function registerGoogleAuthRoutes(app: Express) {
         name?: string;
       };
       if (!profile.sub) {
-        res.status(502).send("Google 프로필 조회에 실패했습니다.");
+        sendAuthErrorPage(
+          res,
+          502,
+          "Google 프로필 조회에 실패했어요",
+          "Google에서 프로필 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."
+        );
         return;
       }
 
@@ -135,11 +189,13 @@ export function registerGoogleAuthRoutes(app: Express) {
         const isOwner = !!ENV.ownerEmail && profile.email === ENV.ownerEmail;
         const domain = (profile.email ?? "").split("@")[1]?.toLowerCase() ?? "";
         if (!existing && !isOwner && !allowedDomains.includes(domain)) {
-          res
-            .status(403)
-            .send(
-              `이 서비스는 현재 지정된 학교(${allowedDomains.join(", ")}) 재학생만 참여할 수 있어요. 학교 이메일 계정으로 로그인해 주세요.`
-            );
+          sendAuthErrorPage(
+            res,
+            403,
+            "학교 구글 계정이 필요해요",
+            `A+ Mate는 지금 ${allowedDomains.map((d) => `@${d}`).join(", ")} 재학생만 참여할 수 있어요.<br/>방금 선택한 계정(${domain ? `@${domain}` : "이메일 미확인"})이 아니라 <b>학교 구글 계정</b>으로 다시 로그인해 주세요.`,
+            "학교 계정으로 다시 로그인"
+          );
           return;
         }
       }
@@ -164,7 +220,12 @@ export function registerGoogleAuthRoutes(app: Express) {
       res.redirect(302, "/");
     } catch (error) {
       console.error("[GoogleAuth] callback failed", error);
-      res.status(500).send("로그인 처리 중 오류가 발생했습니다.");
+      sendAuthErrorPage(
+        res,
+        500,
+        "로그인 처리 중 오류가 발생했어요",
+        "일시적인 문제일 수 있어요. 아래 버튼으로 다시 시도해 주세요."
+      );
     }
   });
 

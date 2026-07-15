@@ -45,7 +45,7 @@ export default function Home() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <p className="text-xs text-muted-foreground mt-4">
-              구글·이메일 계정으로 로그인해요. 외부 인증 화면이 떠도 정상이에요.
+              백석대 구글 계정(@bu.ac.kr)으로 로그인해요. 구글 인증 화면이 떠도 정상이에요.
             </p>
           </div>
         </div>

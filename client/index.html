@@ -14,7 +14,18 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#5d51c8" />
     <meta name="apple-mobile-web-app-title" content="A+ Mate" />
-    <meta name="mobile-web-app-capable" content="yes" />    
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- 링크 미리보기(에타·카톡·디스코드 등) — OG는 절대 URL 필요 -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="A+ Mate" />
+    <meta property="og:title" content="A+ Mate — 백석대 팀플·스터디 매칭" />
+    <meta property="og:description" content="같은 수업 학생과 팀플·스터디 팀 만들기. 수업 후기, 시간표 플래너까지." />
+    <meta property="og:url" content="https://aplus-mate.onrender.com/" />
+    <meta property="og:image" content="https://aplus-mate.onrender.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary_large_image" />    
     <!-- THIS IS THE START OF A COMMENT BLOCK, BLOCK TO BE DELETED: Google Fonts here, example:
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -25,10 +36,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <!-- analytics 미사용 — Manus 템플릿의 umami 스크립트는 env 미치환 404를 만들어 제거함 -->
   </body>
 
 </html>

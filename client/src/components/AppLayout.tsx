@@ -118,6 +118,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             로그인하기
           </Button>
+          <p className="text-xs text-muted-foreground -mt-2">
+            백석대 구글 계정(@bu.ac.kr)으로 로그인해 주세요
+          </p>
         </div>
       </div>
     );
