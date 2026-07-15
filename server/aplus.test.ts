@@ -398,4 +398,13 @@ describe("dashboard", () => {
     const caller = appRouter.createCaller(ctx);
     await expect(caller.dashboard.getData()).rejects.toThrow();
   });
+
+  it("getData returns myReviewCount for onboarding checklist (DB 없이 0 폴백)", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.dashboard.getData();
+    // 온보딩 "후기 남기기" 단계가 이 필드에 의존한다 — shape 회귀 방지.
+    expect(data).toHaveProperty("myReviewCount");
+    expect(typeof data.myReviewCount).toBe("number");
+  });
 });

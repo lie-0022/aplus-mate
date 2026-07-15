@@ -3511,7 +3511,7 @@ export async function hasConsent(
 
 export async function getDashboardData(userId: number) {
   const db = await getDb();
-  if (!db) return { courses: [], pendingMatches: 0, activeTeams: 0 };
+  if (!db) return { courses: [], pendingMatches: 0, activeTeams: 0, myReviewCount: 0 };
 
   const userCoursesRaw = await getUserCourses(userId);
   const recruitCounts = await getOpenRecruitmentCountsForCourses(
@@ -3539,10 +3539,18 @@ export async function getDashboardData(userId: number) {
     activeTeams = activeRows[0]?.cnt ?? 0;
   }
 
+  // 온보딩 "후기 남기기" 완료 판정용 — 내가 쓴 수업 리뷰 수.
+  const myReviewRows = await db
+    .select({ cnt: count() })
+    .from(courseReviews)
+    .where(eq(courseReviews.userId, userId));
+  const myReviewCount = myReviewRows[0]?.cnt ?? 0;
+
   return {
     courses: userCoursesData,
     pendingMatches,
     activeTeams,
+    myReviewCount,
   };
 }
 

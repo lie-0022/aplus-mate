@@ -84,8 +84,9 @@ export default function Dashboard() {
   }
 
   const hasCourse = (data?.courses.length ?? 0) > 0;
+  const hasReview = (data?.myReviewCount ?? 0) > 0;
   const hasConnected = (sent.data?.length ?? 0) > 0 || (data?.activeTeams ?? 0) > 0;
-  const onboardingDone = hasCourse && hasConnected;
+  const onboardingDone = hasCourse && hasReview && hasConnected;
   const upcomingCount = upcoming.data?.length ?? 0;
   const peer = rec.data?.sample;
 
@@ -133,6 +134,22 @@ export default function Dashboard() {
             label="수업 등록하기"
             hint="같은 수업 학생과 매칭돼요"
             onClick={() => setLocation("/courses")}
+          />
+          <OnboardStep
+            done={hasReview}
+            label="들었던 수업 후기 남기기"
+            hint={
+              hasCourse
+                ? "별점·팀플 정보·한줄평이 다음 수강생에게 큰 도움이 돼요"
+                : "먼저 들었던 수업을 등록하세요"
+            }
+            onClick={() =>
+              setLocation(
+                hasCourse && data?.courses[0]
+                  ? `/courses/${data.courses[0].course.id}`
+                  : "/courses",
+              )
+            }
           />
           <OnboardStep
             done={hasConnected}
