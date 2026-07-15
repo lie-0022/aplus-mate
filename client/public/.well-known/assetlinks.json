@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aplusmate.app",
+      "sha256_cert_fingerprints": [
+        "A3:9E:0D:D8:00:D5:BD:ED:A6:AF:C5:68:3D:BE:F5:EE:7F:C6:C6:E4:47:21:29:A8:B2:35:FC:61:C2:DD:05:3B"
+      ]
+    }
+  }
+]

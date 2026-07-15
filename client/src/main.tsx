@@ -59,3 +59,11 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// PWA 서비스워커 — 프로덕션에서만(개발 중 캐시가 HMR을 방해하지 않게).
+// HTML은 캐시하지 않으므로 새 배포는 새로고침 즉시 반영된다.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
