@@ -30,6 +30,7 @@ import {
   timetables,
   timetableItems,
   timetableComments,
+  reviewHelpful,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -2669,11 +2670,72 @@ export async function createReport(data: {
 export async function getOpenReports() {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const rows = await db
     .select()
     .from(reports)
     .where(eq(reports.status, "open"))
     .orderBy(desc(reports.createdAt));
+  // 신고 대상의 내용 미리보기를 동봉 — "수업 리뷰 #3"만으론 운영자가 판단할 수 없다.
+  // 신고는 소량이라 건별 조회로 충분. 미리보기는 부가 정보라 실패해도 큐 자체는 뜬다.
+  return Promise.all(
+    rows.map(async (r) => {
+      let preview: string | null = null;
+      let targetGone = false;
+      try {
+        if (r.targetType === "review") {
+          const [rev] = await db
+            .select({
+              content: courseReviews.content,
+              rating: courseReviews.rating,
+              courseId: courseReviews.courseId,
+            })
+            .from(courseReviews)
+            .where(eq(courseReviews.id, r.targetId));
+          if (!rev) targetGone = true;
+          else {
+            const [c] = await db
+              .select({ name: courses.name })
+              .from(courses)
+              .where(eq(courses.id, rev.courseId));
+            preview = `[${c?.name ?? "수업"}] ★${rev.rating} · ${rev.content ?? "(한줄평 없음)"}`;
+          }
+        } else if (r.targetType === "post") {
+          const [p] = await db
+            .select({ title: posts.title, content: posts.content })
+            .from(posts)
+            .where(eq(posts.id, r.targetId));
+          if (!p) targetGone = true;
+          else preview = `${p.title} — ${p.content.slice(0, 120)}`;
+        } else if (r.targetType === "comment") {
+          const [c] = await db
+            .select({ content: postComments.content })
+            .from(postComments)
+            .where(eq(postComments.id, r.targetId));
+          if (!c) targetGone = true;
+          else preview = c.content.slice(0, 150);
+        } else if (r.targetType === "user") {
+          const [u] = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, r.targetId));
+          if (!u) targetGone = true;
+          else preview = u.name;
+        }
+      } catch {
+        // 미리보기 실패는 무시 — 신고 자체는 보여야 한다
+      }
+      return { ...r, preview, targetGone };
+    })
+  );
+}
+
+// 운영자용 리뷰 삭제 — 신고 처리에서 악성 리뷰(비방·개인정보)를 내린다.
+// 소유자 스코프가 없는 대신 adminProcedure 뒤에서만 호출할 것.
+export async function adminDeleteCourseReview(reviewId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(reviewHelpful).where(eq(reviewHelpful.reviewId, reviewId));
+  await db.delete(courseReviews).where(eq(courseReviews.id, reviewId));
 }
 
 export async function resolveReport(reportId: number) {
@@ -2956,6 +3018,7 @@ export async function wipeAllExceptOwner(keepUserId: number) {
     await tx.delete(userCourses);
     await tx.delete(courseMilestones);
     await tx.delete(courseAnnouncements);
+    await tx.delete(reviewHelpful); // 리뷰 도움돼요 — 리뷰 삭제 전(고아 방지)
     await tx.delete(courseReviews); // 수강 리뷰 — courses 삭제 전(고아 방지)
     await tx.delete(userSchedules); // 개인 일정(운영자 것 포함 — 테스트 일정)
     await tx.delete(teams); // teamId 참조들 삭제 후
@@ -3693,18 +3756,70 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
     .from(courseReviews)
     .where(inArray(courseReviews.courseId, scope))
     .orderBy(desc(courseReviews.createdAt));
-  return rows.map((r) => ({
-    id: r.id,
-    rating: r.rating,
-    hadTeamProject: r.hadTeamProject,
-    teamSize: r.teamSize,
-    projectTypes: r.projectTypes ?? [],
-    preformAllowed: r.preformAllowed,
-    content: r.content,
-    semester: r.semester,
-    createdAt: r.createdAt,
-    isMine: viewerId != null && r.userId === viewerId,
-  }));
+
+  // 도움돼요 집계 + 내가 눌렀는지 — 도움 많은 리뷰가 위로 오게 정렬한다.
+  const ids = rows.map((r) => r.id);
+  const helpfulCounts = new Map<number, number>();
+  const myHelpfulSet = new Set<number>();
+  if (ids.length > 0) {
+    const counts = await db
+      .select({ reviewId: reviewHelpful.reviewId, cnt: count() })
+      .from(reviewHelpful)
+      .where(inArray(reviewHelpful.reviewId, ids))
+      .groupBy(reviewHelpful.reviewId);
+    for (const c of counts) helpfulCounts.set(c.reviewId, c.cnt);
+    if (viewerId != null) {
+      const mine = await db
+        .select({ reviewId: reviewHelpful.reviewId })
+        .from(reviewHelpful)
+        .where(and(inArray(reviewHelpful.reviewId, ids), eq(reviewHelpful.userId, viewerId)));
+      for (const m of mine) myHelpfulSet.add(m.reviewId);
+    }
+  }
+
+  return rows
+    .map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      hadTeamProject: r.hadTeamProject,
+      teamSize: r.teamSize,
+      projectTypes: r.projectTypes ?? [],
+      preformAllowed: r.preformAllowed,
+      content: r.content,
+      semester: r.semester,
+      createdAt: r.createdAt,
+      isMine: viewerId != null && r.userId === viewerId,
+      helpfulCount: helpfulCounts.get(r.id) ?? 0,
+      myHelpful: myHelpfulSet.has(r.id),
+    }))
+    .sort((a, b) => b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt);
+}
+
+// 도움돼요 토글 — 자기 리뷰 금지(어뷰징 방지), 동시 클릭은 유니크 제약 + ER_DUP_ENTRY 멱등 처리.
+export async function toggleReviewHelpful(userId: number, reviewId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스를 사용할 수 없어요.");
+  const [rev] = await db
+    .select({ userId: courseReviews.userId })
+    .from(courseReviews)
+    .where(eq(courseReviews.id, reviewId));
+  if (!rev) throw new Error("리뷰를 찾을 수 없어요.");
+  if (rev.userId === userId) throw new Error("내 리뷰에는 도움돼요를 누를 수 없어요.");
+
+  const existing = await db
+    .select({ id: reviewHelpful.id })
+    .from(reviewHelpful)
+    .where(and(eq(reviewHelpful.reviewId, reviewId), eq(reviewHelpful.userId, userId)));
+  if (existing.length > 0) {
+    await db.delete(reviewHelpful).where(eq(reviewHelpful.id, existing[0].id));
+    return { helpful: false };
+  }
+  try {
+    await db.insert(reviewHelpful).values({ reviewId, userId });
+  } catch (e) {
+    if ((e as { code?: string })?.code !== "ER_DUP_ENTRY") throw e;
+  }
+  return { helpful: true };
 }
 
 export type CourseReviewSummary = {
@@ -3898,9 +4013,14 @@ export async function getReviewStatsForAdmin() {
 export async function deleteCourseReview(userId: number, reviewId: number) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .delete(courseReviews)
+  // 내 리뷰인지 먼저 확인 — 맞을 때만 도움돼요까지 함께 정리(고아 방지)
+  const [mine] = await db
+    .select({ id: courseReviews.id })
+    .from(courseReviews)
     .where(and(eq(courseReviews.id, reviewId), eq(courseReviews.userId, userId)));
+  if (!mine) return;
+  await db.delete(reviewHelpful).where(eq(reviewHelpful.reviewId, reviewId));
+  await db.delete(courseReviews).where(eq(courseReviews.id, reviewId));
 }
 
 // ─── Professor Team Approval (교수 팀 승인) ────────────────

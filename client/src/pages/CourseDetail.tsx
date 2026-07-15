@@ -48,6 +48,8 @@ import {
   GraduationCap,
   Trash2,
   CalendarDays,
+  Share2,
+  ThumbsUp,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
@@ -133,6 +135,10 @@ export default function CourseDetail() {
       setReviewOpen(false);
       toast.success("리뷰를 남겼어요. 다음 수강생에게 큰 도움이 돼요!");
     },
+    onError: (err) => toast.error(err.message),
+  });
+  const toggleHelpful = trpc.reviews.toggleHelpful.useMutation({
+    onSuccess: () => utils.reviews.list.invalidate({ courseId }),
     onError: (err) => toast.error(err.message),
   });
   const removeReview = trpc.reviews.remove.useMutation({
@@ -534,9 +540,33 @@ export default function CourseDetail() {
                 {r.content && (
                   <p className="text-[13px] mt-1.5 whitespace-pre-wrap">{r.content}</p>
                 )}
-                <div className="text-[11px] text-muted-foreground mt-1.5">
-                  익명{r.semester ? ` · ${r.semester} 수강` : ""}
-                  {r.isMine && " · 내 리뷰"}
+                <div className="flex items-center justify-between gap-2 mt-1.5">
+                  <div className="text-[11px] text-muted-foreground">
+                    익명{r.semester ? ` · ${r.semester} 수강` : ""}
+                    {r.isMine && " · 내 리뷰"}
+                  </div>
+                  {/* 도움돼요 — 좋은 후기가 위로 온다. 내 리뷰엔 카운트만. */}
+                  {r.isMine ? (
+                    r.helpfulCount > 0 && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                        <ThumbsUp className="h-3 w-3" /> 도움돼요 {r.helpfulCount}
+                      </span>
+                    )
+                  ) : (
+                    <button
+                      onClick={() => toggleHelpful.mutate({ reviewId: r.id })}
+                      disabled={toggleHelpful.isPending}
+                      className={cn(
+                        "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold transition-colors",
+                        r.myHelpful
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:text-primary"
+                      )}
+                    >
+                      <ThumbsUp className={cn("h-3 w-3", r.myHelpful && "fill-current")} />
+                      도움돼요{r.helpfulCount > 0 ? ` ${r.helpfulCount}` : ""}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -822,9 +852,32 @@ export default function CourseDetail() {
               <p className="text-[13px] text-muted-foreground/80 mt-0.5">{deptLine}</p>
             )}
           </div>
-          {courseData.hasTeamProject && (
-            <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full shrink-0">팀플</span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {courseData.hasTeamProject && (
+              <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">팀플</span>
+            )}
+            {/* 공유 — 지인에게 "이 수업 후기 봐" 전파용. Web Share 없으면 링크 복사. */}
+            <button
+              aria-label="수업 공유"
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={async () => {
+                const url = window.location.href;
+                const title = `${courseData.name} — A+ Mate 수업 후기`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({ title, url });
+                  } catch {
+                    /* 사용자가 공유 시트를 닫은 것 — 무시 */
+                  }
+                } else {
+                  await navigator.clipboard.writeText(url);
+                  toast.success("수업 링크를 복사했어요.");
+                }
+              }}
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

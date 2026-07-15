@@ -93,6 +93,13 @@ export default function Admin() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const deleteReview = trpc.admin.deleteReview.useMutation({
+    onSuccess: () => {
+      utils.admin.reports.invalidate();
+      toast.success("리뷰를 삭제하고 신고를 처리했어요.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const seedDemo = trpc.admin.seedDemo.useMutation({
     onSuccess: (r) => {
       toast.success(r.skipped ? (r.reason ?? "이미 데모가 있어요") : "데모 데이터 생성 완료!");
@@ -360,26 +367,53 @@ export default function Admin() {
       {reports.data?.map((r) => (
         <Card key={`report-${r.id}`} className="rounded-2xl border-0 shadow-card">
           <CardContent className="p-3 flex items-start justify-between gap-2">
-            <div className="text-sm min-w-0">
+            <div className="text-sm min-w-0 flex-1">
               <div className="font-medium">
                 {TARGET_KO[r.targetType]} #{r.targetId} · {REASON_KO[r.reason]}
+                {r.targetGone && (
+                  <span className="ml-1.5 text-[11px] font-bold text-muted-foreground">
+                    (이미 삭제됨)
+                  </span>
+                )}
               </div>
+              {/* 신고 대상 내용 미리보기 — 운영자가 큐에서 바로 판단 */}
+              {r.preview && (
+                <p className="mt-1 rounded-lg bg-muted px-2.5 py-1.5 text-xs whitespace-pre-wrap break-words">
+                  {r.preview}
+                </p>
+              )}
               {r.detail && (
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{r.detail}</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-1">
+                  신고 사유: {r.detail}
+                </p>
               )}
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {new Date(r.createdAt).toLocaleString("ko-KR")}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => resolveReport.mutate({ reportId: r.id })}
-              disabled={resolveReport.isPending}
-            >
-              처리
-            </Button>
+            <div className="flex flex-col gap-1.5 shrink-0">
+              {r.targetType === "review" && !r.targetGone && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    if (window.confirm("이 리뷰를 삭제할까요? 되돌릴 수 없어요."))
+                      deleteReview.mutate({ reviewId: r.targetId, reportId: r.id });
+                  }}
+                  disabled={deleteReview.isPending}
+                >
+                  리뷰 삭제
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => resolveReport.mutate({ reportId: r.id })}
+                disabled={resolveReport.isPending}
+              >
+                {r.targetType === "review" && !r.targetGone ? "무혐의 처리" : "처리"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ))}

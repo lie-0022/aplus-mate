@@ -234,6 +234,11 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getCourseReviewSummary(input.courseId);
       }),
+    toggleHelpful: protectedProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.toggleReviewHelpful(ctx.user.id, input.reviewId);
+      }),
     upsert: protectedProcedure
       .input(
         z.object({
@@ -1217,6 +1222,14 @@ export const appRouter = router({
     reports: adminProcedure.query(async () => {
       return db.getOpenReports();
     }),
+    // 신고된 악성 리뷰 삭제 — 삭제와 동시에 해당 신고도 처리 완료로.
+    deleteReview: adminProcedure
+      .input(z.object({ reviewId: z.number(), reportId: z.number().optional() }))
+      .mutation(async ({ input }) => {
+        await db.adminDeleteCourseReview(input.reviewId);
+        if (input.reportId) await db.resolveReport(input.reportId);
+        return { success: true };
+      }),
     resolveReport: adminProcedure
       .input(z.object({ reportId: z.number() }))
       .mutation(async ({ input }) => {

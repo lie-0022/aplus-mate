@@ -584,3 +584,18 @@ export const courseReviews = mysqlTable(
 );
 
 export type CourseReview = typeof courseReviews.$inferSelect;
+
+// ─── Review Helpful (리뷰 도움돼요) ────────────────────────
+// 좋은 후기가 위로 오도록 — 1인 1리뷰 1표(유니크), 자기 리뷰 투표는 서버에서 차단.
+export const reviewHelpful = mysqlTable(
+  "review_helpful",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    reviewId: int("reviewId").notNull(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("uniq_review_helpful").on(table.reviewId, table.userId)]
+);
+
+export type ReviewHelpful = typeof reviewHelpful.$inferSelect;

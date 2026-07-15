@@ -441,3 +441,19 @@ describe("reports.create", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("reviews.toggleHelpful", () => {
+  it("requires authentication", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.reviews.toggleHelpful({ reviewId: 1 })).rejects.toThrow();
+  });
+});
+
+describe("admin.deleteReview", () => {
+  it("rejects non-admin users (모더레이션 권한 가드)", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.admin.deleteReview({ reviewId: 1 })).rejects.toThrow(NOT_ADMIN_ERR_MSG);
+  });
+});
