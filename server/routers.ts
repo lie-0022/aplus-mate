@@ -1139,7 +1139,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          targetType: z.enum(["post", "comment", "user"]),
+          targetType: z.enum(["post", "comment", "user", "review"]),
           targetId: z.number(),
           reason: z.enum(["abuse", "spam", "privacy", "etc"]),
           detail: z.string().trim().max(500).optional(),

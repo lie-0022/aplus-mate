@@ -2641,7 +2641,7 @@ export async function countUsersByRole(role: "user" | "professor" | "admin") {
 // ─── Reports (신고) ──────────────────────────────────────
 export async function createReport(data: {
   reporterId: number;
-  targetType: "post" | "comment" | "user";
+  targetType: "post" | "comment" | "user" | "review";
   targetId: number;
   reason: "abuse" | "spam" | "privacy" | "etc";
   detail?: string | null;

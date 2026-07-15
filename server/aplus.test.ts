@@ -408,3 +408,36 @@ describe("dashboard", () => {
     expect(typeof data.myReviewCount).toBe("number");
   });
 });
+
+// ─── Reports (신고) Tests ────────────────────────────────
+
+describe("reports.create", () => {
+  it("requires authentication", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.reports.create({ targetType: "review", targetId: 1, reason: "abuse" })
+    ).rejects.toThrow();
+  });
+
+  it("accepts review targetType (익명 리뷰 신고 안전망)", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    const res = await caller.reports.create({
+      targetType: "review",
+      targetId: 1,
+      reason: "abuse",
+      detail: "비방성 내용",
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("rejects unknown targetType", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      // @ts-expect-error — 잘못된 타입 입력 검증
+      caller.reports.create({ targetType: "course", targetId: 1, reason: "abuse" })
+    ).rejects.toThrow();
+  });
+});

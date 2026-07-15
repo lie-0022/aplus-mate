@@ -41,7 +41,12 @@ const REASON_KO: Record<string, string> = {
   privacy: "개인정보 노출",
   etc: "기타",
 };
-const TARGET_KO: Record<string, string> = { post: "게시글", comment: "댓글", user: "사용자" };
+const TARGET_KO: Record<string, string> = {
+  post: "게시글",
+  comment: "댓글",
+  user: "사용자",
+  review: "수업 리뷰",
+};
 const TEAM_STATUS_KO: Record<string, string> = {
   active: "진행 중",
   completed: "완료",

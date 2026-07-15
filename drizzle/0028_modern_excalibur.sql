@@ -1,0 +1,1 @@
+ALTER TABLE `reports` MODIFY COLUMN `targetType` enum('post','comment','user','review') NOT NULL;

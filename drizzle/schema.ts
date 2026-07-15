@@ -516,7 +516,7 @@ export const reports = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     reporterId: int("reporterId").notNull(),
-    targetType: mysqlEnum("targetType", ["post", "comment", "user"]).notNull(),
+    targetType: mysqlEnum("targetType", ["post", "comment", "user", "review"]).notNull(),
     targetId: int("targetId").notNull(),
     reason: mysqlEnum("reason", ["abuse", "spam", "privacy", "etc"]).notNull(),
     detail: text("detail"),

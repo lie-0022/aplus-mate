@@ -26,13 +26,13 @@ const REASONS = [
   { value: "etc", label: "기타" },
 ] as const;
 
-// 게시글·댓글·사용자 신고 — 운영자 큐로 들어간다.
+// 게시글·댓글·사용자·수업리뷰 신고 — 운영자 큐로 들어간다.
 export function ReportDialog({
   targetType,
   targetId,
   trigger,
 }: {
-  targetType: "post" | "comment" | "user";
+  targetType: "post" | "comment" | "user" | "review";
   targetId: number;
   trigger?: ReactNode;
 }) {

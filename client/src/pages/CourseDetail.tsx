@@ -36,6 +36,7 @@ import {
   ArrowLeft,
   Users,
   FileText,
+  Flag,
   Plus,
   Eye,
   Handshake,
@@ -505,7 +506,7 @@ export default function CourseDetail() {
                       </span>
                     )}
                   </div>
-                  {r.isMine && (
+                  {r.isMine ? (
                     <button
                       onClick={() => removeReview.mutate({ reviewId: r.id })}
                       disabled={removeReview.isPending}
@@ -514,6 +515,20 @@ export default function CourseDetail() {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                  ) : (
+                    // 익명 리뷰 안전망 — 욕설·비방 등은 운영자 신고 큐로.
+                    <ReportDialog
+                      targetType="review"
+                      targetId={r.id}
+                      trigger={
+                        <button
+                          className="text-muted-foreground/60 hover:text-destructive"
+                          aria-label="리뷰 신고"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                        </button>
+                      }
+                    />
                   )}
                 </div>
                 {r.content && (
