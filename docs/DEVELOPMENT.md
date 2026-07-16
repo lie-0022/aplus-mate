@@ -13,15 +13,23 @@ pnpm install          # 의존성 설치 (wouter 패치 자동 적용됨)
 저장소에 `.env`가 **없다.** 직접 만들어야 한다. 루트에 `.env` 생성:
 
 ```env
-DATABASE_URL=mysql://user:pass@host:3306/aplusmate
-JWT_SECRET=<랜덤 시크릿>
-OAUTH_SERVER_URL=<Manus OAuth 서버>
-VITE_OAUTH_PORTAL_URL=<Manus OAuth 포탈>
-VITE_APP_ID=<Manus 앱 ID>
-OWNER_OPEN_ID=<관리자 openId>
-BUILT_IN_FORGE_API_URL=<Forge API>
-BUILT_IN_FORGE_API_KEY=<Forge 키>
+DATABASE_URL=mysql://user:pass@host:4000/aplusmate   # TiDB(프로덕션) 또는 로컬 MySQL
+JWT_SECRET=<랜덤 시크릿>                              # 세션 쿠키 + OAuth state 서명
+# ── 로그인은 Google OAuth 하나뿐 (Manus OAuth는 코드만 잔존·미사용) ──
+GOOGLE_CLIENT_ID=<구글 콘솔 클라이언트 ID>
+GOOGLE_CLIENT_SECRET=<구글 콘솔 시크릿>
+APP_URL=http://localhost:3000                        # redirect_uri 고정(콘솔 등록값과 일치해야 함)
+OWNER_EMAIL=<관리자 구글 이메일>                       # 이 이메일 유저가 자동 admin
+ALLOWED_EMAIL_DOMAINS=bu.ac.kr                       # 선택 — 신규 가입 도메인 제한(비우면 무제한)
+LLM_API_URL=<OpenAI 호환 엔드포인트>                   # 선택 — AI 보고서
+LLM_MODEL=gemini-2.5-flash
+DEV_LOCAL=1                                          # 로컬 전용 /api/dev/login 백도어
 ```
+
+> ⚠️ **프로덕션 실값은 Render Environment에만 있다**(저장소·로컬에 없음).
+> env는 **부팅 때 1회 로드** → 값 바꾸면 반드시 재배포해야 반영된다.
+> `DEV_LOCAL=1`이어도 **DB가 없으면 로그인 안 된다** — `authenticateRequest`가
+> `getUserByOpenId`로 DB를 타기 때문(로컬에서 로그인하려면 DB + 유저 행 필요).
 
 없을 때의 동작:
 - `DATABASE_URL` 없음 → `getDb()`가 null → DB 함수가 빈값 폴백(앱은 뜨지만 데이터 없음)

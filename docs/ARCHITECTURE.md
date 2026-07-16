@@ -14,7 +14,8 @@ A+ Mate는 **단일 저장소(monorepo 성격)** 풀스택 TypeScript 앱이다.
                 │ POST /api/trpc (쿠키 세션 동봉, superjson)
 ┌───────────────▼─────────────────────────────────────────┐
 │  Express (server/_core/index.ts)                          │
-│   ├ /api/oauth/callback   ← Manus OAuth                    │
+│   ├ /api/auth/google[/callback] ← Google OAuth(실사용)     │
+│   ├ /api/oauth/callback   ← Manus OAuth(코드만 잔존·미사용) │
 │   ├ /manus-storage/*      ← S3 프록시                      │
 │   ├ /api/trpc/*           ← appRouter                      │
 │   └ Vite 미들웨어(dev) / 정적파일(prod)                    │
@@ -58,11 +59,16 @@ A+ Mate는 **단일 저장소(monorepo 성격)** 풀스택 TypeScript 앱이다.
 
 도메인 함수: `upsertUser`, `getUserById`, `updateUserProfile` / `createCourse`, `searchCourses`, `enrollCourse`, `getCourseStudents`, `isUserEnrolled` / `createPost`, `getCoursePosts` / `createMatchRequest`, `acceptMatch`, `rejectMatch`, `getReceivedMatchRequests` / `getUserTeams`, `getTeamDetail`, `completeTeam` / `submitEvaluationBatch`, `hasUserEvaluated`, `calculateBadges`(private) / `getUserBadges`, `getDashboardData`.
 
-### 스키마 (`drizzle/schema.ts`) — 테이블 9개
+### 스키마 (`drizzle/schema.ts`) — **테이블 30개** (단일 진실 원천은 언제나 schema.ts)
+
+아래 표는 **초기 코어 9개**만이다. 이후 확장분(요약): 수업 시간표(`course_schedules`)·수강 리뷰
+(`course_reviews`, `review_helpful`)·관심 수업(`course_favorites`)·모집공고/지원(`recruitments` 등)·
+내 시간표/개인일정(`user_schedules`)·플래너(`timetables`, `timetable_items`, `timetable_comments`)·
+게시글 댓글·설문·알림·신고(`reports`)·동의(`consents`)·마일스톤/제출물 등. **정확한 목록은 schema.ts를 볼 것.**
 
 | 테이블 | 핵심 컬럼 | 유니크 제약(동시성 방어) |
 |--------|----------|------------------------|
-| `users` | openId, role, university/department/year, skillTags(JSON), kakaoOpenChatUrl, profileCompleted | openId |
+| `users` | openId, email, role, university/department/year, skillTags(JSON), profileCompleted, deletedAt | openId |
 | `courses` | name, professor, credits, hasTeamProject, university, courseCode | (name, professor, university) |
 | `user_courses` | userId, courseId, semester | (userId, courseId, semester) |
 | `posts` | courseId, userId, title, content, category(enum) | — |
@@ -72,18 +78,27 @@ A+ Mate는 **단일 저장소(monorepo 성격)** 풀스택 TypeScript 앱이다.
 | `evaluations` | teamId, evaluatorId, evaluateeId, promiseScore/ideaScore/deadlineScore(1~5), grade(enum) | (teamId, evaluator, evaluatee) |
 | `badges` | userId, badgeType(promise/idea/deadline), count | (userId, badgeType) |
 
-## 3. 인증 흐름 (Manus OAuth)
+## 3. 인증 흐름 (**Google OAuth / OIDC**)
+
+> Manus OAuth(`_core/oauth.ts`)는 코드만 남아 있고 `OAUTH_SERVER_URL`이 미설정이라 **쓰이지 않는다.**
+> 실제 입구는 `_core/googleAuth.ts` 하나뿐.
 
 ```
 1. 비로그인 유저가 protected API 호출 → 401 "Please login (10001)"
-2. main.tsx가 감지 → getLoginUrl()로 Manus OAuth 포탈 리다이렉트
-3. 포탈 인증 후 /api/oauth/callback?code&state 로 복귀
-4. oauth.ts: code→token→userInfo 교환 → db.upsertUser → 세션 쿠키 발급(jose JWT, 1년)
-5. 이후 모든 요청에 app_session_id 쿠키 동봉
-6. context.ts: sdk.authenticateRequest(req)로 매 요청 user 복원 → ctx.user
+2. main.tsx가 감지 → getLoginUrl() → /api/auth/google
+3. googleAuth.ts: 서명된 state(HMAC, 쿠키 불필요) + prompt=select_account 로 구글 동의화면
+   ↳ prompt=select_account 필수 — 없으면 개인 gmail이 자동 재선택돼 도메인 거절(403) 후
+     학교 계정으로 못 바꾸는 무한 403에 갇힌다
+4. /api/auth/google/callback?code&state → code→token→userinfo 교환
+5. 도메인 게이트: ALLOWED_EMAIL_DOMAINS 설정 시 '신규 가입'만 도메인 검사
+   (기존 가입자·OWNER_EMAIL은 예외 → 운영자·기존 유저 잠김 방지). 거절 시 브랜드 403 페이지
+6. db.upsertUser(openId="google:{sub}") → 세션 쿠키 발급(jose JWT, 1년) → "/" 착지
+7. context.ts: sdk.authenticateRequest(req)로 매 요청 user 복원 → ctx.user
 ```
 
-비밀번호를 직접 다루지 않는다. `OWNER_OPEN_ID`와 일치하는 유저는 자동 `admin`.
+비밀번호를 직접 다루지 않는다. **`OWNER_EMAIL`과 이메일이 일치하는 유저가 자동 `admin`**
+(구글 sub를 미리 알 수 없어 openId 대신 이메일로 매칭). 인증 실패 페이지는 SPA 밖이라
+`sendAuthErrorPage`가 브랜드 HTML로 응답하며, 외부 유래 값은 `escapeHtml()`로 감싼다.
 
 ## 4. 도메인 규칙 (불변식)
 
