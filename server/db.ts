@@ -3763,7 +3763,11 @@ async function getReviewScopeCourseIds(courseId: number): Promise<number[]> {
   return sibs.length > 0 ? sibs.map((s) => s.id) : [courseId];
 }
 
-export async function getCourseReviews(courseId: number, viewerId?: number) {
+export async function getCourseReviews(
+  courseId: number,
+  viewerId?: number,
+  sort: "helpful" | "recent" = "helpful"
+) {
   const db = await getDb();
   if (!db) return [];
   const scope = await getReviewScopeCourseIds(courseId);
@@ -3808,7 +3812,11 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
       helpfulCount: helpfulCounts.get(r.id) ?? 0,
       myHelpful: myHelpfulSet.has(r.id),
     }))
-    .sort((a, b) => b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt);
+    .sort((a, b) =>
+      sort === "recent"
+        ? +b.createdAt - +a.createdAt
+        : b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt
+    );
 }
 
 // ─── Course Favorites (관심 수업) ────────────────────────

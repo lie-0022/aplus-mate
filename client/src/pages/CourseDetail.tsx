@@ -120,7 +120,8 @@ export default function CourseDetail() {
   });
   // 수강 리뷰 — 별점·"팀플 있었나요?" 집계가 다음 수강생에게 팀플 유무를 알려준다.
   const reviewSummary = trpc.reviews.summary.useQuery({ courseId });
-  const reviewList = trpc.reviews.list.useQuery({ courseId });
+  const [reviewSort, setReviewSort] = useState<"helpful" | "recent">("helpful");
+  const reviewList = trpc.reviews.list.useQuery({ courseId, sort: reviewSort });
   const [reviewOpen, setReviewOpen] = useState(false);
   const [revRating, setRevRating] = useState(0);
   const [revTeam, setRevTeam] = useState<"yes" | "no" | "na">("na");
@@ -492,7 +493,24 @@ export default function CourseDetail() {
               교수님이 팀을 직접 정하는 편일 수 있어요(미리 짠 팀 불가 응답이 더 많음). 커넥트 전에 참고하세요.
             </div>
           )}
-          <div className="mt-3 space-y-2.5">
+          {sum && sum.count > 1 && (
+            <div className="mt-3 flex items-center gap-1.5 text-[12px]">
+              <button
+                onClick={() => setReviewSort("helpful")}
+                className={reviewSort === "helpful" ? "font-bold text-primary" : "text-muted-foreground"}
+              >
+                도움순
+              </button>
+              <span className="text-muted-foreground/40">·</span>
+              <button
+                onClick={() => setReviewSort("recent")}
+                className={reviewSort === "recent" ? "font-bold text-primary" : "text-muted-foreground"}
+              >
+                최신순
+              </button>
+            </div>
+          )}
+          <div className="mt-2 space-y-2.5">
             {visibleReviews?.map((r) => (
               <div key={r.id} className="rounded-xl bg-muted p-3">
                 <div className="flex items-center justify-between gap-2">

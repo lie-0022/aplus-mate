@@ -241,9 +241,14 @@ export const appRouter = router({
   // ─── Course Reviews (수업 리뷰 — 별점·팀플 유무·한줄평) ──
   reviews: router({
     list: protectedProcedure
-      .input(z.object({ courseId: z.number() }))
+      .input(
+        z.object({
+          courseId: z.number(),
+          sort: z.enum(["helpful", "recent"]).optional(),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        return db.getCourseReviews(input.courseId, ctx.user.id);
+        return db.getCourseReviews(input.courseId, ctx.user.id, input.sort);
       }),
     summary: protectedProcedure
       .input(z.object({ courseId: z.number() }))
