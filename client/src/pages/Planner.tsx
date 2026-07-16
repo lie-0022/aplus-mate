@@ -31,6 +31,7 @@ import {
   MessageSquare,
   ImagePlus,
   X,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_SEMESTER, TIMETABLE_DAYS, MAX_PERIOD } from "@shared/const";
@@ -153,6 +154,11 @@ export default function Planner() {
     { query: query.trim() },
     { enabled: selectedId != null && query.trim().length > 0 }
   );
+  // 방학 흐름: 후기 보고 → 관심 수업 담아두고 → 여기서 시간표로 짜본다.
+  // 검색어가 비었을 때 관심 수업을 바로 담을 후보로 보여준다(매번 재검색 안 하게).
+  const favorites = trpc.courses.favorites.useQuery(undefined, {
+    enabled: selectedId != null,
+  });
 
   // ── 커스텀 블록 다이얼로그 ──
   const [blockOpen, setBlockOpen] = useState(false);
@@ -555,6 +561,46 @@ export default function Planner() {
                     </div>
                   ))
                 )}
+              </div>
+            )}
+            {/* 검색 전 기본 화면 — 담아둔 관심 수업을 원탭으로 */}
+            {!query.trim() && (favorites.data?.length ?? 0) > 0 && (
+              <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                <p className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-primary text-primary" /> 관심 수업에서 바로 담기
+                </p>
+                {favorites.data!.map((c) => (
+                  <div
+                    key={`fav-${c.id}`}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-muted p-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {c.name}
+                        {c.section && (
+                          <span className="text-muted-foreground font-normal">
+                            {" "}
+                            {Number(c.section)}분반
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {c.professor ?? "미배정"}
+                        {c.scheduleLabel ? ` · ${c.scheduleLabel}` : " · 시간 미지정"}
+                        {c.credits ? ` · ${c.credits}학점` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="shrink-0"
+                      disabled={addCourse.isPending}
+                      onClick={() => addCourse.mutate({ timetableId: selectedId!, courseId: c.id })}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
