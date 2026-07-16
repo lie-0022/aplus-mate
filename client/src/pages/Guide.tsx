@@ -9,6 +9,9 @@ import {
   ArrowRight,
   ArrowLeft,
   CalendarDays,
+  Smartphone,
+  Share,
+  MoreVertical,
 } from "lucide-react";
 
 // A+ Mate 사용법 — 처음 온 학생이 "무엇을, 어떤 순서로" 하는지 한 화면에서 이해하게.
@@ -98,7 +101,38 @@ export default function Guide() {
         ))}
       </div>
 
-      <div className="mt-6 notice-soft rounded-[18px] p-4 text-[13px] leading-relaxed">
+      {/* 앱으로 설치 — PWA. 스토어 없이 홈 화면에 아이콘·전체화면으로. */}
+      <div className="mt-6 rounded-[18px] bg-card shadow-card p-4">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <Smartphone className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-bold text-[15px]">앱으로 설치하기</div>
+            <p className="text-[13px] text-muted-foreground leading-relaxed mt-1">
+              홈 화면에 추가하면 앱처럼 전체화면으로 열려요. 설치는 무료예요.
+            </p>
+            <div className="mt-2.5 space-y-2 text-[13px]">
+              <div className="rounded-xl bg-muted p-3">
+                <div className="font-bold mb-0.5">아이폰 (사파리)</div>
+                <p className="text-muted-foreground leading-relaxed">
+                  하단 <Share className="inline h-3.5 w-3.5 align-text-bottom" /> 공유 버튼 → "홈
+                  화면에 추가" → 추가
+                </p>
+              </div>
+              <div className="rounded-xl bg-muted p-3">
+                <div className="font-bold mb-0.5">안드로이드 (크롬)</div>
+                <p className="text-muted-foreground leading-relaxed">
+                  우측 상단 <MoreVertical className="inline h-3.5 w-3.5 align-text-bottom" /> 메뉴 →
+                  "홈 화면에 추가" 또는 "앱 설치"
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 notice-soft rounded-[18px] p-4 text-[13px] leading-relaxed">
         <span className="font-bold">안전하게 이용하세요.</span> 매칭 수락 전에는 실명이
         공개되지 않아요. 외부 오픈채팅에서 금융정보·송금을 요구받으면 응하지 말고, 설정의
         문의·지원으로 알려주세요.
