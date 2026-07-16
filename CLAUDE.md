@@ -19,8 +19,8 @@
 | API | tRPC v11 (end-to-end 타입세이프), superjson |
 | 백엔드 | Express 4, Node(ESM), tsx |
 | DB | MySQL + Drizzle ORM / drizzle-kit |
-| 인증 | Manus OAuth 포탈 + 쿠키 세션(JWT, jose) |
-| 스토리지/LLM | Manus Forge API (S3 presigned, LLM, 이미지생성) |
+| 인증 | **Google OAuth(OIDC)** + 쿠키 세션(JWT, jose) — `server/_core/googleAuth.ts`. `ALLOWED_EMAIL_DOMAINS`로 학교 도메인 제한(신규 가입만, 기존 유저·OWNER_EMAIL 예외). Manus OAuth(`oauth.ts`)는 남아 있으나 `OAUTH_SERVER_URL` 미설정이라 **미사용** |
+| 스토리지/LLM | 스토리지=Manus Forge(S3 presigned). LLM=`LLM_API_URL`(현재 Gemini OpenAI 호환 엔드포인트) |
 | 패키지매니저 | **pnpm** (npm/yarn 쓰지 말 것) |
 | 테스트 | Vitest |
 
@@ -44,7 +44,7 @@ server/
 shared/
   const.ts, types.ts  # 클라/서버 공유 상수·타입
 drizzle/
-  schema.ts       # ★ DB 스키마(테이블 9개) — 스키마 변경의 단일 출처
+  schema.ts       # ★ DB 스키마(테이블 30개) — 스키마 변경의 단일 출처
   *.sql, meta/    # 마이그레이션(자동 생성물 — 직접 편집 금지)
 ```
 
@@ -82,7 +82,7 @@ pnpm start      # 프로덕션 실행 (dist/)
 순서대로 통과해야 "완료"로 간주한다:
 
 1. `pnpm check` — 타입 에러 0
-2. `pnpm test` — 전체 통과 (현재 50개: auth 1 + aplus 26 + e2e 23)
+2. `pnpm test` — 전체 통과 (현재 67개: auth 1 + aplus 43 + e2e 23)
 3. (DB 스키마 변경 시) `pnpm db:push` 후 마이그레이션 파일 커밋
 4. 동작 검증 — `pnpm dev` 후 해당 화면/플로우 직접 확인
 5. `git status`로 의도한 파일만 변경됐는지 확인 → 사용자 요청 시에만 커밋/푸시
@@ -107,10 +107,10 @@ pnpm start      # 프로덕션 실행 (dist/)
 
 1. **동시성은 "DB 유니크 제약 + try/catch(ER_DUP_ENTRY)" 패턴으로 막는다.** 매칭/팀생성/평가/배지가 전부 이 방식. 새 동시성 로직도 트랜잭션 락이 아니라 **유니크 인덱스 + 멱등 처리**로 간다 (`db.ts`의 `acceptMatch`, `completeTeam`, `calculateBadges` 참고). 임의로 다른 방식 쓰지 말 것.
 2. **DB 미연결 시 graceful degradation.** `getDb()`는 `DATABASE_URL` 없으면 `null`을 반환하고, 대부분 db 함수가 빈 배열/`null`/no-op으로 빠진다. 그래서 **테스트는 DB 없이도 라우터의 검증/권한 로직을 돈다**(에러 throw 여부 중심). 실제 데이터 동작 확인은 DB 연결 후 직접 검증 필요.
-3. **환경변수(.env 파일이 저장소에 없음).** 로컬 실행/배포에 필요: `DATABASE_URL`, `JWT_SECRET`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL`, `VITE_APP_ID`, `OWNER_OPEN_ID`, `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY`. 없으면 인증/스토리지/LLM 기능이 동작하지 않는다.
+3. **환경변수(.env가 저장소에 없음 — 실값은 Render Environment에만).** 실제 사용 중: `DATABASE_URL`(TiDB), `JWT_SECRET`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `APP_URL`(OAuth redirect 고정), `OWNER_EMAIL`(admin 지정), `ALLOWED_EMAIL_DOMAINS`(학교 도메인 제한), `LLM_API_URL`/`LLM_MODEL`, `NODE_ENV`. **env는 부팅 때 1회 읽으므로 값 변경 시 반드시 재배포**해야 반영된다. 로컬은 `DEV_LOCAL=1`로 `/api/dev/login` 백도어를 켤 수 있으나 **DB가 없으면 인증이 안 된다**(`authenticateRequest`가 `getUserByOpenId`를 탐).
 4. **현재 2명 매칭만 지원.** `acceptMatch`가 requester+receiver 2명으로 팀을 만든다. 3명 이상은 미구현(todo.md의 향후 과제). 팀원 추방/탈퇴, 평가 수정, 실시간 알림도 미구현.
 5. **마이그레이션 SQL/meta는 자동 생성물.** 직접 편집하지 말고 `schema.ts` 수정 후 `pnpm db:push`로 재생성.
-6. **`profileCompleted`는 자동 계산.** `updateUserProfile`에서 university·department·year·kakaoOpenChatUrl·skillTags가 모두 차면 true로 승격. 매칭 요청 전제조건이므로 프로필 필드 변경 시 이 로직 영향 확인.
+6. **`profileCompleted`는 자동 계산 — 게이트는 `university`·`department`·`year` 셋뿐.** skillTags는 ProfileSetup에서 안 받고(default []), 오픈채팅은 프로필이 아니라 공고/커넥트 단위로 받으므로 **게이트에 없다**(예전 문서엔 포함돼 있었으나 오류). 매칭·모집 요청 전제조건이라 프로필 필드 변경 시 이 로직 영향 확인.
 7. **블라인드 평가 무결성:** 자기 자신 평가 금지, 모든 팀원 평가 필수(부분 제출 거부), 팀 `status='completed'` 이후에만 가능, 중복 평가는 유니크 제약으로 차단. 평가 관련 코드 수정 시 이 4개 불변식 유지.
 8. **정기 작업(cron/digest 등)은 in-process 타이머 금지.** `setInterval`/`node-cron` 쓰지 말 것 — Cloud Run이 idle 인스턴스를 죽인다. 반드시 `references/periodic-updates.md`의 Heartbeat/Agent cron 방식을 따른다.
 
