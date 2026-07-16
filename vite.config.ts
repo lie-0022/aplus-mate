@@ -167,6 +167,29 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // 코어 프레임워크만 안정적 'vendor' 청크로 분리 — 앱 코드만 바뀌는 잦은 배포에서
+        // 재방문자가 vendor는 캐시에서 재사용하고 바뀐 앱 청크만 내려받는다.
+        // 라우트별 무거운 라이브러리(recharts 등)는 여기 넣지 않아 각 라우트 청크에 남고
+        // 초기 로드는 여전히 가볍다(App.tsx의 React.lazy 코드 스플리팅 유지).
+        manualChunks(id) {
+          const p = id.replace(/\\/g, "/");
+          if (!p.includes("/node_modules/")) return;
+          if (
+            p.includes("/node_modules/react/") ||
+            p.includes("/node_modules/react-dom/") ||
+            p.includes("/node_modules/scheduler/") ||
+            p.includes("/node_modules/@tanstack/") ||
+            p.includes("/node_modules/@trpc/") ||
+            p.includes("/node_modules/superjson/") ||
+            p.includes("/node_modules/wouter/")
+          ) {
+            return "vendor";
+          }
+        },
+      },
+    },
   },
   server: {
     host: true,
