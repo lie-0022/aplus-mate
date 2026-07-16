@@ -111,7 +111,7 @@ export const appRouter = router({
           semester: z.string().optional(),
         })
       )
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
         // 검색 단계에서 별점·팀플 응답 + 지금 팀 구하는 신호까지 보이게(수업 선택 즉답).
         const list = await db.searchCourses(input.query, input.university, {
           department: input.department,
@@ -119,10 +119,11 @@ export const appRouter = router({
           semester: input.semester,
         });
         const ids = list.map((c) => c.id);
-        const [sums, recruits, schedLabels] = await Promise.all([
+        const [sums, recruits, schedLabels, favSet] = await Promise.all([
           db.getReviewSummariesForCourses(ids),
           db.getOpenRecruitmentCountsForCourses(ids),
           db.getScheduleLabelsForCourses(ids),
+          db.getFavoritedCourseIds(ctx.user.id, ids),
         ]);
         return list.map((c) => ({
           ...c,
@@ -130,18 +131,33 @@ export const appRouter = router({
           openRecruitCount: recruits[c.id] ?? 0,
           // "화2,3 수5,6 사이버" — 담기 전에 몇 교시인지 바로 보이게
           scheduleLabel: schedLabels[c.id] ?? null,
+          isFavorite: favSet.has(c.id),
         }));
       }),
+    toggleFavorite: protectedProcedure
+      .input(z.object({ courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.toggleCourseFavorite(ctx.user.id, input.courseId);
+      }),
+    favorites: protectedProcedure.query(async ({ ctx }) => {
+      return db.listMyFavorites(ctx.user.id);
+    }),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
         const course = await db.getCourseById(input.id);
         if (!course) return course;
-        const [recruits, schedules] = await Promise.all([
+        const [recruits, schedules, favSet] = await Promise.all([
           db.getOpenRecruitmentCountsForCourses([input.id]),
           db.getCourseSchedules(input.id),
+          db.getFavoritedCourseIds(ctx.user.id, [input.id]),
         ]);
-        return { ...course, openRecruitCount: recruits[input.id] ?? 0, schedules };
+        return {
+          ...course,
+          openRecruitCount: recruits[input.id] ?? 0,
+          schedules,
+          isFavorite: favSet.has(input.id),
+        };
       }),
     // 운영자 전용 — 수강편람 3,368개 개설이 이미 적재돼 있어 학생이 수업을 만들 이유가 없다.
     // 중복 수업이 생기면 후기가 진짜 과목(courseGroupId)과 갈라져 학기 승계가 끊긴다.

@@ -599,3 +599,18 @@ export const reviewHelpful = mysqlTable(
 );
 
 export type ReviewHelpful = typeof reviewHelpful.$inferSelect;
+
+// ─── Course Favorites (관심 수업 즐겨찾기) ─────────────────
+// 방학에 후기를 보며 다음 학기 후보 수업을 담아둔다. 1인 1수업 1번(유니크).
+export const courseFavorites = mysqlTable(
+  "course_favorites",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    courseId: int("courseId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("uniq_course_favorite").on(table.userId, table.courseId)]
+);
+
+export type CourseFavorite = typeof courseFavorites.$inferSelect;

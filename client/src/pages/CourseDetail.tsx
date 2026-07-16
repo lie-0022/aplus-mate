@@ -110,6 +110,10 @@ export default function CourseDetail() {
   const [myRole, setMyRole] = useState<MentoringRole>("mentee");
 
   const course = trpc.courses.get.useQuery({ id: courseId });
+  const toggleFav = trpc.courses.toggleFavorite.useMutation({
+    onSuccess: () => utils.courses.get.invalidate({ id: courseId }),
+    onError: (err) => toast.error(err.message),
+  });
   const posts = trpc.posts.list.useQuery({
     courseId,
     category: catFilter === "all" ? undefined : catFilter,
@@ -856,6 +860,19 @@ export default function CourseDetail() {
             {courseData.hasTeamProject && (
               <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full">팀플</span>
             )}
+            {/* 관심 수업 — 다음 학기 후보로 담아두기 */}
+            <button
+              aria-label={courseData.isFavorite ? "관심 해제" : "관심 담기"}
+              className="rounded-full p-1.5 hover:bg-muted"
+              onClick={() => toggleFav.mutate({ courseId })}
+              disabled={toggleFav.isPending}
+            >
+              <Star
+                className={`h-4 w-4 ${
+                  courseData.isFavorite ? "fill-primary text-primary" : "text-muted-foreground"
+                }`}
+              />
+            </button>
             {/* 공유 — 지인에게 "이 수업 후기 봐" 전파용. Web Share 없으면 링크 복사. */}
             <button
               aria-label="수업 공유"

@@ -50,6 +50,16 @@ export default function Courses() {
 
   const myCourses = trpc.courses.myCourses.useQuery({ semester: CURRENT_SEMESTER });
 
+  // 관심 수업(즐겨찾기) — 방학에 후기 보며 다음 학기 후보를 담아둔다.
+  const favorites = trpc.courses.favorites.useQuery(undefined, { enabled: tab === "fav" });
+  const toggleFav = trpc.courses.toggleFavorite.useMutation({
+    onSuccess: () => {
+      utils.courses.search.invalidate();
+      utils.courses.favorites.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // 필터만 걸어도 목록이 나오도록(학과 훑어보기). 셋 다 비면 조회하지 않는다.
   const hasFilter = deptFilter !== "all" || catFilter !== "all";
   const searchResults = trpc.courses.search.useQuery(
@@ -368,26 +378,39 @@ export default function Courses() {
                       </div>
                     )}
                   </div>
-                  {enrolledCourseIds.has(course.id) ? (
-                    <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full flex items-center shrink-0">
-                      <CheckCircle2 className="mr-1 h-3 w-3" /> 등록됨
-                    </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="shrink-0"
-                      onClick={() =>
-                        enrollMutation.mutate({
-                          courseId: course.id,
-                          semester: CURRENT_SEMESTER,
-                        })
-                      }
-                      disabled={enrollMutation.isPending}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      aria-label={course.isFavorite ? "관심 해제" : "관심 담기"}
+                      onClick={() => toggleFav.mutate({ courseId: course.id })}
+                      disabled={toggleFav.isPending}
+                      className="p-1.5 rounded-full hover:bg-muted"
                     >
-                      <Plus className="mr-1 h-3 w-3" /> 등록
-                    </Button>
-                  )}
+                      <StarIcon
+                        className={`h-4 w-4 ${
+                          course.isFavorite ? "fill-primary text-primary" : "text-muted-foreground"
+                        }`}
+                      />
+                    </button>
+                    {enrolledCourseIds.has(course.id) ? (
+                      <span className="badge-tag text-xs font-bold px-2.5 py-1 rounded-full flex items-center">
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> 등록됨
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          enrollMutation.mutate({
+                            courseId: course.id,
+                            semester: CURRENT_SEMESTER,
+                          })
+                        }
+                        disabled={enrollMutation.isPending}
+                      >
+                        <Plus className="mr-1 h-3 w-3" /> 등록
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -396,6 +419,66 @@ export default function Courses() {
       )}
     </>
   );
+
+  const favTabContent =
+    favorites.isLoading ? (
+      <div className="grid gap-2 lg:grid-cols-2">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-20 rounded-[18px]" />
+        ))}
+      </div>
+    ) : (favorites.data?.length ?? 0) === 0 ? (
+      <div className="rounded-[18px] bg-card shadow-card p-8 text-center">
+        <StarIcon className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+        <p className="text-foreground text-sm font-semibold mb-1">관심 수업이 없어요</p>
+        <p className="text-muted-foreground text-[13px] mb-4">
+          수업 검색에서 별표를 눌러 다음 학기 후보를 담아두세요
+        </p>
+        <Button variant="secondary" onClick={() => setTab("search")}>
+          수업 검색하기
+        </Button>
+      </div>
+    ) : (
+      <div className="grid gap-2 lg:grid-cols-2">
+        {favorites.data?.map((course) => (
+          <div
+            key={course.id}
+            className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
+            onClick={() => setLocation(`/courses/${course.id}`)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-bold text-[15px] truncate">{course.name}</div>
+                <div className="text-[13px] text-muted-foreground mt-0.5 truncate">
+                  {course.professor || "교수 미배정"} · {course.credits}학점
+                  {course.scheduleLabel && ` · ${course.scheduleLabel}`}
+                </div>
+                {course.reviewSummary && course.reviewSummary.count > 0 && (
+                  <div className="text-xs mt-1 flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-0.5 font-bold text-primary">
+                      <StarIcon className="h-3 w-3 fill-current" />
+                      {course.reviewSummary.avgRating}
+                    </span>
+                    <span className="text-muted-foreground">리뷰 {course.reviewSummary.count}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                aria-label="관심 해제"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFav.mutate({ courseId: course.id });
+                }}
+                disabled={toggleFav.isPending}
+                className="shrink-0 p-1.5 rounded-full hover:bg-muted"
+              >
+                <StarIcon className="h-4 w-4 fill-primary text-primary" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
 
   return (
     <div className="space-y-4 mx-auto w-full max-w-[980px]">
@@ -462,9 +545,11 @@ export default function Courses() {
             <TabsList className="w-full">
               <TabsTrigger value="my" className="flex-1">내 수업</TabsTrigger>
               <TabsTrigger value="search" className="flex-1">수업 검색</TabsTrigger>
+              <TabsTrigger value="fav" className="flex-1">관심</TabsTrigger>
             </TabsList>
             <TabsContent value="my" className="mt-4">{myTabContent}</TabsContent>
             <TabsContent value="search" className="mt-4">{searchTabContent}</TabsContent>
+            <TabsContent value="fav" className="mt-4">{favTabContent}</TabsContent>
           </Tabs>
         </div>
 

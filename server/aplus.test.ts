@@ -450,6 +450,26 @@ describe("reviews.toggleHelpful", () => {
   });
 });
 
+describe("courses.favorites (관심 수업)", () => {
+  it("toggleFavorite requires authentication", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.courses.toggleFavorite({ courseId: 1 })).rejects.toThrow();
+  });
+
+  it("favorites list requires authentication", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.courses.favorites()).rejects.toThrow();
+  });
+
+  it("favorites returns an array for authed users (DB 없이 빈 배열 폴백)", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    expect(Array.isArray(await caller.courses.favorites())).toBe(true);
+  });
+});
+
 describe("reviews.mine", () => {
   it("requires authentication", async () => {
     const ctx = createPublicContext();

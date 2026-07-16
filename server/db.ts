@@ -31,6 +31,7 @@ import {
   timetableItems,
   timetableComments,
   reviewHelpful,
+  courseFavorites,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -3018,6 +3019,7 @@ export async function wipeAllExceptOwner(keepUserId: number) {
     await tx.delete(userCourses);
     await tx.delete(courseMilestones);
     await tx.delete(courseAnnouncements);
+    await tx.delete(courseFavorites); // 관심 수업 — courses 삭제 전(고아 방지)
     await tx.delete(reviewHelpful); // 리뷰 도움돼요 — 리뷰 삭제 전(고아 방지)
     await tx.delete(courseReviews); // 수강 리뷰 — courses 삭제 전(고아 방지)
     await tx.delete(userSchedules); // 개인 일정(운영자 것 포함 — 테스트 일정)
@@ -3807,6 +3809,61 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
       myHelpful: myHelpfulSet.has(r.id),
     }))
     .sort((a, b) => b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt);
+}
+
+// ─── Course Favorites (관심 수업) ────────────────────────
+// 즐겨찾기 토글 — 동시 클릭은 유니크 제약 + ER_DUP_ENTRY 멱등 처리.
+export async function toggleCourseFavorite(userId: number, courseId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스를 사용할 수 없어요.");
+  const existing = await db
+    .select({ id: courseFavorites.id })
+    .from(courseFavorites)
+    .where(and(eq(courseFavorites.userId, userId), eq(courseFavorites.courseId, courseId)));
+  if (existing.length > 0) {
+    await db.delete(courseFavorites).where(eq(courseFavorites.id, existing[0].id));
+    return { favorited: false };
+  }
+  try {
+    await db.insert(courseFavorites).values({ userId, courseId });
+  } catch (e) {
+    if ((e as { code?: string })?.code !== "ER_DUP_ENTRY") throw e;
+  }
+  return { favorited: true };
+}
+
+// 검색 결과에 별표 상태를 붙이기 위한 집합.
+export async function getFavoritedCourseIds(userId: number, courseIds: number[]) {
+  const db = await getDb();
+  if (!db || courseIds.length === 0) return new Set<number>();
+  const rows = await db
+    .select({ courseId: courseFavorites.courseId })
+    .from(courseFavorites)
+    .where(and(eq(courseFavorites.userId, userId), inArray(courseFavorites.courseId, courseIds)));
+  return new Set(rows.map((r) => r.courseId));
+}
+
+// 내 관심 수업 목록 — 별점 요약·시간표 라벨까지 붙여 바로 비교/선택하게.
+export async function listMyFavorites(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const favs = await db
+    .select({ course: courses })
+    .from(courseFavorites)
+    .innerJoin(courses, eq(courseFavorites.courseId, courses.id))
+    .where(eq(courseFavorites.userId, userId))
+    .orderBy(desc(courseFavorites.createdAt));
+  const ids = favs.map((f) => f.course.id);
+  const [sums, schedLabels] = await Promise.all([
+    getReviewSummariesForCourses(ids),
+    getScheduleLabelsForCourses(ids),
+  ]);
+  return favs.map((f) => ({
+    ...f.course,
+    reviewSummary: sums[f.course.id] ?? null,
+    scheduleLabel: schedLabels[f.course.id] ?? null,
+    isFavorite: true as const,
+  }));
 }
 
 // 내가 쓴 후기 모아보기(프로필) — 수업명·별점·한줄평·받은 도움돼요 수까지.
