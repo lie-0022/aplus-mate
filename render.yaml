@@ -11,6 +11,10 @@ services:
     buildCommand: pnpm install && pnpm build
     startCommand: pnpm start
     healthCheckPath: /
+    # ⚠️ 설정 드리프트 주의: 이 값이 true여도 실제 서비스는 대시보드 설정이 우선한다.
+    # 2026-07-16 확인 — 대시보드 Auto-Deploy가 꺼져 있어 push가 배포되지 않고
+    # 매번 Manual Deploy가 필요했다. 켜는 곳:
+    # Render → aplus-mate → Settings → Build & Deploy → Auto-Deploy → Yes
     autoDeploy: true
     envVars:
       - key: NODE_ENV
