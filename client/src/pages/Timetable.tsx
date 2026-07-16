@@ -168,7 +168,8 @@ export default function Timetable() {
         <div className="flex gap-2 items-center">
           {/* 학기 선택 — 선택한 학기의 수업·개인 일정만 표시된다 */}
           <Select value={semester} onValueChange={setSemester}>
-            <SelectTrigger className="h-9 w-[110px] text-[13px]">
+            {/* "2026-1 (현재)"가 잘리지 않는 폭 */}
+            <SelectTrigger className="h-9 w-[132px] shrink-0 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
