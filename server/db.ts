@@ -3580,9 +3580,30 @@ export async function getDashboardData(userId: number) {
   const recruitCounts = await getOpenRecruitmentCountsForCourses(
     userCoursesRaw.map((c) => c.course.id)
   );
+
+  // 내가 쓴 후기 — courseId 집합 + 그 과목(courseGroupId) 집합.
+  // 대시보드에서 각 수업이 후기 작성됐는지(그룹 스코프)를 한눈에 보여줘 미작성분 리뷰를 유도한다.
+  const reviewedRows = await db
+    .select({ courseId: courseReviews.courseId })
+    .from(courseReviews)
+    .where(eq(courseReviews.userId, userId));
+  const reviewedCourseIds = new Set(reviewedRows.map((r) => r.courseId));
+  let reviewedGroups = new Set<string>();
+  if (reviewedCourseIds.size > 0) {
+    const grpRows = await db
+      .select({ g: courses.courseGroupId })
+      .from(courses)
+      .where(inArray(courses.id, Array.from(reviewedCourseIds)));
+    reviewedGroups = new Set(grpRows.map((r) => r.g).filter((g): g is string => !!g));
+  }
+  const myReviewCount = reviewedCourseIds.size;
+
   const userCoursesData = userCoursesRaw.map((c) => ({
     ...c,
     openRecruitCount: recruitCounts[c.course.id] ?? 0,
+    hasMyReview:
+      reviewedCourseIds.has(c.course.id) ||
+      (!!c.course.courseGroupId && reviewedGroups.has(c.course.courseGroupId)),
   }));
   const pendingMatches = await getPendingMatchCount(userId);
 
@@ -3601,13 +3622,6 @@ export async function getDashboardData(userId: number) {
       .where(and(inArray(teams.id, teamIds), eq(teams.status, "active")));
     activeTeams = activeRows[0]?.cnt ?? 0;
   }
-
-  // 온보딩 "후기 남기기" 완료 판정용 — 내가 쓴 수업 리뷰 수.
-  const myReviewRows = await db
-    .select({ cnt: count() })
-    .from(courseReviews)
-    .where(eq(courseReviews.userId, userId));
-  const myReviewCount = myReviewRows[0]?.cnt ?? 0;
 
   return {
     courses: userCoursesData,

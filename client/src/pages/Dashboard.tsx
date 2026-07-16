@@ -13,6 +13,7 @@ import {
   Check,
   Sparkles,
   Lightbulb,
+  Star,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { RecruitingBadge } from "@/components/RecruitingBadge";
@@ -250,11 +251,19 @@ export default function Dashboard() {
                         <div className="text-[13px] text-muted-foreground mt-0.5">
                           {item.course.professor} · {item.userCourse.semester}
                         </div>
-                        {item.openRecruitCount > 0 && (
-                          <div className="mt-1.5">
-                            <RecruitingBadge count={item.openRecruitCount} />
-                          </div>
-                        )}
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          {/* 후기 상태 — 미작성분을 눈에 띄게 해 후기 작성을 유도 */}
+                          {item.hasMyReview ? (
+                            <span className="badge-pos inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                              <Check className="h-3 w-3" /> 후기 완료
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <Star className="h-3 w-3" /> 후기 쓰기
+                            </span>
+                          )}
+                          {item.openRecruitCount > 0 && <RecruitingBadge count={item.openRecruitCount} />}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {item.course.hasTeamProject && (
