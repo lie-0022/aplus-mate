@@ -239,6 +239,9 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         return db.toggleReviewHelpful(ctx.user.id, input.reviewId);
       }),
+    mine: protectedProcedure.query(async ({ ctx }) => {
+      return db.listMyReviews(ctx.user.id);
+    }),
     upsert: protectedProcedure
       .input(
         z.object({

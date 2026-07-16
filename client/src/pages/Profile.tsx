@@ -34,8 +34,12 @@ import {
   Lightbulb,
   Clock,
   Tag,
+  Star,
+  ThumbsUp,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 // 신뢰 배지 3종 — 다크안전 시맨틱 틴트(pos/sky/notice)로 구분.
@@ -48,7 +52,9 @@ const BADGE_INFO: Record<string, { label: string; icon: typeof Shield; tint: str
 export default function Profile() {
   const { user, logout } = useAuth();
   const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.profile.get.useQuery();
+  const myReviews = trpc.reviews.mine.useQuery();
   const deleteSelf = trpc.profile.deleteSelf.useMutation({
     onSuccess: () => {
       toast.success("탈퇴 처리됐어요. 이용해주셔서 감사합니다.");
@@ -254,6 +260,59 @@ export default function Profile() {
     </div>
   );
 
+  // ── 내가 쓴 후기 ── (리워드 라운드 기여 확인 + 수업 재진입)
+  const reviewsList = myReviews.data ?? [];
+  const myReviewsEl = (
+    <div className="rounded-2xl bg-card shadow-card p-5">
+      <div className="text-base font-bold flex items-center gap-2 mb-3">
+        <Star className="h-4 w-4 text-primary" /> 내가 쓴 후기
+        {reviewsList.length > 0 && (
+          <span className="text-sm font-normal text-muted-foreground">{reviewsList.length}개</span>
+        )}
+      </div>
+      {reviewsList.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          아직 작성한 후기가 없어요. 들었던 수업에 별점·한줄평을 남기면 다음 수강생에게 큰 도움이 돼요!
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          {reviewsList.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setLocation(`/courses/${r.courseId}`)}
+              className="w-full text-left rounded-xl bg-muted p-3 hover:bg-muted/70 transition-colors flex items-start gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-sm truncate">{r.courseName}</span>
+                  <span className="flex items-center gap-0.5 text-xs font-bold text-primary shrink-0">
+                    <Star className="h-3 w-3 fill-current" />
+                    {r.rating}
+                  </span>
+                </div>
+                {r.content && (
+                  <p className="text-[13px] text-muted-foreground mt-1 line-clamp-2 whitespace-pre-wrap">
+                    {r.content}
+                  </p>
+                )}
+                <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+                  {r.semester && <span>{r.semester} 수강</span>}
+                  {r.helpfulCount > 0 && (
+                    <span className="flex items-center gap-0.5 text-primary font-bold">
+                      <ThumbsUp className="h-3 w-3" /> {r.helpfulCount}
+                    </span>
+                  )}
+                  <span>{new Date(r.createdAt).toLocaleDateString("ko-KR")}</span>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   // ── 회원 탈퇴 ──
   const deleteEl = (
     <div className="pt-2 text-center">
@@ -314,6 +373,7 @@ export default function Profile() {
         <div className="space-y-4">
           {profileCardEl}
           {skillsEl}
+          {myReviewsEl}
           {/* 모바일: 배지·탈퇴도 세로 스택 */}
           <div className="lg:hidden space-y-4">
             {badgesEl}

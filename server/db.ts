@@ -3795,6 +3795,40 @@ export async function getCourseReviews(courseId: number, viewerId?: number) {
     .sort((a, b) => b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt);
 }
 
+// 내가 쓴 후기 모아보기(프로필) — 수업명·별점·한줄평·받은 도움돼요 수까지.
+// 리워드 라운드에서 본인 기여를 확인하고, 각 항목으로 해당 수업 상세에 재진입.
+export async function listMyReviews(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: courseReviews.id,
+      courseId: courseReviews.courseId,
+      courseName: courses.name,
+      professor: courses.professor,
+      rating: courseReviews.rating,
+      content: courseReviews.content,
+      semester: courseReviews.semester,
+      createdAt: courseReviews.createdAt,
+    })
+    .from(courseReviews)
+    .innerJoin(courses, eq(courseReviews.courseId, courses.id))
+    .where(eq(courseReviews.userId, userId))
+    .orderBy(desc(courseReviews.createdAt));
+
+  const ids = rows.map((r) => r.id);
+  const helpfulCounts = new Map<number, number>();
+  if (ids.length > 0) {
+    const counts = await db
+      .select({ reviewId: reviewHelpful.reviewId, cnt: count() })
+      .from(reviewHelpful)
+      .where(inArray(reviewHelpful.reviewId, ids))
+      .groupBy(reviewHelpful.reviewId);
+    for (const c of counts) helpfulCounts.set(c.reviewId, c.cnt);
+  }
+  return rows.map((r) => ({ ...r, helpfulCount: helpfulCounts.get(r.id) ?? 0 }));
+}
+
 // 도움돼요 토글 — 자기 리뷰 금지(어뷰징 방지), 동시 클릭은 유니크 제약 + ER_DUP_ENTRY 멱등 처리.
 export async function toggleReviewHelpful(userId: number, reviewId: number) {
   const db = await getDb();

@@ -450,6 +450,21 @@ describe("reviews.toggleHelpful", () => {
   });
 });
 
+describe("reviews.mine", () => {
+  it("requires authentication", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.reviews.mine()).rejects.toThrow();
+  });
+
+  it("returns an array for authed users (DB 없이 빈 배열 폴백)", async () => {
+    const ctx = createAuthContext(createUser());
+    const caller = appRouter.createCaller(ctx);
+    const res = await caller.reviews.mine();
+    expect(Array.isArray(res)).toBe(true);
+  });
+});
+
 describe("admin.deleteReview", () => {
   it("rejects non-admin users (모더레이션 권한 가드)", async () => {
     const ctx = createAuthContext(createUser());
