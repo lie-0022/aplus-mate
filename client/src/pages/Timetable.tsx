@@ -25,7 +25,10 @@ import TimetableGrid, { type GridBlock } from "@/components/TimetableGrid";
 export default function Timetable() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const tt = trpc.timetable.my.useQuery({ semester: CURRENT_SEMESTER });
+  // 시간표는 학기 단위 — 선택한 학기의 수강 수업 + 그 학기 개인 일정만 보여준다.
+  const [semester, setSemester] = useState<string>(CURRENT_SEMESTER);
+  const semesters = trpc.timetable.semesters.useQuery();
+  const tt = trpc.timetable.my.useQuery({ semester });
 
   const [addOpen, setAddOpen] = useState(false);
   const [evTitle, setEvTitle] = useState("");
@@ -49,6 +52,9 @@ export default function Timetable() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // 학기 선택기 — 수강 학기 ∪ 현재 학기. 서버 목록이 오기 전엔 현재 학기만.
+  const semesterOptions = semesters.data?.length ? semesters.data : [CURRENT_SEMESTER];
 
   const data = tt.data;
 
@@ -127,6 +133,7 @@ export default function Timetable() {
       return;
     }
     addEvent.mutate({
+      semester, // 현재 보고 있는 학기에 추가
       title: evTitle.trim(),
       dayOfWeek: evDay as (typeof TIMETABLE_DAYS)[number],
       startPeriod: s,
@@ -153,13 +160,26 @@ export default function Timetable() {
             <CalendarDays className="h-5 w-5 text-primary" /> 내 시간표
           </h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            {CURRENT_SEMESTER} ·{" "}
             {data?.courses.length
               ? `${data.courses.length}과목 · ${totalCredits}학점`
               : "등록한 수업 없음"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* 학기 선택 — 선택한 학기의 수업·개인 일정만 표시된다 */}
+          <Select value={semester} onValueChange={setSemester}>
+            <SelectTrigger className="h-9 w-[110px] text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {semesterOptions.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                  {s === CURRENT_SEMESTER ? " (현재)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button size="sm" variant="ghost" onClick={() => setLocation("/planner")}>
             <CalendarPlus className="h-4 w-4 mr-1" /> 시간표 짜기
           </Button>

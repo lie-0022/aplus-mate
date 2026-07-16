@@ -410,31 +410,48 @@ export async function getCourseSchedules(courseId: number) {
 
 const MAX_USER_SCHEDULES = 30;
 
-export async function listUserSchedules(userId: number) {
+// 내 시간표를 띄울 수 있는 학기 목록 — 수강 등록한 학기 ∪ 현재 학기, 최신순.
+// (데이터가 있는 학기만 보여줘 빈 시간표 선택지를 만들지 않는다)
+export async function listMySemesters(userId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [CURRENT_SEMESTER];
+  const rows = await db
+    .selectDistinct({ semester: userCourses.semester })
+    .from(userCourses)
+    .where(eq(userCourses.userId, userId));
+  const set = new Set(rows.map((r) => r.semester).filter(Boolean));
+  set.add(CURRENT_SEMESTER);
+  return Array.from(set).sort().reverse();
+}
+
+export async function listUserSchedules(userId: number, semester: string) {
   const db = await getDb();
   if (!db) return [];
   return db
     .select()
     .from(userSchedules)
-    .where(eq(userSchedules.userId, userId))
+    .where(and(eq(userSchedules.userId, userId), eq(userSchedules.semester, semester)))
     .orderBy(userSchedules.dayOfWeek, userSchedules.startPeriod);
 }
 
 export async function addUserSchedule(
   userId: number,
+  semester: string,
   data: { title: string; dayOfWeek: string; startPeriod: number; endPeriod: number }
 ) {
   const db = await getDb();
   if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  // 상한은 학기당 — 학기가 쌓여도 이번 학기 일정을 못 넣는 일이 없게.
   const existing = await db
     .select({ c: count() })
     .from(userSchedules)
-    .where(eq(userSchedules.userId, userId));
+    .where(and(eq(userSchedules.userId, userId), eq(userSchedules.semester, semester)));
   if (Number(existing[0]?.c ?? 0) >= MAX_USER_SCHEDULES) {
-    throw new Error(`개인 일정은 최대 ${MAX_USER_SCHEDULES}개까지 등록할 수 있어요.`);
+    throw new Error(`개인 일정은 한 학기에 최대 ${MAX_USER_SCHEDULES}개까지 등록할 수 있어요.`);
   }
   const result = await db.insert(userSchedules).values({
     userId,
+    semester,
     title: data.title,
     dayOfWeek: data.dayOfWeek as any,
     startPeriod: data.startPeriod,
@@ -471,7 +488,7 @@ export async function getMyTimetable(userId: number, semester: string) {
     if (arr) arr.push(s);
     else byCourse.set(s.courseId, [s]);
   }
-  const events = await listUserSchedules(userId);
+  const events = await listUserSchedules(userId, semester);
   return {
     courses: enrolled.map(({ course: c }) => {
       const rows = byCourse.get(c.id) ?? [];
@@ -509,10 +526,11 @@ export async function getWeeklyOccupancies(userIds: number[], semester: string) 
   for (const r of rows) {
     if (r.day && r.period != null) out.get(r.userId)?.add(`${r.day}-${r.period}`);
   }
+  // 개인 일정도 해당 학기 것만 — 지난 학기 알바가 이번 학기 공강을 막으면 안 된다.
   const evts = await db
     .select()
     .from(userSchedules)
-    .where(inArray(userSchedules.userId, userIds));
+    .where(and(inArray(userSchedules.userId, userIds), eq(userSchedules.semester, semester)));
   for (const e of evts) {
     for (let p = e.startPeriod; p <= e.endPeriod; p++) out.get(e.userId)?.add(`${e.dayOfWeek}-${p}`);
   }

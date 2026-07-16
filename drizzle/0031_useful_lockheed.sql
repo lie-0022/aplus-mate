@@ -1,0 +1,1 @@
+ALTER TABLE `user_schedules` ADD `semester` varchar(20) DEFAULT '2026-1' NOT NULL;

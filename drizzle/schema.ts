@@ -110,6 +110,9 @@ export type CourseSchedule = typeof courseSchedules.$inferSelect;
 export const userSchedules = mysqlTable("user_schedules", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  // 개인 일정도 학기별로 분리 — 학기가 바뀌면 시간표가 통째로 바뀌므로 알바·동아리 일정도
+  // 새로 짠다. default는 0031 이전 행 백필용(그 시점 운영 학기). 신규 삽입은 항상 명시.
+  semester: varchar("semester", { length: 20 }).notNull().default("2026-1"),
   title: varchar("title", { length: 100 }).notNull(),
   dayOfWeek: mysqlEnum("dayOfWeek", ["월", "화", "수", "목", "금", "토", "일"]).notNull(),
   startPeriod: int("startPeriod").notNull(), // 교시(1~14)

@@ -470,6 +470,48 @@ describe("escapeHtml (인증 에러 페이지 XSS 방어)", () => {
   });
 });
 
+// 시간표는 학기 단위 — 수강 수업뿐 아니라 개인 일정도 학기별로 분리된다.
+// (지난 학기 알바가 이번 학기 공강을 막지 않도록 getWeeklyOccupancies도 학기 필터)
+describe("timetable 학기별 관리", () => {
+  it("semesters 목록은 인증이 필요하다", async () => {
+    const caller = appRouter.createCaller(createPublicContext());
+    await expect(caller.timetable.semesters()).rejects.toThrow();
+  });
+
+  it("semesters는 최소한 현재 학기를 포함한다(DB 없어도)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(createUser()));
+    const list = await caller.timetable.semesters();
+    expect(Array.isArray(list)).toBe(true);
+    expect(list).toContain("2026-1");
+  });
+
+  it("addEvent는 semester 없이도 현재 학기로 기본 적용된다", async () => {
+    const caller = appRouter.createCaller(createAuthContext(createUser()));
+    // DB 없으면 addUserSchedule이 throw — zod 기본값이 먼저 통과했는지(입력 검증) 확인
+    await expect(
+      caller.timetable.addEvent({
+        title: "알바",
+        dayOfWeek: "월",
+        startPeriod: 1,
+        endPeriod: 2,
+      })
+    ).rejects.toThrow("데이터베이스");
+  });
+
+  it("addEvent는 끝 교시가 시작보다 빠르면 거부한다", async () => {
+    const caller = appRouter.createCaller(createAuthContext(createUser()));
+    await expect(
+      caller.timetable.addEvent({
+        semester: "2026-2",
+        title: "알바",
+        dayOfWeek: "월",
+        startPeriod: 5,
+        endPeriod: 2,
+      })
+    ).rejects.toThrow();
+  });
+});
+
 describe("courses.favorites (관심 수업)", () => {
   it("toggleFavorite requires authentication", async () => {
     const ctx = createPublicContext();

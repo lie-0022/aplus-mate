@@ -1,4 +1,4 @@
-import { COOKIE_NAME, REVIEW_MIN_CONTENT_LEN } from "@shared/const";
+import { COOKIE_NAME, CURRENT_SEMESTER, REVIEW_MIN_CONTENT_LEN } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -1319,15 +1319,19 @@ export const appRouter = router({
   // 모집 공고 — 구조화된 모집 + 원클릭 지원(teamMatches 재사용)
   // ─── 내 시간표(격자 + 개인 일정) ─────────────────────────
   timetable: router({
+    // 내 시간표를 볼 수 있는 학기 목록(수강 학기 ∪ 현재 학기) — 화면의 학기 선택기용.
+    semesters: protectedProcedure.query(async ({ ctx }) => db.listMySemesters(ctx.user.id)),
     my: protectedProcedure
-      .input(z.object({ semester: z.string().default("2026-1") }).optional())
+      .input(z.object({ semester: z.string().default(CURRENT_SEMESTER) }).optional())
       .query(async ({ ctx, input }) =>
-        db.getMyTimetable(ctx.user.id, input?.semester ?? "2026-1")
+        db.getMyTimetable(ctx.user.id, input?.semester ?? CURRENT_SEMESTER)
       ),
     addEvent: protectedProcedure
       .input(
         z
           .object({
+            // 개인 일정도 학기별 — 어느 학기 시간표에 넣는지 명시받는다.
+            semester: z.string().trim().min(1).max(20).default(CURRENT_SEMESTER),
             title: z.string().trim().min(1, "일정 이름을 입력해주세요.").max(100),
             dayOfWeek: z.enum(["월", "화", "수", "목", "금", "토", "일"]),
             startPeriod: z.number().int().min(1).max(14),
@@ -1337,7 +1341,9 @@ export const appRouter = router({
             message: "끝 교시는 시작 교시보다 빠를 수 없어요.",
           })
       )
-      .mutation(async ({ ctx, input }) => db.addUserSchedule(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        db.addUserSchedule(ctx.user.id, input.semester, input)
+      ),
     deleteEvent: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => db.deleteUserSchedule(ctx.user.id, input.id)),
