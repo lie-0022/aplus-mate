@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { escapeHtml } from "./_core/googleAuth";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import type { User } from "../drizzle/schema";
@@ -447,6 +448,25 @@ describe("reviews.toggleHelpful", () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     await expect(caller.reviews.toggleHelpful({ reviewId: 1 })).rejects.toThrow();
+  });
+});
+
+// 인증 에러 페이지는 로그인 전 누구나 도달하는 공개 표면 —
+// 구글 프로필에서 온 도메인이 그대로 HTML에 박히지 않게 막는다.
+describe("escapeHtml (인증 에러 페이지 XSS 방어)", () => {
+  it("HTML 특수문자를 모두 이스케이프한다", () => {
+    expect(escapeHtml(`<script>alert("x")</script>`)).toBe(
+      "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
+    );
+    expect(escapeHtml("a'b&c")).toBe("a&#39;b&amp;c");
+  });
+
+  it("앰퍼샌드를 먼저 처리해 이중 이스케이프가 없다", () => {
+    expect(escapeHtml("&lt;")).toBe("&amp;lt;");
+  });
+
+  it("평범한 도메인은 그대로 둔다", () => {
+    expect(escapeHtml("bu.ac.kr")).toBe("bu.ac.kr");
   });
 });
 

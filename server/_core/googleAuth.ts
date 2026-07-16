@@ -50,10 +50,24 @@ function getRedirectUri(req: Request) {
   return `${base}/api/auth/google/callback`;
 }
 
+// 외부에서 온 값(구글 프로필 이메일 도메인 등)을 HTML에 넣기 전 이스케이프.
+// 구글이 이메일 형식을 검증하므로 실제 악용은 어렵지만, 인증 에러 페이지는
+// 로그인 전 누구나 도달하는 공개 표면이라 defense-in-depth로 항상 막는다.
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // 인증 실패 안내 페이지 — OAuth 콜백은 SPA 밖이라 생 텍스트가 그대로 노출된다.
 // 브랜드 스타일(웜 아이보리 배경 + 카드 + 그라데이션 버튼)을 입힌 최소 HTML로 응답.
 // primaryLabel 버튼은 /api/auth/google로 재진입 — 시작 라우트가 prompt=select_account를
 // 보내므로 개인 gmail로 거절당해도 계정 선택 화면이 다시 뜬다(무한 403 방지).
+// ⚠️ message는 의도적으로 HTML(<br/>·<b>)을 허용하므로, 외부 유래 값은 호출부에서
+//    반드시 escapeHtml()로 감싸 넣을 것.
 function sendAuthErrorPage(
   res: Response,
   status: number,
@@ -189,11 +203,14 @@ export function registerGoogleAuthRoutes(app: Express) {
         const isOwner = !!ENV.ownerEmail && profile.email === ENV.ownerEmail;
         const domain = (profile.email ?? "").split("@")[1]?.toLowerCase() ?? "";
         if (!existing && !isOwner && !allowedDomains.includes(domain)) {
+          // domain은 구글 프로필 이메일에서 온 외부 값 → 반드시 이스케이프.
+          const allowedLabel = allowedDomains.map((d) => `@${escapeHtml(d)}`).join(", ");
+          const pickedLabel = domain ? `@${escapeHtml(domain)}` : "이메일 미확인";
           sendAuthErrorPage(
             res,
             403,
             "학교 구글 계정이 필요해요",
-            `A+ Mate는 지금 ${allowedDomains.map((d) => `@${d}`).join(", ")} 재학생만 참여할 수 있어요.<br/>방금 선택한 계정(${domain ? `@${domain}` : "이메일 미확인"})이 아니라 <b>학교 구글 계정</b>으로 다시 로그인해 주세요.`,
+            `A+ Mate는 지금 ${allowedLabel} 재학생만 참여할 수 있어요.<br/>방금 선택한 계정(${pickedLabel})이 아니라 <b>학교 구글 계정</b>으로 다시 로그인해 주세요.`,
             "학교 계정으로 다시 로그인"
           );
           return;
