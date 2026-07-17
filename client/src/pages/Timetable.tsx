@@ -154,10 +154,12 @@ export default function Timetable() {
 
   return (
     <div className="space-y-4 mx-auto w-full max-w-[980px]">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" /> 내 시간표
+      {/* 모바일은 제목/컨트롤 2행으로 — 한 줄에 넣으면 제목이 "내 시간/표"로 깨지고
+          버튼이 화면 밖으로 잘린다(402px 기준). sm↑에서만 한 줄. */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold flex items-center gap-2 whitespace-nowrap">
+            <CalendarDays className="h-5 w-5 text-primary shrink-0" /> 내 시간표
           </h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
             {data?.courses.length
@@ -165,7 +167,7 @@ export default function Timetable() {
               : "등록한 수업 없음"}
           </p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           {/* 학기 선택 — 선택한 학기의 수업·개인 일정만 표시된다 */}
           <Select value={semester} onValueChange={setSemester}>
             {/* "2026-1 (현재)"가 잘리지 않는 폭 */}

@@ -212,12 +212,16 @@ export default function TimetableGrid({
                     if (pressTimer.current) clearTimeout(pressTimer.current);
                   }}
                 >
-                  {/* 에타 스타일 — 제목(흰 볼드) + 강의실 한 줄. 분반은 메뉴에서만. */}
-                  <p className="text-[13px] font-bold leading-[1.15] break-words line-clamp-3">
+                  {/* 에타 스타일 — 제목(흰 볼드) + 강의실 한 줄. 분반은 메뉴에서만.
+                      폰(≤639px)에선 열 폭이 ~68px라 13px면 과목명이 블록을 꽉 채워
+                      긴 이름이 3줄로 잘린다 → 11px로 낮추고 sm↑에서 원래 크기로. */}
+                  <p className="text-[11px] sm:text-[13px] font-bold leading-[1.15] break-words line-clamp-3">
                     {b.title}
                   </p>
                   {b.sub && (
-                    <p className="text-[10.5px] text-white/85 leading-snug truncate">{b.sub}</p>
+                    <p className="text-[9px] sm:text-[10.5px] text-white/85 leading-snug truncate">
+                      {b.sub}
+                    </p>
                   )}
                   {/* ⋮ 은 hover 되는 기기(PC)에서만 — 모바일은 꾹 누르기만(에타처럼 깔끔) */}
                   {actionable && (
