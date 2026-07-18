@@ -250,6 +250,15 @@ export default function CourseDetail() {
     }
   };
 
+  // 글쓰기 열 때: ① 지금 눌러둔 필터 칩(족보/과제팁…)을 카테고리로 미리 채우고
+  // ② 이전에 쓰다 닫은 제목·내용을 비운다(취소하면 onSuccess 리셋을 안 타 남아 있었음).
+  const openPostForm = () => {
+    setPostCategory(catFilter === "all" ? "" : catFilter);
+    setPostTitle("");
+    setPostContent("");
+    setShowPostForm(true);
+  };
+
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!postTitle.trim() || !postContent.trim() || !postCategory) {
@@ -663,7 +672,7 @@ export default function CourseDetail() {
       <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
       <p className="text-foreground text-sm font-semibold mb-1">아직 게시글이 없어요</p>
       <p className="text-muted-foreground text-[13px] mb-4">첫 글을 남겨 정보를 나눠보세요</p>
-      <Button variant="secondary" size="sm" onClick={() => setShowPostForm(true)}>
+      <Button variant="secondary" size="sm" onClick={openPostForm}>
         <Plus className="mr-1 h-4 w-4" /> 글쓰기
       </Button>
     </div>
@@ -961,7 +970,7 @@ export default function CourseDetail() {
               <div className="flex items-center justify-between gap-2">
                 {filterChips}
                 <div className="lg:hidden shrink-0">
-                  <Button size="sm" variant="secondary" onClick={() => setShowPostForm(true)}>
+                  <Button size="sm" variant="secondary" onClick={openPostForm}>
                     <Plus className="mr-1 h-4 w-4" /> 글쓰기
                   </Button>
                 </div>
@@ -977,7 +986,7 @@ export default function CourseDetail() {
               {noticeEl}
               {surveyEls}
               {reviewEl}
-              <Button variant="secondary" className="w-full" onClick={() => setShowPostForm(true)}>
+              <Button variant="secondary" className="w-full" onClick={openPostForm}>
                 <Plus className="mr-1 h-4 w-4" /> 글쓰기
               </Button>
             </div>

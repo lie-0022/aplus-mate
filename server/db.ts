@@ -449,6 +449,38 @@ export async function addUserSchedule(
   if (Number(existing[0]?.c ?? 0) >= MAX_USER_SCHEDULES) {
     throw new Error(`개인 일정은 한 학기에 최대 ${MAX_USER_SCHEDULES}개까지 등록할 수 있어요.`);
   }
+  // 학교 시간표(수강 수업)와 겹치는 시간엔 개인 일정을 못 넣게 막는다.
+  // 개인 일정끼리 겹치는 건 허용 — 같은 시간대에 여러 약속을 겹쳐 적을 수 있으니.
+  const enrolled = await db
+    .select({ id: courses.id, name: courses.name })
+    .from(userCourses)
+    .innerJoin(courses, eq(courses.id, userCourses.courseId))
+    .where(and(eq(userCourses.userId, userId), eq(userCourses.semester, semester)));
+  if (enrolled.length) {
+    const slots = await db
+      .select()
+      .from(courseSchedules)
+      .where(
+        inArray(
+          courseSchedules.courseId,
+          enrolled.map((c) => c.id)
+        )
+      );
+    // 사이버(period null)는 격자에 없으니 겹침 대상이 아니다.
+    const hit = slots.find(
+      (s) =>
+        s.dayOfWeek === (data.dayOfWeek as any) &&
+        s.period != null &&
+        s.period >= data.startPeriod &&
+        s.period <= data.endPeriod
+    );
+    if (hit) {
+      const name = enrolled.find((c) => c.id === hit.courseId)?.name ?? "수업";
+      throw new Error(
+        `그 시간엔 이미 수업이 있어요 — ${name} (${hit.dayOfWeek}${hit.period}교시). 수업과 겹치지 않는 시간에 넣어주세요.`
+      );
+    }
+  }
   const result = await db.insert(userSchedules).values({
     userId,
     semester,
