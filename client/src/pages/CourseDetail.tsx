@@ -55,7 +55,9 @@ import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 
-const CATEGORIES = ["족보", "과제팁", "후기", "스터디"] as const;
+// 게시판 카테고리는 과제팁·후기 둘만. (스터디는 '팀원 찾기'의 스터디 모집과 겹쳐서,
+// 족보는 시험지 공유라 성격상 빼둠. DB enum엔 옛 값이 남아 있어 과거 글은 그대로 보인다.)
+const CATEGORIES = ["과제팁", "후기"] as const;
 // 수강 리뷰 — 팀플 유형 태그(다음 수강생이 "어떤 식의 팀플인지" 파악)
 const PROJECT_TYPE_OPTIONS = ["발표", "개발·제작", "보고서·논문", "설계·기획", "실험·실습", "기타"] as const;
 // Courses.tsx와 동일 값 유지 (등록 학기). 추후 client/src/const.ts로 중앙화 가능.

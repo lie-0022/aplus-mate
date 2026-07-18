@@ -320,7 +320,7 @@ export const appRouter = router({
           // 길이 무제한이면 거대 페이로드로 DB·렌더 부담 → 상한을 둔다(엣지 4-E)
           title: z.string().trim().min(1).max(200),
           content: z.string().trim().min(1).max(10000),
-          category: z.enum(["족보", "과제팁", "후기", "스터디"]),
+          category: z.enum(["과제팁", "후기"]),
         })
       )
       .mutation(async ({ ctx, input }) => {

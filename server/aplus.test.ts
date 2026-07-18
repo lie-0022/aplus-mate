@@ -363,7 +363,7 @@ describe("posts", () => {
         courseId: 1,
         title: "테스트",
         content: "내용",
-        category: "족보",
+        category: "과제팁",
       })
     ).rejects.toThrow();
   });
