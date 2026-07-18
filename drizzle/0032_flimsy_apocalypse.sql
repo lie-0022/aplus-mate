@@ -1,0 +1,1 @@
+ALTER TABLE `posts` MODIFY COLUMN `category` enum('족보','과제팁','후기','스터디','자유') NOT NULL;

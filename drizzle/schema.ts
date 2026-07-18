@@ -191,9 +191,10 @@ export const posts = mysqlTable("posts", {
   userId: int("userId").notNull(),
   title: varchar("title", { length: 300 }).notNull(),
   content: text("content").notNull(),
-  // 앱에서 새로 만들 수 있는 값은 과제팁·후기 둘뿐(routers zod에서 제한).
-  // 족보·스터디는 은퇴한 값 — enum엔 남겨 과거 글이 깨지지 않게만 한다.
-  category: mysqlEnum("category", ["족보", "과제팁", "후기", "스터디"]).notNull(),
+  // 게시판은 댓글로 소통하는 공간 — 카테고리는 '과제팁'·'자유' 둘만 만들 수 있다(routers zod).
+  // 후기는 별점 수강 리뷰(course_reviews)로 일원화. 족보·후기·스터디는 은퇴한 값이라
+  // enum엔 남겨 과거 글이 깨지지 않게만 둔다.
+  category: mysqlEnum("category", ["족보", "과제팁", "후기", "스터디", "자유"]).notNull(),
   viewCount: int("viewCount").default(0).notNull(),
   // 모더레이션 soft-hide — null이면 노출, 값이 있으면 숨김(작성자 삭제/운영자 차단).
   hiddenAt: timestamp("hiddenAt"),

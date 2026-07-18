@@ -1178,7 +1178,7 @@ export async function createPost(data: {
   userId: number;
   title: string;
   content: string;
-  category: "과제팁" | "후기";
+  category: "과제팁" | "자유";
 }) {
   const db = await getDb();
   if (!db) return null;
@@ -2986,7 +2986,7 @@ export async function seedDemoData(professorUserId: number) {
 
   await createAnnouncement({ courseId, professorId: professorUserId, title: "중간고사 안내", content: "중간고사는 10주차에 진행됩니다. 팀별 1차 기획안 제출도 잊지 마세요!" });
   await createPost({ courseId, userId: ids[3], title: "중간고사 대비 정리 팁", content: "3주차 자료구조 부분은 손코딩으로 연습해두면 시험에서 편해요!", category: "과제팁" });
-  await createPost({ courseId, userId: ids[4], title: "지난 학기 자료 공유", content: "도움 되시길 바랍니다.", category: "후기" });
+  await createPost({ courseId, userId: ids[4], title: "이 수업 같이 듣는 사람 있어요?", content: "혼자 들으니 심심하네요 ㅎㅎ 반갑습니다!", category: "자유" });
 
   // 미수락 매칭(받은 요청 체험) — 4번이 5번에게 스터디 요청
   await createMatchRequest(ids[3], ids[4], courseId, "study");
