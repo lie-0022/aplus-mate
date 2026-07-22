@@ -135,6 +135,21 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // ── Render 무료 슬립 방지: 셀프 핑 ──
+  // 무료 인스턴스는 15분 유휴 시 잠들고 첫 방문자가 ~50초 콜드스타트를 맞는다.
+  // GitHub Actions 크론(keepalive.yml)은 혼잡 시 몇 시간씩 밀려(실측) 보조일 뿐이라,
+  // 서버가 자기 공개 URL을 10분마다 찔러 유휴 타이머를 리셋한다.
+  // RENDER_EXTERNAL_URL은 Render가 자동 주입 — 로컬/다른 호스팅에선 조용히 비활성.
+  // 상시 가동 744h/월 < 무료 한도 750h(단일 서비스)라 한도 내.
+  const selfUrl = process.env.RENDER_EXTERNAL_URL;
+  if (selfUrl) {
+    const t = setInterval(() => {
+      fetch(`${selfUrl}/`).catch(() => {});
+    }, 10 * 60 * 1000);
+    t.unref(); // 종료 시 프로세스를 붙잡지 않게
+    console.log(`[KEEPALIVE] self-ping every 10m -> ${selfUrl}`);
+  }
 }
 
 startServer().catch(console.error);
