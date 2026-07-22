@@ -4087,7 +4087,7 @@ export async function upsertCourseReview(
     content: data.content?.trim() || null,
     semester: data.semester ?? null,
   };
-  await db
+  const result = await db
     .insert(courseReviews)
     .values(values)
     .onDuplicateKeyUpdate({
@@ -4101,6 +4101,39 @@ export async function upsertCourseReview(
         semester: values.semester,
       },
     });
+  // 새 리뷰일 때만(수정 제외) 그 과목을 관심 등록한 유저들에게 알림 — 재방문 고리.
+  // MySQL 규약: upsert의 affectedRows는 insert=1, update=2.
+  // 알림 실패가 리뷰 저장을 깨면 안 되므로 통째로 삼킨다.
+  if (result[0]?.affectedRows === 1) {
+    try {
+      const favers = await db
+        .selectDistinct({ userId: courseFavorites.userId })
+        .from(courseFavorites)
+        .where(inArray(courseFavorites.courseId, scope.length ? scope : [courseId]));
+      const targets = favers.map((f) => f.userId).filter((id) => id !== userId);
+      if (targets.length) {
+        const course = await db
+          .select({ name: courses.name })
+          .from(courses)
+          .where(eq(courses.id, courseId))
+          .limit(1);
+        const name = course[0]?.name ?? "관심 수업";
+        await Promise.all(
+          targets.map((uid) =>
+            createNotification({
+              userId: uid,
+              type: "review",
+              title: "관심 수업에 새 후기가 달렸어요",
+              body: `${name} · ★${data.rating}`,
+              linkPath: `/courses/${courseId}`,
+            })
+          )
+        );
+      }
+    } catch (e) {
+      console.error("[REVIEW] 관심 수업 알림 실패(리뷰는 저장됨):", e);
+    }
+  }
 }
 
 // 운영자용 리뷰 현황 — 리워드 지급(선착순)·남용 점검. 유저별로 묶어
