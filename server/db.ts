@@ -4056,10 +4056,10 @@ export async function upsertCourseReview(
 ) {
   const db = await getDb();
   if (!db) return;
-  // 수강생만 — 등록 이력(학기 무관)이 있어야 작성 가능.
-  if (!(await isUserEnrolled(userId, courseId))) {
-    throw new Error("이 수업을 수강한 사람만 리뷰를 남길 수 있어요.");
-  }
+  // 수강 등록 없이도 리뷰 작성 가능 — 등록은 어차피 self-attested(버튼 클릭)라
+  // 게이트로서의 실질 검증력이 없었고, "후기만 남기고 싶은" 유저에게 내 수업·시간표
+  // 오염이라는 비용만 얹었다. "들었어요" 버튼 클릭 자체가 자기 증명 역할을 한다.
+  // (모집공고·매칭·게시글은 여전히 수강 등록 필요 — 실제 수강생 공간 유지.)
   // 한줄평 필수·최소 길이 — 라우터 zod와 이중 방어(성의 없는 리뷰 차단).
   if ((data.content?.trim().length ?? 0) < REVIEW_MIN_CONTENT_LEN) {
     throw new Error(`한줄평을 ${REVIEW_MIN_CONTENT_LEN}자 이상 자세히 남겨주세요.`);

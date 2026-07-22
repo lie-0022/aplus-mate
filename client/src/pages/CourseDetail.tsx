@@ -410,27 +410,11 @@ export default function CourseDetail() {
         <div className="text-base font-bold flex items-center gap-2">
           <Star className="h-4 w-4 text-primary" /> 수강 리뷰
         </div>
-        {isEnrolled ? (
-          <Button size="sm" variant="secondary" onClick={openReviewDialog}>
-            {myReview ? "내 리뷰 수정" : "리뷰 남기기"}
-          </Button>
-        ) : (
-          // 미등록이어도 "들었던 수업 후기"를 바로 — 한 번에 등록 + 후기 다이얼로그.
-          // 후기 수집(런치 목표)의 병목인 "먼저 등록" 단계를 제거한다.
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={enroll.isPending}
-            onClick={() =>
-              enroll.mutate(
-                { courseId, semester: CURRENT_SEMESTER },
-                { onSuccess: () => openReviewDialog() }
-              )
-            }
-          >
-            들었어요 · 후기 남기기
-          </Button>
-        )}
+        {/* 리뷰는 수강 등록 없이 바로 — 등록은 self-attested라 게이트 의미가 없었고,
+            "후기만 남기려는" 유저의 내 수업·시간표를 오염시켰다. 버튼 클릭이 곧 자기 증명. */}
+        <Button size="sm" variant="secondary" onClick={openReviewDialog}>
+          {myReview ? "내 리뷰 수정" : isEnrolled ? "리뷰 남기기" : "들었어요 · 후기 남기기"}
+        </Button>
       </div>
       {!sum || sum.count === 0 ? (
         <p className="text-sm text-muted-foreground">

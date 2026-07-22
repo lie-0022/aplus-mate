@@ -558,7 +558,8 @@ export default function Courses() {
           {joinCard}
           <div className="rounded-[18px] bg-card shadow-card p-4 text-[13px] text-muted-foreground leading-relaxed">
             <span className="font-semibold text-foreground">수업 검색</span>에 이번 학기 수강편람이
-            전부 들어 있어요. 지난 학기에 들었던 수업도 검색해 등록하면 후기를 남길 수 있어요.
+            전부 들어 있어요. 지난 학기에 들었던 수업은 등록 없이도 검색해서 바로 후기를 남길 수
+            있어요.
           </div>
         </div>
       </div>
