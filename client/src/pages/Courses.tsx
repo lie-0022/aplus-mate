@@ -322,7 +322,13 @@ export default function Courses() {
             </div>
           ) : (
             searchResults.data?.map((course) => (
-              <div key={course.id} className="rounded-[18px] bg-card shadow-card p-4">
+              // 카드 클릭 = 상세로 — 등록 없이 후기를 남기는 경로의 입구.
+              // (전엔 별표·등록 버튼뿐이라 미등록자는 상세에 갈 방법이 없었다.)
+              <div
+                key={course.id}
+                className="rounded-[18px] bg-card shadow-card p-4 cursor-pointer transition-transform active:scale-[0.99]"
+                onClick={() => setLocation(`/courses/${course.id}`)}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="font-bold text-[15px] truncate">{course.name}</div>
@@ -381,7 +387,10 @@ export default function Courses() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       aria-label={course.isFavorite ? "관심 해제" : "관심 담기"}
-                      onClick={() => toggleFav.mutate({ courseId: course.id })}
+                      onClick={(e) => {
+                        e.stopPropagation(); // 카드 클릭(상세 이동)과 분리
+                        toggleFav.mutate({ courseId: course.id });
+                      }}
                       disabled={toggleFav.isPending}
                       className="p-1.5 rounded-full hover:bg-muted"
                     >
@@ -399,12 +408,13 @@ export default function Courses() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation(); // 카드 클릭(상세 이동)과 분리
                           enrollMutation.mutate({
                             courseId: course.id,
                             semester: CURRENT_SEMESTER,
-                          })
-                        }
+                          });
+                        }}
                         disabled={enrollMutation.isPending}
                       >
                         <Plus className="mr-1 h-3 w-3" /> 등록
