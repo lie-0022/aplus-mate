@@ -20,7 +20,8 @@ import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { CURRENT_SEMESTER, TIMETABLE_DAYS, MAX_PERIOD } from "@shared/const";
-import TimetableGrid, { type GridBlock } from "@/components/TimetableGrid";
+import TimetableGrid from "@/components/TimetableGrid";
+import { buildTimetableBlocks } from "@/lib/timetable-blocks";
 
 export default function Timetable() {
   const [, setLocation] = useLocation();
@@ -61,60 +62,12 @@ export default function Timetable() {
   const { blocks, cyberCourses, totalCredits } = useMemo(() => {
     const courses = data?.courses ?? [];
     const events = data?.events ?? [];
-
-    // 수업 슬롯: 같은 수업·요일의 연속 교시(목4,5)는 한 블록으로 접는다.
-    const blocks: GridBlock[] = [];
-    courses.forEach((c, idx) => {
-      const byDay = new Map<string, { period: number; room: string | null }[]>();
-      for (const s of c.slots) {
-        const arr = byDay.get(s.day) ?? [];
-        arr.push({ period: s.period, room: s.room });
-        byDay.set(s.day, arr);
-      }
-      byDay.forEach((slots, day) => {
-        const sortedP = slots.sort((a, b) => a.period - b.period);
-        let run: { start: number; end: number; room: string | null } | null = null;
-        const flush = () => {
-          if (!run) return;
-          blocks.push({
-            key: `c-${c.id}-${day}-${run.start}`,
-            day,
-            start: run.start,
-            end: run.end,
-            title: c.name,
-            sub: run.room,
-            section: c.section,
-            colorIndex: idx,
-            onReview: () => setLocation(`/courses/${c.id}`),
-          });
-          run = null;
-        };
-        for (const s of sortedP) {
-          if (run && s.period === run.end + 1) {
-            run.end = s.period;
-            if (!run.room && s.room) run.room = s.room;
-          } else {
-            flush();
-            run = { start: s.period, end: s.period, room: s.room };
-          }
-        }
-        flush();
-      });
-    });
-    for (const e of events) {
-      blocks.push({
-        key: `e-${e.id}`,
-        day: e.dayOfWeek,
-        start: e.startPeriod,
-        end: e.endPeriod,
-        title: e.title,
-        dashed: true,
-        onRemove: () => deleteEvent.mutate({ id: e.id }),
-      });
-    }
-
     return {
-      blocks,
+      // 접기 로직은 홈 히어로와 공유(lib/timetable-blocks)
+      blocks: buildTimetableBlocks(courses, events, {
+        onReview: (courseId) => setLocation(`/courses/${courseId}`),
+        onRemoveEvent: (id) => deleteEvent.mutate({ id }),
+      }),
       cyberCourses: courses.filter((c) => c.cyber),
       totalCredits: courses.reduce((s, c) => s + (c.credits ?? 0), 0),
     };

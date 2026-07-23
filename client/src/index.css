@@ -55,36 +55,37 @@
    라이트 = 소프트 클레이 / 다크 = 딥 인디고. 토큰만 스위치.
    ============================================================ */
 :root {
-  --radius: 1rem;
+  --radius: 0.875rem;
 
-  /* 라이트: 소프트 클레이 */
-  --background: #fff6ee;      /* 웜 아이보리 */
-  --foreground: #3a3566;      /* 딥 인디고 잉크 */
+  /* 라이트: 실서비스 뉴트럴 — 색은 배경이 아니라 콘텐츠(시간표 블록·CTA)가 낸다.
+     에타 피드백("클로드 깔") 대응: 크림 배경·인디고 잉크·파스텔 보라 번짐을 걷어냄. */
+  --background: #f7f8fa;      /* 쿨 그레이 캔버스 */
+  --foreground: #1b1e26;      /* 잉크(거의 검정) */
   --card: #ffffff;
-  --card-foreground: #3a3566;
+  --card-foreground: #1b1e26;
   --popover: #ffffff;
-  --popover-foreground: #3a3566;
-  --primary: #5d51c8;         /* 라벤더 (주 액션) */
+  --popover-foreground: #1b1e26;
+  --primary: #5d51c8;         /* 브랜드 보라 — CTA·활성 상태에만 */
   --primary-foreground: #ffffff;
-  --secondary: #efe9fb;       /* 연 라벤더 (보조 버튼) */
-  --secondary-foreground: #5d51c8;
-  --muted: #f1ede6;
-  --muted-foreground: #8e88a8;
-  --accent: #efe9fb;
-  --accent-foreground: #5d51c8;
+  --secondary: #f1f3f6;       /* 보조 버튼 = 그레이 필(토스식) */
+  --secondary-foreground: #3a4150;
+  --muted: #f2f3f6;
+  --muted-foreground: #79808f;
+  --accent: #f1f3f6;
+  --accent-foreground: #3a4150;
   --destructive: #d8524e;
   --destructive-foreground: #ffffff;
-  --border: #f0e8dd;
-  --input: #ede7dc;
+  --border: #e8eaef;          /* 헤어라인 */
+  --input: #e2e5eb;
   --ring: #5d51c8;
 
   --sidebar: #ffffff;
-  --sidebar-foreground: #3a3566;
+  --sidebar-foreground: #1b1e26;
   --sidebar-primary: #5d51c8;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efe9fb;
+  --sidebar-accent: #efe9fb;  /* 활성 항목만 브랜드가 살짝 */
   --sidebar-accent-foreground: #5d51c8;
-  --sidebar-border: #f0e8dd;
+  --sidebar-border: #e8eaef;
   --sidebar-ring: #5d51c8;
 
   --chart-1: #5d51c8;
@@ -99,55 +100,56 @@
   --sky-brand: #2e7df0;
   --sky-light: #e7eefd;
 
-  /* 지표 3색 (표현적 화면) */
-  --stat-a-bg: #ffe9d6; --stat-a-fg: #b4682a; --stat-a-label: #c08b5c;
-  --stat-b-bg: #e8e3ff; --stat-b-fg: #5d51c8; --stat-b-label: #8a81d6;
-  --stat-c-bg: #ddf2e4; --stat-c-fg: #2e8a57; --stat-c-label: #63a981;
+  /* 지표 3색 — 파스텔 타일 대신 흰 카드 위 컬러 숫자(실서비스 톤) */
+  --stat-a-bg: #ffffff; --stat-a-fg: #1b1e26; --stat-a-label: #79808f;
+  --stat-b-bg: #ffffff; --stat-b-fg: #5d51c8; --stat-b-label: #79808f;
+  --stat-c-bg: #ffffff; --stat-c-fg: #2e7d51; --stat-c-label: #79808f;
 
   /* 시맨틱 뱃지 */
   --dday-bg: #ffd8a8; --dday-fg: #8a4e14;         /* 임박 강조 */
-  --dday-soft-bg: #ede9df; --dday-soft-fg: #7e7869; /* 여유(중립) */
+  --dday-soft-bg: #f1f3f6; --dday-soft-fg: #6e7686; /* 여유(중립) */
   --mine-bg: #ffe1e9; --mine-fg: #c4547e;          /* 내 담당 */
-  --tag-bg: #f1ede6; --tag-fg: #7e7869;            /* 중립 태그 */
+  --tag-bg: #f1f3f6; --tag-fg: #6e7686;            /* 중립 태그 */
   --notice-bg: #fff3e0; --notice-fg: #9a5b12;      /* 공지(따뜻한 알림) */
   --pos-bg: #e6f4ec; --pos-fg: #2e7d51;            /* 긍정(공통 스킬·인증) */
   --sky-badge-bg: #e7eefd; --sky-badge-fg: #2e7df0; /* 정보(멘토링 역할 등) */
   --danger-bg: #fdecec; --danger-fg: #c0392b;      /* 위험(마감 지남 등) */
 
   --app-header: #ffffff;                            /* 모바일 헤더바 */
-  --shadow-card: 0 6px 22px rgba(150, 120, 90, 0.1);
+  /* 글로우 대신 접촉 섀도 — 구분은 헤어라인 보더가 주로 담당 */
+  --shadow-card: 0 1px 2px rgba(23, 25, 38, 0.05);
 }
 
 .dark {
-  /* 다크: 딥 인디고 (미드나잇 네온) */
-  --background: #171e3d;
-  --foreground: #edeff9;
-  --card: #212a54;
-  --card-foreground: #edeff9;
-  --popover: #212a54;
-  --popover-foreground: #edeff9;
-  --primary: #7a2fe6;
+  /* 다크: 뉴트럴 잉크 — 라이트와 같은 원칙(색은 콘텐츠가 낸다) */
+  --background: #141519;
+  --foreground: #ecedf1;
+  --card: #1d1f25;
+  --card-foreground: #ecedf1;
+  --popover: #1d1f25;
+  --popover-foreground: #ecedf1;
+  --primary: #8b80ec;
   --primary-foreground: #ffffff;
-  --secondary: #2a3366;
-  --secondary-foreground: #cdd3f0;
-  --muted: #2e3766;
-  --muted-foreground: #a6add6;
-  --accent: #2a3366;
-  --accent-foreground: #cdd3f0;
+  --secondary: #262931;
+  --secondary-foreground: #c9cdd6;
+  --muted: #23252c;
+  --muted-foreground: #9aa1ae;
+  --accent: #262931;
+  --accent-foreground: #c9cdd6;
   --destructive: #e5706b;
   --destructive-foreground: #ffffff;
-  --border: #313a68;
-  --input: #313a68;
-  --ring: #8fc4ff;
+  --border: #2a2d35;
+  --input: #2a2d35;
+  --ring: #8b80ec;
 
-  --sidebar: #1b2249;
-  --sidebar-foreground: #edeff9;
-  --sidebar-primary: #8fc4ff;
+  --sidebar: #191b20;
+  --sidebar-foreground: #ecedf1;
+  --sidebar-primary: #8b80ec;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2c356a;
-  --sidebar-accent-foreground: #cdd3f0;
-  --sidebar-border: #313a68;
-  --sidebar-ring: #8fc4ff;
+  --sidebar-accent: #2a2c3f;
+  --sidebar-accent-foreground: #b9b1f5;
+  --sidebar-border: #2a2d35;
+  --sidebar-ring: #8b80ec;
 
   --chart-1: #8fc4ff;
   --chart-2: #7a2fe6;
@@ -160,20 +162,20 @@
   --sky-brand: #2e7df0;
   --sky-light: rgba(143, 196, 255, 0.16);
 
-  --stat-a-bg: rgba(255, 255, 255, 0.06); --stat-a-fg: #ffffff; --stat-a-label: #828ab8;
-  --stat-b-bg: rgba(143, 196, 255, 0.1);  --stat-b-fg: #8fc4ff; --stat-b-label: #828ab8;
-  --stat-c-bg: rgba(255, 255, 255, 0.06); --stat-c-fg: #ffffff; --stat-c-label: #828ab8;
+  --stat-a-bg: #1d1f25; --stat-a-fg: #ecedf1; --stat-a-label: #9aa1ae;
+  --stat-b-bg: #1d1f25; --stat-b-fg: #8b80ec; --stat-b-label: #9aa1ae;
+  --stat-c-bg: #1d1f25; --stat-c-fg: #88d3a8; --stat-c-label: #9aa1ae;
 
-  --dday-bg: #f9e94a; --dday-fg: #171e3d;
-  --dday-soft-bg: #2e3766; --dday-soft-fg: #a6add6;
+  --dday-bg: #f9e94a; --dday-fg: #141519;
+  --dday-soft-bg: #23252c; --dday-soft-fg: #9aa1ae;
   --mine-bg: rgba(143, 196, 255, 0.16); --mine-fg: #9ccbff;
-  --tag-bg: #2e3766; --tag-fg: #a6add6;
+  --tag-bg: #23252c; --tag-fg: #9aa1ae;
   --notice-bg: rgba(249, 233, 74, 0.1); --notice-fg: #e6d98b;
   --pos-bg: rgba(120, 205, 160, 0.14); --pos-fg: #88d3a8;
   --sky-badge-bg: rgba(143, 196, 255, 0.14); --sky-badge-fg: #9ccbff;
   --danger-bg: rgba(229, 112, 107, 0.15); --danger-fg: #f0908b;
 
-  --app-header: #212a54;
+  --app-header: #1d1f25;
   --shadow-card: none;
 }
 

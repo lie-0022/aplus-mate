@@ -3685,6 +3685,62 @@ export async function getDashboardData(userId: number) {
   };
 }
 
+// 홈 "지금 학교에선" 피드 — 최근 후기 + 모집 중 공고를 시간순으로 섞는다.
+// 목적은 살아있는 서비스 신호. 익명 원칙대로 작성자 정보는 내보내지 않는다.
+export async function getRecentActivity(limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  const recentReviews = await db
+    .select({
+      courseId: courseReviews.courseId,
+      courseName: courses.name,
+      rating: courseReviews.rating,
+      content: courseReviews.content,
+      createdAt: courseReviews.createdAt,
+    })
+    .from(courseReviews)
+    .innerJoin(courses, eq(courses.id, courseReviews.courseId))
+    .orderBy(desc(courseReviews.createdAt))
+    .limit(limit);
+  const openRecruits = await db
+    .select({
+      courseId: recruitments.courseId,
+      courseName: courses.name,
+      matchType: recruitments.matchType,
+      neededCount: recruitments.neededCount,
+      createdAt: recruitments.createdAt,
+    })
+    .from(recruitments)
+    .innerJoin(courses, eq(courses.id, recruitments.courseId))
+    .where(eq(recruitments.status, "open"))
+    .orderBy(desc(recruitments.createdAt))
+    .limit(limit);
+  return [
+    ...recentReviews.map((r) => ({
+      kind: "review" as const,
+      courseId: r.courseId,
+      courseName: r.courseName,
+      rating: r.rating,
+      snippet: r.content
+        ? r.content.length > 44
+          ? `${r.content.slice(0, 44)}…`
+          : r.content
+        : null,
+      createdAt: r.createdAt,
+    })),
+    ...openRecruits.map((r) => ({
+      kind: "recruit" as const,
+      courseId: r.courseId,
+      courseName: r.courseName,
+      matchType: r.matchType,
+      neededCount: r.neededCount,
+      createdAt: r.createdAt,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
 // 대시보드 '이런 팀원 어때요?' 추천 —
 // 같은 수업 수강생 중 내 활성 팀원이 아니고 관심 분야(스킬)가 겹치는 학생을,
 // 겹치는 스킬 수 많은 순으로 추천한다. (스킬 컬럼은 json이라 문자열/배열 모두 정규화)

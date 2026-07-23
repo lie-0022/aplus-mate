@@ -74,11 +74,14 @@ export default function TimetableGrid({
   blocks,
   minPeriods = 9,
   maxPeriods = 14,
+  rowHeight = ROW_H,
 }: {
   blocks: GridBlock[];
   /** 항상 표시할 최소 교시 수(기본 1~9) */
   minPeriods?: number;
   maxPeriods?: number;
+  /** 1교시 높이(px). 홈 미니 격자처럼 압축해 보여줄 때 낮춘다. */
+  rowHeight?: number;
 }) {
   const { days, periods, byDay } = useMemo(() => {
     const extraDays = (["토", "일"] as const).filter((d) => blocks.some((b) => b.day === d));
@@ -136,12 +139,12 @@ export default function TimetableGrid({
       ))}
 
       {/* 교시 라벨 열 */}
-      <div className="relative" style={{ height: periods.length * ROW_H }}>
+      <div className="relative" style={{ height: periods.length * rowHeight }}>
         {periods.map((p) => (
           <div
             key={p}
             className="absolute left-0 right-0 text-center text-[10px] text-muted-foreground/80"
-            style={{ top: (p - 1) * ROW_H + 3 }}
+            style={{ top: (p - 1) * rowHeight + 3 }}
           >
             {p}
           </div>
@@ -155,13 +158,13 @@ export default function TimetableGrid({
           <div
             key={d}
             className="relative border-l border-border/40"
-            style={{ height: periods.length * ROW_H }}
+            style={{ height: periods.length * rowHeight }}
           >
             {periods.slice(1).map((p) => (
               <div
                 key={p}
                 className="absolute left-0 right-0 border-t border-border/30"
-                style={{ top: (p - 1) * ROW_H }}
+                style={{ top: (p - 1) * rowHeight }}
               />
             ))}
             {placed.map((b) => {
@@ -178,8 +181,8 @@ export default function TimetableGrid({
                   key={b.key}
                   className="absolute rounded-[4px] px-1 py-0.5 overflow-hidden group text-white"
                   style={{
-                    top: (b.start - 1) * ROW_H + 0.5,
-                    height: (b.end - b.start + 1) * ROW_H - 1,
+                    top: (b.start - 1) * rowHeight + 0.5,
+                    height: (b.end - b.start + 1) * rowHeight - 1,
                     left: `calc(${b.lane * width}% + 0.5px)`,
                     width: `calc(${width}% - 1px)`,
                     background: bg,

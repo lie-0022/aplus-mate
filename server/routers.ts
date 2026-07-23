@@ -97,6 +97,10 @@ export const appRouter = router({
     recommendedPeers: protectedProcedure.query(async ({ ctx }) => {
       return db.getRecommendedPeers(ctx.user.id);
     }),
+    // 홈 "지금 학교에선" — 최근 후기·모집 공고 피드(익명)
+    activity: protectedProcedure.query(async () => {
+      return db.getRecentActivity();
+    }),
   }),
 
   // ─── Courses ─────────────────────────────────────────
