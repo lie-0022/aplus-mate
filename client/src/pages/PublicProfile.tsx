@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBadges } from "@/components/UserBadges";
 import { parseSkillTags } from "@/lib/utils-parse";
-import { ArrowLeft, UserCircle } from "lucide-react";
+import { ArrowLeft, UserCircle, Github } from "lucide-react";
+import { PortfolioList } from "@/components/PortfolioList";
 import { useParams } from "wouter";
 
 // 학생 공개 프로필 — 매칭 전 단계라 실명·연락처는 가리고, 학과·학년·스킬·신뢰배지만 노출.
@@ -42,7 +43,7 @@ export default function PublicProfile() {
             <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">
               <UserCircle className="h-7 w-7 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="font-bold">
                 {u.department || "학과 미입력"}
                 {u.year ? ` · ${u.year}학년` : ""}
@@ -52,6 +53,27 @@ export default function PublicProfile() {
               )}
             </div>
           </div>
+
+          {u.bio && <p className="text-[13px] leading-relaxed">{u.bio}</p>}
+
+          {u.githubUsername && (
+            <a
+              href={`https://github.com/${u.githubUsername}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
+            >
+              <Github className="h-4 w-4" />@{u.githubUsername}
+            </a>
+          )}
+
+          {/* 작업물 — 스킬 태그(자기신고)보다 강한 판단 재료라 위에 둔다 */}
+          {data.portfolio.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">작업물</p>
+              <PortfolioList items={data.portfolio} />
+            </div>
+          )}
 
           {data.badges.length > 0 && (
             <div>

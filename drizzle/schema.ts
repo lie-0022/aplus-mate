@@ -24,6 +24,9 @@ export const users = mysqlTable("users", {
   department: varchar("department", { length: 100 }),
   year: int("year"), // 1~4
   skillTags: json("skillTags").$type<string[]>().default([]),
+  // 매칭 판단용 — 스킬 태그(자기신고)만으론 빈약해서 실제 흔적을 붙인다.
+  githubUsername: varchar("githubUsername", { length: 39 }), // GitHub 최대 39자
+  bio: varchar("bio", { length: 200 }), // 한 줄 자기소개
   profileCompleted: boolean("profileCompleted").default(false).notNull(),
   // 회원 탈퇴 시각(소프트-파기). null이면 활성 계정.
   deletedAt: timestamp("deletedAt"),
@@ -620,3 +623,30 @@ export const courseFavorites = mysqlTable(
 );
 
 export type CourseFavorite = typeof courseFavorites.$inferSelect;
+
+// ─── Portfolio (매칭용 작업물) ──────────────────────────────
+// "이 사람이랑 팀 해도 되나"를 판단할 재료. 스킬 태그는 자기신고라 약하고,
+// 신뢰 배지는 팀플을 해봐야 생겨서 신규 유저는 빈손이다 — 실제 작업물로 메운다.
+// ⚠️파일 업로드는 안 쓴다(Manus Forge 잔재라 Render에선 불가) — 링크 중심.
+// 대신 GitHub 레포는 공개 API로 언어·스타·최근 푸시를 캐시해 '검증된' 신호로 만든다.
+export const portfolioItems = mysqlTable("portfolio_items", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 100 }).notNull(),
+  summary: varchar("summary", { length: 200 }), // 한 줄 설명
+  // 이 작업물에서 내가 맡은 것 — 팀 구성 시 제일 중요한 정보
+  role: varchar("role", { length: 50 }),
+  techTags: json("techTags").$type<string[]>().default([]),
+  repoUrl: varchar("repoUrl", { length: 300 }),
+  demoUrl: varchar("demoUrl", { length: 300 }),
+  // GitHub 공개 API 캐시 — repoUrl이 github이면 저장 시 채운다. 실패해도 항목은 저장된다.
+  ghStars: int("ghStars"),
+  ghLanguage: varchar("ghLanguage", { length: 40 }),
+  ghPushedAt: timestamp("ghPushedAt"),
+  ghSyncedAt: timestamp("ghSyncedAt"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PortfolioItem = typeof portfolioItems.$inferSelect;

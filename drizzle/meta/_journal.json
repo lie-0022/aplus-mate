@@ -232,6 +232,13 @@
       "when": 1784360173313,
       "tag": "0032_flimsy_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1784787870215,
+      "tag": "0033_lumpy_maverick",
+      "breakpoints": true
     }
   ]
 }

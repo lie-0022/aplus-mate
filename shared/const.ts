@@ -41,6 +41,12 @@ export const REVIEW_MIN_CONTENT_LEN = 30;
 // 내 후기 1개를 남기면 전체 열람. 에타 강의평과 같은 교환 구조.
 export const REVIEW_FREE_PEEK = 2;
 
+// 프로필에 등록할 수 있는 작업물(포트폴리오) 개수 상한.
+// 매칭 판단은 '많이'가 아니라 '뭘 맡았나'라 소수 정예가 낫고, 목록 렌더 부담도 막는다.
+export const MAX_PORTFOLIO_ITEMS = 6;
+// 작업물 하나에 붙일 기술 태그 상한.
+export const MAX_PORTFOLIO_TECH_TAGS = 8;
+
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';

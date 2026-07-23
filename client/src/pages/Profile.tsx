@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { COHORT_UNIVERSITIES, COHORT_DEPARTMENTS } from "@/lib/universities";
 import { parseSkillTags } from "@/lib/utils-parse";
 import { SkillTagsInput } from "@/components/SkillTagsInput";
+import { PortfolioEditor } from "@/components/PortfolioEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,8 @@ export default function Profile() {
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState("");
   const [skillTags, setSkillTags] = useState<string[]>([]);
+  const [githubUsername, setGithubUsername] = useState("");
+  const [bio, setBio] = useState("");
 
   const updateProfile = trpc.profile.update.useMutation({
     onSuccess: () => {
@@ -86,6 +89,8 @@ export default function Profile() {
       setDepartment(data.user.department || "");
       setYear(data.user.year?.toString() || "");
       setSkillTags(parseSkillTags(data.user.skillTags));
+      setGithubUsername(data.user.githubUsername || "");
+      setBio(data.user.bio || "");
     }
     setEditing(true);
   };
@@ -97,6 +102,8 @@ export default function Profile() {
       department: department.trim(),
       year: parseInt(year),
       skillTags,
+      githubUsername: githubUsername.trim().replace(/^@/, ""),
+      bio: bio.trim(),
     });
   };
 
@@ -186,13 +193,46 @@ export default function Profile() {
               </SelectContent>
             </Select>
           </div>
+          {/* 매칭 상대가 보는 정보 — 실명·연락처는 여전히 비공개 */}
+          <div className="space-y-1">
+            <Label className="text-xs">한 줄 소개</Label>
+            <Input
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="예: 프론트 위주로 하고, 맡은 건 끝까지 해요"
+              maxLength={200}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">GitHub 아이디</Label>
+            <Input
+              value={githubUsername}
+              onChange={(e) => setGithubUsername(e.target.value)}
+              placeholder="예: lie-0022"
+              maxLength={39}
+            />
+          </div>
         </div>
       ) : (
         <div className="space-y-2 text-sm">
+          {profile?.bio && <p className="text-[13px] leading-relaxed pb-1">{profile.bio}</p>}
           <div className="flex justify-between py-1.5 border-b">
             <span className="text-muted-foreground">학년</span>
             <span className="font-medium">{profile?.year}학년</span>
           </div>
+          {profile?.githubUsername && (
+            <div className="flex justify-between py-1.5 border-b">
+              <span className="text-muted-foreground">GitHub</span>
+              <a
+                href={`https://github.com/${profile.githubUsername}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium hover:underline"
+              >
+                @{profile.githubUsername}
+              </a>
+            </div>
+          )}
           <div className="flex justify-between py-1.5">
             <span className="text-muted-foreground">이메일</span>
             <span className="font-medium">{profile?.email || "-"}</span>
@@ -372,6 +412,8 @@ export default function Profile() {
         {/* MAIN */}
         <div className="space-y-4">
           {profileCardEl}
+          {/* 작업물이 스킬 태그(자기신고)보다 강한 매칭 재료라 위에 둔다 */}
+          <PortfolioEditor />
           {skillsEl}
           {myReviewsEl}
           {/* 모바일: 배지·탈퇴도 세로 스택 */}

@@ -144,6 +144,30 @@ describe("review peek gate", () => {
   });
 });
 
+// 작업물 링크는 남의 프로필에 앵커로 렌더된다 — javascript: 스킴이 통과하면
+// 클릭 한 번에 스크립트가 돈다. zod가 http(s)만 받는지 고정한다.
+describe("portfolio link safety", () => {
+  const caller = () => appRouter.createCaller(createAuthContext(createUser()));
+
+  it.each(["javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "file:///etc/passwd"])(
+    "rejects %s",
+    async (bad) => {
+      await expect(caller().portfolio.add({ title: "내 작업", repoUrl: bad })).rejects.toThrow();
+    }
+  );
+
+  it("rejects a title longer than the limit", async () => {
+    await expect(caller().portfolio.add({ title: "가".repeat(101) })).rejects.toThrow();
+  });
+
+  it("허용된 http(s) 링크는 zod를 통과한다(DB 없어 저장은 실패)", async () => {
+    // zod를 통과하면 db 레이어까지 가서 "데이터베이스에 연결할 수 없어요"로 실패한다.
+    await expect(
+      caller().portfolio.add({ title: "내 작업", repoUrl: "https://github.com/a/b" })
+    ).rejects.toThrow(/데이터베이스/);
+  });
+});
+
 describe("reviews", () => {
   it("upsert rejects content shorter than the minimum (zod)", async () => {
     const caller = appRouter.createCaller(createAuthContext(createUser()));

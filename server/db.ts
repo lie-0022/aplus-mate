@@ -32,6 +32,7 @@ import {
   timetableComments,
   reviewHelpful,
   courseFavorites,
+  portfolioItems,
   type Course,
   type InsertCourse,
 } from "../drizzle/schema";
@@ -42,6 +43,7 @@ import {
   CURRENT_SEMESTER,
   REVIEW_MIN_CONTENT_LEN,
   REVIEW_FREE_PEEK,
+  MAX_PORTFOLIO_ITEMS,
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
@@ -123,6 +125,8 @@ export async function updateUserProfile(
     year?: number;
     skillTags?: string[];
     name?: string;
+    githubUsername?: string;
+    bio?: string;
   }
 ) {
   const db = await getDb();
@@ -133,6 +137,9 @@ export async function updateUserProfile(
   if (data.year !== undefined) updateSet.year = data.year;
   if (data.skillTags !== undefined) updateSet.skillTags = data.skillTags;
   if (data.name !== undefined) updateSet.name = data.name;
+  // 빈 문자열은 "지움" — null로 저장해야 공개 프로필에서 빈 링크가 안 뜬다.
+  if (data.githubUsername !== undefined) updateSet.githubUsername = data.githubUsername || null;
+  if (data.bio !== undefined) updateSet.bio = data.bio || null;
 
   if (Object.keys(updateSet).length === 0) return;
 
@@ -4458,4 +4465,127 @@ export async function getOpenRecruitmentCountsForCourses(courseIds: number[]) {
     if (n > 0) out[req.id] = n;
   }
   return out;
+}
+
+// ─── Portfolio (매칭용 작업물) ──────────────────────────────
+// 스킬 태그는 자기신고, 신뢰 배지는 팀플을 해봐야 생긴다 — 신규 유저가 빈손이 되는 걸
+// 실제 작업물로 메운다. 파일 업로드는 안 쓰고(인프라 없음) 링크 중심.
+
+const GH_REPO_RE = /^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i;
+
+// GitHub 공개 API로 레포 실측치를 가져온다 — 자기신고가 아닌 '검증된' 신호.
+// 비인증 60req/h라 저장 시점에만 부르고 결과를 캐시한다. 실패는 무시(항목은 저장된다).
+async function fetchGithubRepoMeta(repoUrl: string | null | undefined) {
+  if (!repoUrl) return null;
+  const m = repoUrl.match(GH_REPO_RE);
+  if (!m) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${m[1]}/${m[2]}`, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "aplus-mate" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as {
+      stargazers_count?: number;
+      language?: string | null;
+      pushed_at?: string | null;
+      private?: boolean;
+    };
+    if (j.private) return null; // 비공개 레포는 남이 못 여니 신호가 아니다
+    return {
+      ghStars: j.stargazers_count ?? 0,
+      ghLanguage: j.language ?? null,
+      ghPushedAt: j.pushed_at ? new Date(j.pushed_at) : null,
+      ghSyncedAt: new Date(),
+    };
+  } catch {
+    return null; // 타임아웃·네트워크 실패 — 링크는 그대로 살린다
+  }
+}
+
+export async function listPortfolio(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(portfolioItems)
+    .where(eq(portfolioItems.userId, userId))
+    .orderBy(portfolioItems.sortOrder, desc(portfolioItems.createdAt));
+}
+
+export async function addPortfolioItem(
+  userId: number,
+  data: {
+    title: string;
+    summary?: string | null;
+    role?: string | null;
+    techTags?: string[];
+    repoUrl?: string | null;
+    demoUrl?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const existing = await db
+    .select({ c: count() })
+    .from(portfolioItems)
+    .where(eq(portfolioItems.userId, userId));
+  if (Number(existing[0]?.c ?? 0) >= MAX_PORTFOLIO_ITEMS) {
+    throw new Error(`작업물은 최대 ${MAX_PORTFOLIO_ITEMS}개까지 등록할 수 있어요.`);
+  }
+  const gh = await fetchGithubRepoMeta(data.repoUrl);
+  const result = await db.insert(portfolioItems).values({
+    userId,
+    title: data.title,
+    summary: data.summary ?? null,
+    role: data.role ?? null,
+    techTags: data.techTags ?? [],
+    repoUrl: data.repoUrl || null,
+    demoUrl: data.demoUrl || null,
+    ...(gh ?? {}),
+  });
+  return { id: result[0].insertId };
+}
+
+export async function updatePortfolioItem(
+  userId: number,
+  itemId: number,
+  data: {
+    title: string;
+    summary?: string | null;
+    role?: string | null;
+    techTags?: string[];
+    repoUrl?: string | null;
+    demoUrl?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("데이터베이스에 연결할 수 없어요.");
+  const gh = await fetchGithubRepoMeta(data.repoUrl);
+  await db
+    .update(portfolioItems)
+    .set({
+      title: data.title,
+      summary: data.summary ?? null,
+      role: data.role ?? null,
+      techTags: data.techTags ?? [],
+      repoUrl: data.repoUrl || null,
+      demoUrl: data.demoUrl || null,
+      // 레포가 바뀌었는데 조회 실패면 옛 캐시가 남아 오해를 부른다 → 비운다.
+      ghStars: gh?.ghStars ?? null,
+      ghLanguage: gh?.ghLanguage ?? null,
+      ghPushedAt: gh?.ghPushedAt ?? null,
+      ghSyncedAt: gh?.ghSyncedAt ?? null,
+    })
+    .where(and(eq(portfolioItems.id, itemId), eq(portfolioItems.userId, userId)));
+  return { ok: true };
+}
+
+export async function deletePortfolioItem(userId: number, itemId: number) {
+  const db = await getDb();
+  if (!db) return { ok: false };
+  await db
+    .delete(portfolioItems)
+    .where(and(eq(portfolioItems.id, itemId), eq(portfolioItems.userId, userId)));
+  return { ok: true };
 }

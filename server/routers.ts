@@ -1,4 +1,9 @@
-import { COOKIE_NAME, CURRENT_SEMESTER, REVIEW_MIN_CONTENT_LEN } from "@shared/const";
+import {
+  COOKIE_NAME,
+  CURRENT_SEMESTER,
+  REVIEW_MIN_CONTENT_LEN,
+  MAX_PORTFOLIO_TECH_TAGS,
+} from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -14,6 +19,27 @@ import { generateTeamReport } from "./aiReport";
 
 // 동의 버전 — 약관/개인정보처리방침 개정 시 올리면 재동의가 추적된다.
 const CURRENT_CONSENT_VERSION = "2026.1";
+
+// 작업물 링크 — http(s)만 받는다. javascript: 같은 스킴이 앵커 href로 들어가면
+// 클릭 한 번에 스크립트가 실행된다(프로필은 남에게 보이는 화면이라 더 위험).
+const HTTP_URL = z
+  .string()
+  .trim()
+  .max(300)
+  .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "http(s):// 로 시작하는 주소를 넣어주세요.")
+  .optional();
+
+const PORTFOLIO_INPUT = z.object({
+  title: z.string().trim().min(1).max(100),
+  summary: z.string().trim().max(200).optional(),
+  role: z.string().trim().max(50).optional(),
+  techTags: z
+    .array(z.string().trim().min(1).max(30))
+    .max(MAX_PORTFOLIO_TECH_TAGS)
+    .optional(),
+  repoUrl: HTTP_URL,
+  demoUrl: HTTP_URL,
+});
 
 // 교수 권한 헬퍼 — 해당 수업의 담당 교수(또는 admin)만 통과.
 async function assertOwnsCourse(userId: number, role: string, courseId: number) {
@@ -54,6 +80,14 @@ export const appRouter = router({
           year: z.number().min(1).max(6).optional(),
           // 개수·길이 상한으로 거대 페이로드를 차단한다(엣지 6-B)
           skillTags: z.array(z.string().trim().min(1).max(50)).max(30).optional(),
+          // 매칭 판단 재료 — 빈 문자열은 "지움"으로 받는다(null 저장).
+          githubUsername: z
+            .string()
+            .trim()
+            .max(39)
+            .regex(/^[A-Za-z0-9-]*$/, "GitHub 아이디 형식이 아니에요.")
+            .optional(),
+          bio: z.string().trim().max(200).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -75,18 +109,45 @@ export const appRouter = router({
               department: user.department,
               year: user.year,
               skillTags: user.skillTags,
+              // 매칭 판단 재료 — 실명·연락처는 여전히 가린다.
+              githubUsername: user.githubUsername,
+              bio: user.bio,
               profileCompleted: user.profileCompleted,
             },
             badges: userBadges,
+            portfolio: await db.listPortfolio(input.userId),
           };
         }
-        return { user: null, badges: [] };
+        return { user: null, badges: [], portfolio: [] };
       }),
     // 회원 탈퇴 — PII 익명화 + 활성 팀 정리 + pending 매칭 삭제
     deleteSelf: protectedProcedure.mutation(async ({ ctx }) => {
       await db.deleteSelf(ctx.user.id);
       return { success: true };
     }),
+  }),
+
+  // ─── Portfolio (매칭용 작업물) ─────────────────────────
+  portfolio: router({
+    mine: protectedProcedure.query(async ({ ctx }) => {
+      return db.listPortfolio(ctx.user.id);
+    }),
+    add: protectedProcedure
+      .input(PORTFOLIO_INPUT)
+      .mutation(async ({ ctx, input }) => {
+        return db.addPortfolioItem(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(PORTFOLIO_INPUT.extend({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return db.updatePortfolioItem(ctx.user.id, id, data);
+      }),
+    remove: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.deletePortfolioItem(ctx.user.id, input.id);
+      }),
   }),
 
   // ─── Dashboard ───────────────────────────────────────
