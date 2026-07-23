@@ -139,7 +139,8 @@ export default function Dashboard() {
           onClick={() => setLocation("/timetable")}
           aria-label="내 시간표 전체보기"
         >
-          <TimetableGrid blocks={ttBlocks} minPeriods={6} maxPeriods={9} rowHeight={30} />
+          {/* 히어로답게 /timetable과 같은 밀도로 — 압축하면 한 주가 눈에 안 들어온다 */}
+          <TimetableGrid blocks={ttBlocks} minPeriods={7} maxPeriods={10} rowHeight={48} />
         </button>
       )}
     </div>
@@ -357,11 +358,11 @@ export default function Dashboard() {
   return (
     <div className="space-y-4 mx-auto w-full max-w-[980px]">
       {greetingEl}
-      {/* 모바일: 시간표 → 피드 → 후기 CTA → 일정 → 내 수업 순서.
-          PC: LEFT(시간표·일정·내 수업) / RIGHT(피드·후기 CTA·추천). */}
+      {/* 시간표는 히어로 — PC에서도 2컬럼 위에서 전체 폭을 쓴다. */}
+      {timetableEl}
+      {/* 아래부터 2컬럼. 모바일은 피드 → 후기 CTA → 일정 → 내 수업 순서. */}
       <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr] lg:gap-6 lg:items-start">
         <div className="space-y-4 min-w-0">
-          {timetableEl}
           <div className="lg:hidden space-y-4">
             {feedEl}
             {reviewCtaEl}
