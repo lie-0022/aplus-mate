@@ -1226,12 +1226,12 @@ export default function CourseDetail() {
               <Textarea
                 value={revContent}
                 onChange={(e) => setRevContent(e.target.value)}
-                placeholder="후배들에게 도움이 되도록 팀플 난이도·과제량·시험·꿀팁 등을 자세히 남겨주세요 (3줄 이상)"
+                placeholder="팀플은 어땠는지, 과제·시험은 어느 정도인지 한두 줄이면 충분해요"
                 rows={4}
                 maxLength={500}
               />
               <p className="text-[11px] text-muted-foreground">
-                도움이 되는 후기를 위해 {REVIEW_MIN_CONTENT_LEN}자 이상 남겨주세요.
+                {REVIEW_MIN_CONTENT_LEN}자 이상이면 등록돼요. 익명이라 편하게 쓰셔도 돼요.
               </p>
             </div>
             <Button

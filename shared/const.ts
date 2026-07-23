@@ -32,8 +32,9 @@ export type TimetableDay = (typeof TIMETABLE_DAYS)[number];
 export const MAX_PERIOD = 14;
 
 // 리뷰 최소 글자 수 — "대충 별점만" 리뷰를 막는 품질 게이트(리워드 이벤트 대비).
-// 한줄평이 이 길이를 넘어야 등록된다. 3줄 상당(짧은 줄 3개 ≈ 40자).
-export const REVIEW_MIN_CONTENT_LEN = 40;
+// 한줄평이 이 길이를 넘어야 등록된다.
+// 40자로 시작했으나 에타 공개 후 지인 외 후기가 0이라 작성 마찰을 낮춰 30자로(2026-07-23).
+export const REVIEW_MIN_CONTENT_LEN = 30;
 
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
