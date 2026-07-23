@@ -36,6 +36,11 @@ export const MAX_PERIOD = 14;
 // 40자로 시작했으나 에타 공개 후 지인 외 후기가 0이라 작성 마찰을 낮춰 30자로(2026-07-23).
 export const REVIEW_MIN_CONTENT_LEN = 30;
 
+// 후기를 하나도 안 쓴 사람에게 공개하는 한줄평 개수(소프트 열람 게이트).
+// 별점·팀플 집계는 항상 공개 — 잠그는 건 남이 쓴 '문장'뿐이다.
+// 내 후기 1개를 남기면 전체 열람. 에타 강의평과 같은 교환 구조.
+export const REVIEW_FREE_PEEK = 2;
+
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';

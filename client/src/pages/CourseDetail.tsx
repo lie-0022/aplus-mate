@@ -37,6 +37,7 @@ import {
   Users,
   FileText,
   Flag,
+  Lock,
   Plus,
   Eye,
   Handshake,
@@ -571,8 +572,23 @@ export default function CourseDetail() {
                     />
                   )}
                 </div>
-                {r.content && (
-                  <p className="text-[13px] mt-1.5 whitespace-pre-wrap">{r.content}</p>
+                {r.contentLocked ? (
+                  // 소프트 열람 게이트 — 문장만 잠근다(별점·팀플 정보는 위에 그대로 보인다).
+                  // 서버가 본문을 아예 안 내려주므로 이건 안내 UI일 뿐이다.
+                  <button
+                    onClick={openReviewDialog}
+                    className="mt-1.5 w-full rounded-lg bg-muted/70 px-3 py-2.5 text-left flex items-center gap-2"
+                  >
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-[12px] text-muted-foreground leading-snug">
+                      후기 <span className="font-bold text-foreground">1개</span>만 남기면 이 수업의
+                      한줄평을 모두 볼 수 있어요
+                    </span>
+                  </button>
+                ) : (
+                  r.content && (
+                    <p className="text-[13px] mt-1.5 whitespace-pre-wrap">{r.content}</p>
+                  )
                 )}
                 <div className="flex items-center justify-between gap-2 mt-1.5">
                   <div className="text-[11px] text-muted-foreground">

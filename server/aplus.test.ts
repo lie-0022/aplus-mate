@@ -3,7 +3,8 @@ import { escapeHtml } from "./_core/googleAuth";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import type { User } from "../drizzle/schema";
-import { NOT_ADMIN_ERR_MSG } from "@shared/const";
+import { NOT_ADMIN_ERR_MSG, REVIEW_FREE_PEEK } from "@shared/const";
+import { applyReviewPeekGate } from "./db";
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -116,6 +117,33 @@ describe("courses", () => {
 });
 
 // 리뷰 품질 게이트 — 리워드 이벤트에서 성의 없는 리뷰(별점만) farming을 막는다.
+// 소프트 열람 게이트 — 후기를 안 쓴 사람은 남의 한줄평을 REVIEW_FREE_PEEK개까지만 본다.
+// 별점·팀플 집계는 이 함수를 안 거치므로 항상 공개된다(정책상 의도).
+describe("review peek gate", () => {
+  const mk = (id: number, isMine = false) => ({ id, isMine, content: `후기 본문 ${id}` });
+
+  it("후기를 쓴 사람에겐 전부 열린다", () => {
+    const out = applyReviewPeekGate([mk(1), mk(2), mk(3), mk(4)], true);
+    expect(out.every((r) => !r.contentLocked)).toBe(true);
+    expect(out.every((r) => r.content !== null)).toBe(true);
+  });
+
+  it("안 쓴 사람에겐 REVIEW_FREE_PEEK개까지만 본문이 보인다", () => {
+    const out = applyReviewPeekGate([mk(1), mk(2), mk(3), mk(4)], false);
+    const open = out.filter((r) => !r.contentLocked);
+    expect(open).toHaveLength(REVIEW_FREE_PEEK);
+    // 잠긴 건 본문이 서버에서 제거돼야 한다 — 클라이언트 블러만으론 새어나간다.
+    for (const r of out.filter((r) => r.contentLocked)) expect(r.content).toBeNull();
+  });
+
+  it("내 후기는 잠겨 있어도 항상 보이고, 무료 열람 몫을 쓰지 않는다", () => {
+    const out = applyReviewPeekGate([mk(1, true), mk(2), mk(3), mk(4)], false);
+    expect(out[0].contentLocked).toBe(false);
+    // 내 것 1 + 남의 것 REVIEW_FREE_PEEK개가 열려야 한다
+    expect(out.filter((r) => !r.contentLocked)).toHaveLength(REVIEW_FREE_PEEK + 1);
+  });
+});
+
 describe("reviews", () => {
   it("upsert rejects content shorter than the minimum (zod)", async () => {
     const caller = appRouter.createCaller(createAuthContext(createUser()));

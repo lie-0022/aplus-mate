@@ -41,6 +41,7 @@ import {
   MENTORING_MAX_MENTEES,
   CURRENT_SEMESTER,
   REVIEW_MIN_CONTENT_LEN,
+  REVIEW_FREE_PEEK,
   type MatchType,
   type MentoringRole,
 } from "@shared/const";
@@ -3905,7 +3906,22 @@ export async function getCourseReviews(
     }
   }
 
-  return rows
+  // ── 소프트 열람 게이트 ──
+  // 후기를 하나도 안 쓴 사람에겐 한줄평 '본문'을 REVIEW_FREE_PEEK개까지만 보여준다.
+  // 별점·팀플 집계(팀플 유무·인원·미리팀 허용)는 항상 공개 — 그게 이 서비스의 약속이고
+  // 수강신청 판단 재료다. 잠그는 건 남이 공들여 쓴 문장뿐. 에타 강의평과 같은 교환 구조.
+  // 내 후기는 언제나 보인다.
+  let unlocked = true;
+  if (viewerId != null) {
+    const mine = await db
+      .select({ id: courseReviews.id })
+      .from(courseReviews)
+      .where(eq(courseReviews.userId, viewerId))
+      .limit(1);
+    unlocked = mine.length > 0;
+  }
+
+  const sorted = rows
     .map((r) => ({
       id: r.id,
       rating: r.rating,
@@ -3925,6 +3941,26 @@ export async function getCourseReviews(
         ? +b.createdAt - +a.createdAt
         : b.helpfulCount - a.helpfulCount || +b.createdAt - +a.createdAt
     );
+
+  return applyReviewPeekGate(sorted, unlocked);
+}
+
+// 열람 게이트의 정책 부분만 분리 — DB 없이 테스트한다.
+// 규칙: 열려 있으면 전부 공개 / 잠겨 있으면 내 후기는 항상 + 남의 것 REVIEW_FREE_PEEK개까지.
+export function applyReviewPeekGate<T extends { isMine: boolean; content: string | null }>(
+  reviews: T[],
+  unlocked: boolean
+): (T & { contentLocked: boolean })[] {
+  if (unlocked) return reviews.map((r) => ({ ...r, contentLocked: false }));
+  let shown = 0;
+  return reviews.map((r) => {
+    if (r.isMine || shown < REVIEW_FREE_PEEK) {
+      if (!r.isMine) shown++;
+      return { ...r, contentLocked: false };
+    }
+    // 본문은 서버에서 아예 제거 — 클라이언트 블러는 가리는 시늉일 뿐이다.
+    return { ...r, content: null, contentLocked: true };
+  });
 }
 
 // ─── Course Favorites (관심 수업) ────────────────────────
